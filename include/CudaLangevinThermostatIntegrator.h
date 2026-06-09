@@ -38,6 +38,7 @@ public:
 
   CudaContainer<double> &getKineticEnergy(void);
   CudaContainer<double> &getAverageTemperature(void);
+  double getInstantaneousTemperature(void);
 
 public:
   void initialize(void) override;

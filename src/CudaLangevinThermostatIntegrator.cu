@@ -120,6 +120,12 @@ CudaLangevinThermostatIntegrator::getAverageTemperature(void) {
   return m_AverageTemperature;
 }
 
+double CudaLangevinThermostatIntegrator::getInstantaneousTemperature(void) {
+  const double ndegf = static_cast<double>(m_Context->getDegreesOfFreedom());
+  m_KineticEnergy.transferToHost();
+  return (m_KineticEnergy[0] / (0.5 * ndegf * charmm::constants::kBoltz));
+}
+
 __global__ static void UpdateSinglePrecisionCoordinatesKernel(
     float4 *__restrict__ xyzq, const double4 *__restrict__ coordsCharges,
     const int numAtoms) {

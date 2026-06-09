@@ -13,6 +13,7 @@ add_library(apocharmm_c SHARED
 
   # Integrators
   ${apoCHARMM_SOURCE_DIR}/capi/src/apocharmm_c/CudaIntegrator.cpp
+  ${apoCHARMM_SOURCE_DIR}/capi/src/apocharmm_c/CudaLangevinThermostatIntegrator.cpp
   ${apoCHARMM_SOURCE_DIR}/capi/src/apocharmm_c/CudaNoseHooverIntegrator.cpp
 
   # Subscribers

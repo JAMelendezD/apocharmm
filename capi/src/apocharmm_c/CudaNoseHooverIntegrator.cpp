@@ -139,6 +139,28 @@ extern "C" apo_status apo_cuda_nose_hoover_integrator_get_reference_temperature(
       function_name);
 }
 
+extern "C" apo_status
+apo_cuda_nose_hoover_integrator_get_nose_hoover_piston_mass(
+    double *mass, const apo_cuda_nose_hoover_integrator *integrator) {
+  const char *function_name =
+      "apo_cuda_nose_hoover_integrator_get_nose_hoover_piston_mass";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_cuda_nose_hoover_integrator>(
+                integrator, function_name, "CudaNoseHooverIntegrator"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_pointer<double>(mass, function_name, "mass"));
+
+        *mass = integrator->object->getNoseHooverPistonMass()[0];
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
 extern "C" apo_status apo_cuda_nose_hoover_integrator_get_average_temperature(
     double *temperature, const apo_cuda_nose_hoover_integrator *integrator) {
   const char *function_name =

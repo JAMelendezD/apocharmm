@@ -52,6 +52,10 @@ apo_cuda_nose_hoover_integrator_get_reference_temperature(
     double *temperature, const apo_cuda_nose_hoover_integrator *integrator);
 
 APOCHARMM_C_API apo_status
+apo_cuda_nose_hoover_integrator_get_nose_hoover_piston_mass(
+    double *mass, const apo_cuda_nose_hoover_integrator *integrator);
+
+APOCHARMM_C_API apo_status
 apo_cuda_nose_hoover_integrator_get_average_temperature(
     double *temperature, const apo_cuda_nose_hoover_integrator *integrator);
 

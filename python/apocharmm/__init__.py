@@ -17,6 +17,7 @@ from .charmm_parameters import CharmmParameters
 from .charmm_psf import CharmmPsf
 
 from .cuda_integrator import CudaIntegrator
+from .cuda_langevin_thermostat_integrator import CudaLangevinThermostatIntegrator
 from .cuda_nose_hoover_integrator import CudaNoseHooverIntegrator
 
 from .subscriber import Subscriber
@@ -35,6 +36,7 @@ __all__: list[str] = [
     "CharmmPsf",
     # Integrators
     "CudaIntegrator",
+    "CudaLangevinThermostatIntegrator",
     "CudaNoseHooverIntegrator",
     # Subscribers
     "Subscriber",

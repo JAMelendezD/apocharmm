@@ -95,6 +95,9 @@ set_target_properties(apoCHARMMlib PROPERTIES
   CUDA_ARCHITECTURES "60;70;80;90"
 )
 # set_target_properties(apoCHARMMlib PROPERTIES
+#   CUDA_ARCHITECTURES "native"
+# )
+# set_target_properties(apoCHARMMlib PROPERTIES
 #   CUDA_SEPARABLE_COMPILATION ON
 # )
 # set_target_properties(apoCHARMMlib PROPERTIES
