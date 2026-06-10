@@ -8,6 +8,18 @@ project(apoCHARMM
 # Only do these if this is the main project, and not if it is included through
 # add_subdirectory
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+  # Generate compile_commands.json by default for tools such as clangd.
+  # Useres can disable this with: -DCMAKE_EXPORT_COMPILE_COMMANDS=OFF
+  #
+  # If an old build directory has an empty cached value, treat that as
+  # "not configured" and reset it to the project default.
+  if(DEFINED CMAKE_EXPORT_COMPILE_COMMANDS AND
+      "${CMAKE_EXPORT_COMPILE_COMMANDS}" STREQUAL "")
+    unset(CMAKE_EXPORT_COMPILE_COMMANDS CACHE)
+  endif()
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL
+    "Export compile_commands.json for language servers")
+
   # Specify the C++ standard
   set(CMAKE_CXX_STANDARD 17)
   set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -36,6 +48,7 @@ endif()
 
 # CUDA Toolkit
 find_package(CUDAToolkit REQUIRED)
+set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_INCLUDES OFF)
 
 # Build the C++/CUDA apoCHARMM library
 add_subdirectory(${apoCHARMM_SOURCE_DIR}/src)

@@ -11,6 +11,7 @@ import ctypes
 
 from ._base import _ApoObject
 from ._lib import lib
+from .enums import PeriodicBoundaryCondition
 from .error import check_status
 
 from .charmm_crd import CharmmCrd
@@ -40,6 +41,12 @@ def _initialize_prototypes() -> None:
     ]
     lib().apo_charmm_context_set_coordinates.restype = ctypes.c_int
 
+    lib().apo_charmm_context_set_periodic_boundary_condition.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_int,
+    ]
+    lib().apo_charmm_context_set_periodic_boundary_condition.restype = ctypes.c_int
+
     lib().apo_charmm_context_set_random_seed_for_velocities.argtypes = [
         ctypes.c_void_p,
         ctypes.c_uint64,
@@ -51,6 +58,20 @@ def _initialize_prototypes() -> None:
         ctypes.c_bool,
     ]
     lib().apo_charmm_context_use_holonomic_constraints.restype = ctypes.c_int
+
+    lib().apo_charmm_context_get_box_dimensions.argtypes = [
+        ctypes.POINTER(ctypes.c_double),
+        ctypes.POINTER(ctypes.c_double),
+        ctypes.POINTER(ctypes.c_double),
+        ctypes.c_void_p,
+    ]
+    lib().apo_charmm_context_get_box_dimensions.restype = ctypes.c_int
+
+    lib().apo_charmm_context_get_periodic_boundary_condition.argtypes = [
+        ctypes.POINTER(ctypes.c_int),
+        ctypes.c_void_p,
+    ]
+    lib().apo_charmm_context_get_periodic_boundary_condition.restype = ctypes.c_int
 
     lib().apo_charmm_context_assign_velocities_at_temperature.argtypes = [
         ctypes.c_void_p,
@@ -109,6 +130,29 @@ class CharmmContext(_ApoObject):
 
         return
 
+    def setPeriodicBoundaryCondition(
+        self, pbc: PeriodicBoundaryCondition | int
+    ) -> None:
+        _initialize_prototypes()
+
+        if isinstance(pbc, bool):
+            raise TypeError("pbc must be a PeriodicBoundaryCondition")
+
+        try:
+            pbc_value: PeriodicBoundaryCondition = PeriodicBoundaryCondition(pbc)
+        except ValueError as exc:
+            raise ValueError(f"invalid pbc: {pbc!r}") from exc
+
+        c_pbc: ctypes.c_int = ctypes.c_int(int(pbc_value))
+
+        status = lib().apo_charmm_context_set_periodic_boundary_condition(
+            self.handle, c_pbc
+        )
+
+        check_status(status, "CharmmContext.setPeriodicBoundaryCondition(pbc) failed")
+
+        return
+
     def setRandomSeedForVelocities(self, seed: int) -> None:
         _initialize_prototypes()
 
@@ -142,6 +186,34 @@ class CharmmContext(_ApoObject):
         )
 
         return
+
+    def getBoxDimensions(self) -> tuple[float, float, float]:
+        _initialize_prototypes()
+
+        c_x: ctypes.c_double = ctypes.c_double()
+        c_y: ctypes.c_double = ctypes.c_double()
+        c_z: ctypes.c_double = ctypes.c_double()
+
+        status = lib().apo_charmm_context_get_box_dimensions(
+            ctypes.byref(c_x), ctypes.byref(c_y), ctypes.byref(c_z), self.handle
+        )
+
+        check_status(status, "CharmmContext.getBoxDimensions() failed")
+
+        return (float(c_x.value), float(c_y.value), float(c_z.value))
+
+    def getPeriodicBoundaryCondition(self) -> PeriodicBoundaryCondition:
+        _initialize_prototypes()
+
+        pbc = ctypes.c_int()
+
+        status = lib().apo_charmm_context_get_periodic_boundary_condition(
+            ctypes.byref(pbc), self.handle
+        )
+
+        check_status(status, "CharmmContext.getPeriodicBoundaryCondition() failed")
+
+        return PeriodicBoundaryCondition(pbc.value)
 
     def assignVelocitiesAtTemperature(self, temperature: float) -> None:
         _initialize_prototypes()

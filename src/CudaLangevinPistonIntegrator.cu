@@ -10,11 +10,7 @@
 #include "Constants.h"
 #include "CudaLangevinPistonIntegrator.h"
 #include "gpu_utils.h"
-#include <chrono>
-#include <iomanip>
-#include <iostream>
 #include <random>
-#include <sstream>
 
 /**
  * @brief Uses the BBK algorithm to update crystal dimensions for pressure
@@ -163,7 +159,7 @@ void CudaLangevinPistonIntegrator::useOldTemperature(
   return;
 }
 
-void CudaLangevinPistonIntegrator::setPressure(
+void CudaLangevinPistonIntegrator::setReferencePressure(
     const std::vector<double> &referencePressureTensor) {
   if (referencePressureTensor.size() != 9) {
     throw std::invalid_argument("CudaLangevinPistonIntegrator::setPressure: "
@@ -294,6 +290,10 @@ double CudaLangevinPistonIntegrator::getReferenceTemperature(void) const {
   return m_ReferenceTemperature;
 }
 
+bool CudaLangevinPistonIntegrator::usingOldTemperature(void) const {
+  return m_UsingOldTemperature;
+}
+
 const CudaContainer<double> &
 CudaLangevinPistonIntegrator::getNoseHooverPistonMass(void) const {
   return m_NoseHooverPistonMass;
@@ -334,23 +334,13 @@ CudaLangevinPistonIntegrator::getAverageTemperature(void) const {
   return m_AverageTemperature;
 }
 
-CRYSTAL CudaLangevinPistonIntegrator::getCrystalType(void) const {
-  return m_CrystalType;
-}
-
-std::uint64_t
-CudaLangevinPistonIntegrator::getLangevinPistonFrictionSeed(void) const {
-  return m_Seed;
-}
-
-unsigned long long int
-CudaLangevinPistonIntegrator::getRngSequencePos(void) const {
-  return m_RngSequencePos;
-}
-
 const CudaContainer<double> &
 CudaLangevinPistonIntegrator::getReferencePressureTensor(void) const {
   return m_ReferencePressureTensor;
+}
+
+CRYSTAL CudaLangevinPistonIntegrator::getCrystalType(void) const {
+  return m_CrystalType;
 }
 
 const CudaContainer<double> &
@@ -418,6 +408,16 @@ CudaLangevinPistonIntegrator::getAveragePressureTensor(void) const {
 const CudaContainer<double> &
 CudaLangevinPistonIntegrator::getAveragePressureScalar(void) const {
   return m_AveragePressureScalar;
+}
+
+std::uint64_t
+CudaLangevinPistonIntegrator::getLangevinPistonFrictionSeed(void) const {
+  return m_Seed;
+}
+
+unsigned long long int
+CudaLangevinPistonIntegrator::getRngSequencePos(void) const {
+  return m_RngSequencePos;
 }
 
 CudaContainer<double> &
@@ -1031,15 +1031,15 @@ __global__ static void InvertDeltaAsymmetricKernel(
   for (int i = idx; i < numGroups; i += stride) {
     const int2 group = groups[i];
 
-    float gx = 0.0f, gy = 0.0f, gz = 0.0f;
+    float gx = 0.0f; //, gy = 0.0f, gz = 0.0f;
     for (int j = group.x; j <= group.y; j++) {
       gx += xyzq[j].x;
-      gy += xyzq[j].y;
-      gz += xyzq[j].z;
+      // gy += xyzq[j].y;
+      // gz += xyzq[j].z;
     }
     gx /= static_cast<float>(group.y - group.x + 1);
-    gy /= static_cast<float>(group.y - group.x + 1);
-    gz /= static_cast<float>(group.y - group.x + 1);
+    // gy /= static_cast<float>(group.y - group.x + 1);
+    // gz /= static_cast<float>(group.y - group.x + 1);
 
     if ((gx > 0.5 * boxDimX) || (gx < -0.5 * boxDimX)) {
       for (int j = group.x; j <= group.y; j++) {

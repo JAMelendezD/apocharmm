@@ -7,8 +7,17 @@
 #
 # ENDLICENSE
 
-from collections.abc import Sequence
-import os
+from enum import IntEnum
 
-FilePath = str | bytes | os.PathLike[str] | os.PathLike[bytes]
-FilePaths = FilePath | list[FilePath] | tuple[FilePath, ...]
+
+class PeriodicBoundaryCondition(IntEnum):
+    NONE = 0
+    P1 = 1
+    P21 = 2
+
+
+class CrystalType(IntEnum):
+    NONE = 0
+    CUBIC = 1
+    TETRAGONAL = 2
+    ORTHORHOMBIC = 3

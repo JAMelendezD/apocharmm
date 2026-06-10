@@ -8,7 +8,6 @@
 // ENDLICENSE
 
 #include "apocharmm_c/CudaLangevinThermostatIntegrator.h"
-#include "apocharmm_c/detail/CharmmContextHandle.h"
 #include "apocharmm_c/detail/CudaLangevinThermostatIntegratorHandle.h"
 #include "apocharmm_c/detail/ErrorInternal.h"
 #include "apocharmm_c/detail/SubscriberHandle.h"

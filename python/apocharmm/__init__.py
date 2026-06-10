@@ -9,6 +9,8 @@
 
 from .error import ApoCharmmError
 
+from .enums import CrystalType, PeriodicBoundaryCondition
+
 from .charmm_context import CharmmContext
 from .force_manager import ForceManager
 
@@ -17,6 +19,7 @@ from .charmm_parameters import CharmmParameters
 from .charmm_psf import CharmmPsf
 
 from .cuda_integrator import CudaIntegrator
+from .cuda_langevin_piston_integrator import CudaLangevinPistonIntegrator
 from .cuda_langevin_thermostat_integrator import CudaLangevinThermostatIntegrator
 from .cuda_nose_hoover_integrator import CudaNoseHooverIntegrator
 
@@ -27,6 +30,9 @@ from .restart_subscriber import RestartSubscriber
 __all__: list[str] = [
     # Utility
     "ApoCharmmError",
+    # Enums
+    "CrystalType",
+    "PeriodicBoundaryCondition",
     # Manager objects
     "CharmmContext",
     "ForceManager",
@@ -36,6 +42,7 @@ __all__: list[str] = [
     "CharmmPsf",
     # Integrators
     "CudaIntegrator",
+    "CudaLangevinPistonIntegrator",
     "CudaLangevinThermostatIntegrator",
     "CudaNoseHooverIntegrator",
     # Subscribers

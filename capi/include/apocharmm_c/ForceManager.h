@@ -12,6 +12,7 @@
 
 #include "apocharmm_c/CharmmParameters.h"
 #include "apocharmm_c/CharmmPsf.h"
+#include "apocharmm_c/Enums.h"
 #include "apocharmm_c/Export.h"
 #include "apocharmm_c/Status.h"
 
@@ -31,6 +32,12 @@ apo_force_manager_destroy(apo_force_manager *force_manager);
 APOCHARMM_C_API apo_status apo_force_manager_set_box_dimensions(
     apo_force_manager *force_manager, const double x, const double y,
     const double z);
+
+APOCHARMM_C_API apo_status apo_force_manager_set_periodic_boundary_condition(
+    apo_force_manager *force_manager, const apo_pbc pbc);
+
+APOCHARMM_C_API apo_status apo_force_manager_get_periodic_boundary_condition(
+    apo_pbc *pbc, const apo_force_manager *force_manager);
 
 #ifdef __cplusplus
 }

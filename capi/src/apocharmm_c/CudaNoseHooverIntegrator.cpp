@@ -8,7 +8,6 @@
 // ENDLICENSE
 
 #include "apocharmm_c/CudaNoseHooverIntegrator.h"
-#include "apocharmm_c/detail/CharmmContextHandle.h"
 #include "apocharmm_c/detail/CudaNoseHooverIntegratorHandle.h"
 #include "apocharmm_c/detail/ErrorInternal.h"
 #include "apocharmm_c/detail/SubscriberHandle.h"

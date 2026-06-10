@@ -10,11 +10,9 @@
 #ifndef __APOCHARMM_C_CUDA_LANGEVIN_THERMOSTAT_INTEGRATOR_H__
 #define __APOCHARMM_C_CUDA_LANGEVIN_THERMOSTAT_INTEGRATOR_H__
 
-#include "apocharmm_c/CharmmContext.h"
 #include "apocharmm_c/CudaIntegrator.h"
 #include "apocharmm_c/Export.h"
 #include "apocharmm_c/Status.h"
-#include "apocharmm_c/Subscriber.h"
 
 #include <stdint.h>
 

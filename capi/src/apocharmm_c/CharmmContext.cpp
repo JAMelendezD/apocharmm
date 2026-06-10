@@ -10,6 +10,7 @@
 #include "apocharmm_c/CharmmContext.h"
 #include "apocharmm_c/detail/CharmmContextHandle.h"
 #include "apocharmm_c/detail/CharmmCrdHandle.h"
+#include "apocharmm_c/detail/EnumConversion.h"
 #include "apocharmm_c/detail/ErrorInternal.h"
 #include "apocharmm_c/detail/ForceManagerHandle.h"
 #include "apocharmm_c/detail/Validation.h"
@@ -70,6 +71,29 @@ apo_charmm_context_set_coordinates(apo_charmm_context *context,
 }
 
 extern "C" apo_status
+apo_charmm_context_set_periodic_boundary_condition(apo_charmm_context *context,
+                                                   const apo_pbc pbc) {
+  const char *function_name =
+      "apo_charmm_context_set_periodic_boundary_condition";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        PBC cpp_pbc = PBC::NONE;
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::to_pbc(&cpp_pbc, pbc, function_name));
+
+        context->object->setPeriodicBoundaryCondition(cpp_pbc);
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status
 apo_charmm_context_set_random_seed_for_velocities(apo_charmm_context *context,
                                                   const uint64_t seed) {
   const char *function_name =
@@ -101,6 +125,49 @@ extern "C" apo_status apo_charmm_context_use_holonomic_constraints(
         context->object->useHolonomicConstraints(useHolonomicConstraints);
 
         return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status
+apo_charmm_context_get_box_dimensions(double *x, double *y, double *z,
+                                      const apo_charmm_context *context) {
+  const char *function_name = "apo_charmm_context_get_box_dimensions";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        std::vector<double> box_dims = context->object->getBoxDimensions();
+
+        *x = box_dims[0];
+        *y = box_dims[1];
+        *z = box_dims[2];
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status apo_charmm_context_get_periodic_boundary_condition(
+    apo_pbc *pbc, const apo_charmm_context *context) {
+  const char *function_name =
+      "apo_charmm_context_get_periodic_boundary_condition";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_pointer<apo_pbc>(pbc, function_name, "pbc"));
+
+        return apocharmm_c::from_pbc(
+            pbc, context->object->getPeriodicBoundaryCondition(),
+            function_name);
       },
       function_name);
 }

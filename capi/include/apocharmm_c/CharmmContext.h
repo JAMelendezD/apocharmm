@@ -35,12 +35,21 @@ APOCHARMM_C_API void apo_charmm_context_destroy(apo_charmm_context *context);
 APOCHARMM_C_API apo_status apo_charmm_context_set_coordinates(
     apo_charmm_context *context, const apo_charmm_crd *crd);
 
+APOCHARMM_C_API apo_status apo_charmm_context_set_periodic_boundary_condition(
+    apo_charmm_context *context, const apo_pbc pbc);
+
 APOCHARMM_C_API apo_status apo_charmm_context_set_random_seed_for_velocities(
     apo_charmm_context *context, const uint64_t seed);
 
 APOCHARMM_C_API
 apo_status apo_charmm_context_use_holonomic_constraints(
     apo_charmm_context *context, const bool useHolonomicConstraints);
+
+APOCHARMM_C_API apo_status apo_charmm_context_get_box_dimensions(
+    double *x, double *y, double *z, const apo_charmm_context *context);
+
+APOCHARMM_C_API apo_status apo_charmm_context_get_periodic_boundary_condition(
+    apo_pbc *pbc, const apo_charmm_context *context);
 
 APOCHARMM_C_API apo_status apo_charmm_context_assign_velocities_at_temperature(
     apo_charmm_context *context, const double temperature);

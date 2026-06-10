@@ -197,7 +197,7 @@ class CudaLangevinThermostatIntegrator(CudaIntegrator):
         if isinstance(seed, bool) or seed < 0 or seed > 2**64 - 1:
             raise ValueError("seed must fit in uint64_t")
 
-        c_seed: ctyps.c_uint64 = ctypes.c_uint64(seed)
+        c_seed: ctypes.c_uint64 = ctypes.c_uint64(seed)
 
         status = lib().apo_cuda_langevin_thermostat_integrator_set_thermostat_rng_seed(
             self.handle, c_seed
@@ -272,7 +272,7 @@ class CudaLangevinThermostatIntegrator(CudaIntegrator):
             "CudaLangevinThermostatIntegrator.getThermostatRngSeed() failed",
         )
 
-        return float(seed.value)
+        return int(seed.value)
 
     def getAverageTemperature(self) -> float:
         _initialize_prototypes()

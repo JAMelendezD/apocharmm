@@ -10,6 +10,7 @@
 #include "apocharmm_c/ForceManager.h"
 #include "apocharmm_c/detail/CharmmParametersHandle.h"
 #include "apocharmm_c/detail/CharmmPsfHandle.h"
+#include "apocharmm_c/detail/EnumConversion.h"
 #include "apocharmm_c/detail/ErrorInternal.h"
 #include "apocharmm_c/detail/ForceManagerHandle.h"
 #include "apocharmm_c/detail/Validation.h"
@@ -71,6 +72,49 @@ apo_force_manager_set_box_dimensions(apo_force_manager *force_manager,
         force_manager->object->setBoxDimensions(box_dimensions);
 
         return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status apo_force_manager_set_periodic_boundary_condition(
+    apo_force_manager *force_manager, const apo_pbc pbc) {
+  const char *function_name =
+      "apo_force_manager_set_periodic_boundary_condition";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_force_manager>(
+                force_manager, function_name, "ForceManager"));
+
+        PBC cpp_pbc = PBC::NONE;
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::to_pbc(&cpp_pbc, pbc, function_name));
+
+        force_manager->object->setPeriodicBoundaryCondition(cpp_pbc);
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status apo_force_manager_get_periodic_boundary_condition(
+    apo_pbc *pbc, const apo_force_manager *force_manager) {
+  const char *function_name =
+      "apo_force_manager_get_periodic_boundary_condition";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_force_manager>(
+                force_manager, function_name, "ForceManager"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_pointer<apo_pbc>(pbc, function_name, "pbc"));
+
+        return apocharmm_c::from_pbc(
+            pbc, force_manager->object->getPeriodicBoundaryCondition(),
+            function_name);
       },
       function_name);
 }

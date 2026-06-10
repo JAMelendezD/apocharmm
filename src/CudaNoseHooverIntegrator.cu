@@ -11,7 +11,6 @@
 #include "Constants.h"
 #include "CudaNoseHooverIntegrator.h"
 #include "gpu_utils.h"
-#include <chrono>
 #include <iostream>
 #include <stdexcept>
 
@@ -623,15 +622,15 @@ __global__ static void InvertDeltaAsymmetricKernel(
   for (int i = idx; i < numGroups; i += stride) {
     const int2 group = groups[i];
 
-    float gx = 0.0f, gy = 0.0f, gz = 0.0f;
+    float gx = 0.0f; //, gy = 0.0f, gz = 0.0f;
     for (int j = group.x; j <= group.y; j++) {
       gx += xyzq[j].x;
-      gy += xyzq[j].y;
-      gz += xyzq[j].z;
+      // gy += xyzq[j].y;
+      // gz += xyzq[j].z;
     }
     gx /= static_cast<float>(group.y - group.x + 1);
-    gy /= static_cast<float>(group.y - group.x + 1);
-    gz /= static_cast<float>(group.y - group.x + 1);
+    // gy /= static_cast<float>(group.y - group.x + 1);
+    // gz /= static_cast<float>(group.y - group.x + 1);
 
     if ((gx > 0.5 * boxDimX) || (gx < -0.5 * boxDimX)) {
       for (int j = group.x; j <= group.y; j++) {

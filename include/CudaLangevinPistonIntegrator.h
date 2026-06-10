@@ -10,7 +10,6 @@
 
 #pragma once
 
-#include "CharmmContext.h"
 #include "CudaIntegrator.h"
 #include <cstdint>
 #include <curand_kernel.h>
@@ -34,7 +33,7 @@ public:
   setMaxPredictorCorrectorIterations(const int maxPredictorCorrectorIterations);
   void useOldTemperature(const bool usingOldTemperature);
 
-  void setPressure(const std::vector<double> &referencePressure);
+  void setReferencePressure(const std::vector<double> &referencePressure);
   void setConstantSurfaceTension(const bool constantSurfaceTensionFlag);
   void setCrystalType(const CRYSTAL crystalType);
   void setLangevinPistonMass(const std::vector<double> &mass);
@@ -45,6 +44,7 @@ public:
 
 public:
   double getReferenceTemperature(void) const;
+  bool usingOldTemperature(void) const;
   const CudaContainer<double> &getNoseHooverPistonMass(void) const;
   const CudaContainer<double> &getNoseHooverPistonVelocity(void) const;
   const CudaContainer<double> &getNoseHooverPistonVelocityPrevious(void) const;
@@ -55,8 +55,8 @@ public:
   const CudaContainer<double> &getAverageTemperature(void) const;
   const CudaContainer<double> &getAverageOldTemperature(void) const;
 
-  CRYSTAL getCrystalType(void) const;
   const CudaContainer<double> &getReferencePressureTensor(void) const;
+  CRYSTAL getCrystalType(void) const;
   const CudaContainer<double> &getLangevinPistonMass(void) const;
   const CudaContainer<double> &getLangevinPistonOnStepPosition(void) const;
   const CudaContainer<double> &getLangevinPistonHalfStepPosition(void) const;
@@ -72,6 +72,8 @@ public:
   const CudaContainer<double> &getInstantaneousPressureScalar(void) const;
   const CudaContainer<double> &getAveragePressureTensor(void) const;
   const CudaContainer<double> &getAveragePressureScalar(void) const;
+  std::uint64_t getLangevinPistonFrictionSeed(void) const;
+  unsigned long long int getRngSequencePos(void) const;
 
   CudaContainer<double> &getNoseHooverPistonMass(void);
   CudaContainer<double> &getNoseHooverPistonVelocity(void);
@@ -83,8 +85,6 @@ public:
   CudaContainer<double> &getAverageOldTemperature(void);
   double getInstantaneousTemperature(void);
 
-  std::uint64_t getLangevinPistonFrictionSeed(void) const;
-  unsigned long long int getRngSequencePos(void) const;
   CudaContainer<double> &getReferencePressureTensor(void);
   CudaContainer<double> &getLangevinPistonMass(void);
   CudaContainer<double> &getLangevinPistonOnStepPosition(void);

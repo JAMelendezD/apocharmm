@@ -7,11 +7,12 @@
 #
 # ENDLICENSE
 
+from collections.abc import Sequence
 import ctypes
 
 from ._base import _ApoObject
 from ._lib import lib
-from ._types import BoxDimensions
+from .enums import PeriodicBoundaryCondition
 from .error import check_status
 
 from .charmm_parameters import CharmmParameters
@@ -43,6 +44,18 @@ def _initialize_prototypes() -> None:
         ctypes.c_double,
     ]
     lib().apo_force_manager_set_box_dimensions.restype = ctypes.c_int
+
+    lib().apo_force_manager_set_periodic_boundary_condition.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_int,
+    ]
+    lib().apo_force_manager_set_periodic_boundary_condition.restype = ctypes.c_int
+
+    lib().apo_force_manager_get_periodic_boundary_condition.argtypes = [
+        ctypes.POINTER(ctypes.c_int),
+        ctypes.c_void_p,
+    ]
+    lib().apo_force_manager_get_periodic_boundary_condition.restype = ctypes.c_int
 
     _prototypes_initialized = True
 
@@ -82,7 +95,7 @@ class ForceManager(_ApoObject):
 
         return
 
-    def setBoxDimensions(self, box_dimensions: BoxDimensions) -> None:
+    def setBoxDimensions(self, box_dimensions: Sequence[float]) -> None:
         _initialize_prototypes()
 
         if len(box_dimensions) != 3:
@@ -103,3 +116,45 @@ class ForceManager(_ApoObject):
         check_status(status, "ForceManager.setBoxDimensions() failed")
 
         return
+
+    def setPeriodicBoundaryCondition(
+        self, pbc: PeriodicBoundaryCondition | int
+    ) -> None:
+        _initialize_prototypes()
+
+        if isinstance(pbc, bool):
+            raise TypeError("pbc must be a PeriodicBoundaryCondition")
+
+        try:
+            pbc_value: PeriodicBoundaryCondition = PeriodicBoundaryCondition(pbc)
+        except ValueError as exc:
+            raise ValueError(f"invalid pbc: {pbc!r}") from exc
+
+        c_pbc: ctypes.c_int = ctypes.c_int(int(pbc_value))
+
+        status = lib().apo_force_manager_set_periodic_boundary_condition(
+            self.handle, c_pbc
+        )
+
+        check_status(
+            status,
+            "ForceManager.setPeriodicBoundaryCondition(pbc) failed",
+        )
+
+        return
+
+    def getPeriodicBoundaryCondition(self) -> PeriodicBoundaryCondition:
+        _initialize_prototypes()
+
+        pbc = ctypes.c_int()
+
+        status = lib().apo_force_manager_get_periodic_boundary_condition(
+            ctypes.byref(pbc), self.handle
+        )
+
+        check_status(
+            status,
+            "ForceManager.getPeriodicBoundaryCondition() failed",
+        )
+
+        return PeriodicBoundaryCondition(pbc.value)
