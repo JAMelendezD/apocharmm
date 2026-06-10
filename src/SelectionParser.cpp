@@ -302,7 +302,7 @@ SelectionParser::expandByGroup(const AtomSelection &selection) const {
   AtomSelection expanded(m_Psf->getNumAtoms(),
                          AtomSelection::InitialValue::NONE);
 
-  const std::vector<int2> &groups = m_Psf->getResidues().getHostArray();
+  const std::vector<int2> &groups = m_Psf->getGroups().getHostArray();
 
   for (const int i : selection.getAtomIndices()) {
     const int j = m_GroupIndex[i];

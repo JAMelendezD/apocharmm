@@ -2,6 +2,10 @@ add_library(apocharmm_c SHARED
   # C ABI utility
   ${apoCHARMM_SOURCE_DIR}/capi/src/apocharmm_c/Error.cpp
 
+  # Atom selections
+  ${apoCHARMM_SOURCE_DIR}/capi/src/apocharmm_c/AtomSelection.cpp
+  ${apoCHARMM_SOURCE_DIR}/capi/src/apocharmm_c/AtomSelector.cpp
+
   # Manager objects
   ${apoCHARMM_SOURCE_DIR}/capi/src/apocharmm_c/CharmmContext.cpp
   ${apoCHARMM_SOURCE_DIR}/capi/src/apocharmm_c/ForceManager.cpp

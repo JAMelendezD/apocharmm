@@ -24,7 +24,7 @@ static std::vector<int> MakeRange(const int first, const int last) {
   return values;
 }
 
-TEST_CASE("nacl") {
+TEST_CASE("1lvz") {
   const std::string dataPath = getDataPath();
   auto psf = std::make_shared<CharmmPSF>(dataPath + "1lvz.psf");
 

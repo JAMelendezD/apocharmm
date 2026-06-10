@@ -11,6 +11,9 @@ from .error import ApoCharmmError
 
 from .enums import CrystalType, PeriodicBoundaryCondition
 
+from .atom_selection import AtomSelection
+from .atom_selector import AtomSelector
+
 from .charmm_context import CharmmContext
 from .force_manager import ForceManager
 
@@ -33,6 +36,9 @@ __all__: list[str] = [
     # Enums
     "CrystalType",
     "PeriodicBoundaryCondition",
+    # Atom selection
+    "AtomSelection",
+    "AtomSelector",
     # Manager objects
     "CharmmContext",
     "ForceManager",

@@ -1,0 +1,47 @@
+// BEGINLICENSE
+// This file is part of apoCHARMM, which is distributed under the BSD 3-clause
+// license, as described in the LICENSE file in the top level directory of this
+// project.
+//
+// Author: James E. Gonzales II
+//
+// ENDLICENSE
+
+#ifndef __APOCHARMM_C_ATOM_SELECTION_H__
+#define __APOCHARMM_C_ATOM_SELECTION_H__
+
+#include "apocharmm_c/Export.h"
+#include "apocharmm_c/Status.h"
+
+#include <stddef.h>
+
+#ifndef __cplusplus
+#include <stdbool.h>
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct apo_atom_selection apo_atom_selection;
+
+APOCHARMM_C_API void apo_atom_selection_destroy(apo_atom_selection *selection);
+
+APOCHARMM_C_API apo_status apo_atom_selection_get_num_atoms(
+    size_t *num_atoms, const apo_atom_selection *selection);
+
+APOCHARMM_C_API apo_status apo_atom_selection_get_num_selected(
+    size_t *num_selected, const apo_atom_selection *selection);
+
+APOCHARMM_C_API apo_status apo_atom_selection_get_atom_indices(
+    int *atom_indices, const size_t len, const apo_atom_selection *selection);
+
+APOCHARMM_C_API apo_status apo_atom_selection_contains(
+    bool *is_selected, const apo_atom_selection *selection,
+    const int atom_index);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
