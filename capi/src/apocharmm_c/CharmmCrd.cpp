@@ -40,7 +40,10 @@ extern "C" apo_status apo_charmm_crd_create(apo_charmm_crd **out,
       function_name);
 }
 
-extern "C" void apo_charmm_crd_destroy(apo_charmm_crd *crd) { delete crd; }
+extern "C" void apo_charmm_crd_destroy(apo_charmm_crd *crd) {
+  delete crd;
+  return;
+}
 
 extern "C" apo_status apo_charmm_crd_get_num_atoms(size_t *num_atoms,
                                                    const apo_charmm_crd *crd) {

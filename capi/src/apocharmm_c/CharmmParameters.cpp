@@ -77,4 +77,5 @@ apo_charmm_parameters_create_from_files(apo_charmm_parameters **out,
 extern "C" void
 apo_charmm_parameters_destroy(apo_charmm_parameters *parameters) {
   delete parameters;
+  return;
 }

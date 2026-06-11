@@ -45,6 +45,12 @@ APOCHARMM_C_API
 apo_status apo_charmm_context_use_holonomic_constraints(
     apo_charmm_context *context, const bool useHolonomicConstraints);
 
+APOCHARMM_C_API apo_status apo_charmm_context_get_num_atoms(
+    size_t *num_atoms, const apo_charmm_context *context);
+
+APOCHARMM_C_API apo_status apo_charmm_context_get_coordinates_charges(
+    double *xyzq, const size_t xyzq_len, const apo_charmm_context *context);
+
 APOCHARMM_C_API apo_status apo_charmm_context_get_box_dimensions(
     double *x, double *y, double *z, const apo_charmm_context *context);
 

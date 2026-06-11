@@ -21,6 +21,8 @@ from .charmm_crd import CharmmCrd
 from .charmm_parameters import CharmmParameters
 from .charmm_psf import CharmmPsf
 
+from .harmonic_restraint_force import HarmonicRestraintForce
+
 from .cuda_integrator import CudaIntegrator
 from .cuda_langevin_piston_integrator import CudaLangevinPistonIntegrator
 from .cuda_langevin_thermostat_integrator import CudaLangevinThermostatIntegrator
@@ -46,6 +48,8 @@ __all__: list[str] = [
     "CharmmCrd",
     "CharmmParameters",
     "CharmmPsf",
+    # Forces and restraints
+    "HarmonicRestraintForce",
     # Integrators
     "CudaIntegrator",
     "CudaLangevinPistonIntegrator",

@@ -130,6 +130,72 @@ extern "C" apo_status apo_charmm_context_use_holonomic_constraints(
 }
 
 extern "C" apo_status
+apo_charmm_context_get_num_atoms(size_t *num_atoms,
+                                 const apo_charmm_context *context) {
+  const char *function_name = "apo_charmm_context_get_num_atoms";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<size_t>(
+            num_atoms, function_name, "num_atoms"));
+
+        *num_atoms = 0;
+
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        const int n = context->object->getNumAtoms();
+
+        if (n < 0) {
+          return apocharmm_c::set_last_error(
+              APO_STATUS_RUNTIME_ERROR,
+              "apo_charmm_context_get_num_atoms: CharmmContext returned a "
+              "negative atom count");
+        }
+
+        *num_atoms = static_cast<size_t>(n);
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status
+apo_charmm_context_get_coordinates_charges(double *xyzq, const size_t xyzq_len,
+                                           const apo_charmm_context *context) {
+  const char *function_name = "apo_charmm_context_get_coordinates_charges";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        CudaContainer<double4> &coordinatesCharges =
+            context->object->getCoordinatesCharges();
+        const size_t num_atoms = coordinatesCharges.size();
+        const size_t req_len = 4 * num_atoms;
+
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_output_buffer<double>(
+            xyzq, xyzq_len, req_len, function_name,
+            "Coordinate and charge output buffer"));
+
+        coordinatesCharges.transferToHost();
+
+        for (size_t i = 0; i < num_atoms; i++) {
+          xyzq[i * 4 + 0] = coordinatesCharges[i].x;
+          xyzq[i * 4 + 1] = coordinatesCharges[i].y;
+          xyzq[i * 4 + 2] = coordinatesCharges[i].z;
+          xyzq[i * 4 + 3] = coordinatesCharges[i].w;
+        }
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status
 apo_charmm_context_get_box_dimensions(double *x, double *y, double *z,
                                       const apo_charmm_context *context) {
   const char *function_name = "apo_charmm_context_get_box_dimensions";

@@ -17,6 +17,7 @@
 
 extern "C" void apo_atom_selection_destroy(apo_atom_selection *selection) {
   delete selection;
+  return;
 }
 
 extern "C" apo_status

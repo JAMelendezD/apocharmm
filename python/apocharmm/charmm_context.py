@@ -59,6 +59,19 @@ def _initialize_prototypes() -> None:
     ]
     lib().apo_charmm_context_use_holonomic_constraints.restype = ctypes.c_int
 
+    lib().apo_charmm_context_get_num_atoms.argtypes = [
+        ctypes.POINTER(ctypes.c_size_t),
+        ctypes.c_void_p,
+    ]
+    lib().apo_charmm_context_get_num_atoms.restype = ctypes.c_int
+
+    lib().apo_charmm_context_get_coordinates_charges.argtypes = [
+        ctypes.POINTER(ctypes.c_double),
+        ctypes.c_size_t,
+        ctypes.c_void_p,
+    ]
+    lib().apo_charmm_context_get_coordinates_charges.restype = ctypes.c_int
+
     lib().apo_charmm_context_get_box_dimensions.argtypes = [
         ctypes.POINTER(ctypes.c_double),
         ctypes.POINTER(ctypes.c_double),
@@ -186,6 +199,48 @@ class CharmmContext(_ApoObject):
         )
 
         return
+
+    def getNumAtoms(self) -> int:
+        _initialize_prototypes()
+
+        num_atoms = ctypes.c_size_t()
+
+        status = lib().apo_charmm_context_get_num_atoms(
+            ctypes.byref(num_atoms), self.handle
+        )
+
+        check_status(status, "CharmmContext.getNumAtoms() failed")
+
+        return int(num_atoms.value)
+
+    def getCoordinatesCharges(self) -> list[list[float]]:
+        _initialize_prototypes()
+
+        num_atoms: int = self.getNumAtoms()
+        buffer_len: int = 4 * num_atoms
+        c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(buffer_len)
+
+        buffer_type = ctypes.c_double * buffer_len
+        buffer = buffer_type()
+
+        status = lib().apo_charmm_context_get_coordinates_charges(
+            buffer, c_buffer_len, self.handle
+        )
+
+        check_status(status, "CharmmContext.getCoordinatesCharges() failed")
+
+        coordinates_charges: list[list[float]] = []
+        for i in range(num_atoms):
+            coordinates_charges.append(
+                [
+                    float(buffer[i * 4 + 0]),
+                    float(buffer[i * 4 + 1]),
+                    float(buffer[i * 4 + 2]),
+                    float(buffer[i * 4 + 3]),
+                ]
+            )
+
+        return coordinates_charges
 
     def getBoxDimensions(self) -> tuple[float, float, float]:
         _initialize_prototypes()

@@ -40,7 +40,10 @@ extern "C" apo_status apo_charmm_psf_create(apo_charmm_psf **out,
       function_name);
 }
 
-extern "C" void apo_charmm_psf_destroy(apo_charmm_psf *psf) { delete psf; }
+extern "C" void apo_charmm_psf_destroy(apo_charmm_psf *psf) {
+  delete psf;
+  return;
+}
 
 extern "C" apo_status apo_charmm_psf_get_num_atoms(size_t *num_atoms,
                                                    const apo_charmm_psf *psf) {

@@ -9,6 +9,7 @@
 
 from collections.abc import Sequence
 import ctypes
+from typing import Protocol, cast
 
 from ._base import _ApoObject
 from ._lib import lib
@@ -19,6 +20,16 @@ from .charmm_parameters import CharmmParameters
 from .charmm_psf import CharmmPsf
 
 _prototypes_initialized: bool = False
+
+
+class _SubscribableForce(Protocol):
+    def _subscribe_to_force_manager(
+        self, force_manager: "ForceManager", force_tag: str | None = None
+    ) -> None:
+        return
+
+    def _unsubscribe_from_force_manager(self, force_manager: "ForceManager") -> None:
+        return
 
 
 def _initialize_prototypes() -> None:
@@ -92,6 +103,61 @@ class ForceManager(_ApoObject):
 
         self._psf: CharmmPsf = psf
         self._parameters: CharmmParameters = parameters
+        self._subscribed_forces: list[_SubscribableForce] = []
+
+        return
+
+    def close(self) -> None:
+        super().close()
+
+        if hasattr(self, "_subscribed_forces"):
+            self._subscribed_forces = []
+
+        return
+
+    def subscribe(
+        self, force: _SubscribableForce, force_tag: str | None = None
+    ) -> None:
+        _initialize_prototypes()
+
+        if force_tag is not None and not isinstance(force_tag, str):
+            raise TypeError("force_tag must be a str")
+
+        if force_tag == "":
+            raise ValueError("force_tag must not be empty")
+
+        subscribe_method = getattr(force, "_subscribe_to_force_manager", None)
+        if not callable(subscribe_method):
+            raise TypeError(
+                "ForceManager.subscribe expects an object with _subscribe_to_force_manager(force_manager, force_tag)"
+            )
+
+        if any(existing_force is force for existing_force in self._subscribed_forces):
+            raise ValueError("force is already subscribed to this ForceManager")
+
+        subscribable_force: _SubscribableForce = cast(_SubscribableForce, force)
+        subscribable_force._subscribe_to_force_manager(self, force_tag)
+
+        self._subscribed_forces.append(subscribable_force)
+
+        return
+
+    def unsubscribe(self, force: _SubscribableForce) -> None:
+        _initialize_prototypes()
+
+        unsubscribe_method = getattr(force, "_unsubscribe_from_force_manager", None)
+        if not callable(unsubscribe_method):
+            raise TypeError(
+                "ForceManager.unsubscribe expects an object with _unsubscribe_from_force_manager(force_manager)"
+            )
+
+        subscribable_force: _SubscribableForce = cast(_SubscribableForce, force)
+        subscribable_force._unsubscribe_from_force_manager(self)
+
+        for index, existing_force in enumerate(self._subscribed_forces):
+            if existing_force is force:
+                del self._subscribed_forces[index]
+                break
 
         return
 

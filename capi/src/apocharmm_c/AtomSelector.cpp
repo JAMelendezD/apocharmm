@@ -46,6 +46,7 @@ extern "C" apo_status apo_atom_selector_create(apo_atom_selector **out,
 
 extern "C" void apo_atom_selector_destroy(apo_atom_selector *selector) {
   delete selector;
+  return;
 }
 
 extern "C" apo_status

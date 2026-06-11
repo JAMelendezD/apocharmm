@@ -15,6 +15,9 @@ add_library(apocharmm_c SHARED
   ${apoCHARMM_SOURCE_DIR}/capi/src/apocharmm_c/CharmmParameters.cpp
   ${apoCHARMM_SOURCE_DIR}/capi/src/apocharmm_c/CharmmPsf.cpp
 
+  # Forces and restraints
+  ${apoCHARMM_SOURCE_DIR}/capi/src/apocharmm_c/HarmonicRestraintForce.cpp
+
   # Integrators
   ${apoCHARMM_SOURCE_DIR}/capi/src/apocharmm_c/CudaIntegrator.cpp
   ${apoCHARMM_SOURCE_DIR}/capi/src/apocharmm_c/CudaLangevinPistonIntegrator.cpp
