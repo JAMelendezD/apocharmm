@@ -51,6 +51,9 @@ extern "C" apo_status apo_dcd_subscriber_create_with_report_frequency(
         APOCHARMM_C_RETURN_IF_ERROR(
             apocharmm_c::require_c_string(path, function_name, "path"));
 
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_positive_int(
+            report_frequency, function_name, "report_frequency"));
+
         std::unique_ptr<apo_dcd_subscriber> handle(new apo_dcd_subscriber());
         handle->object = std::make_shared<DcdSubscriber>(std::string(path),
                                                          report_frequency);

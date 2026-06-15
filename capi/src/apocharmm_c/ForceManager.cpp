@@ -57,8 +57,8 @@ extern "C" void apo_force_manager_destroy(apo_force_manager *force_manager) {
 
 extern "C" apo_status
 apo_force_manager_set_box_dimensions(apo_force_manager *force_manager,
-                                     const double x, const double y,
-                                     const double z) {
+                                     const double *box_dimensions,
+                                     const size_t box_dimensions_len) {
   const char *function_name = "apo_force_manager_set_box_dimensions";
 
   return apocharmm_c::guard(
@@ -67,9 +67,18 @@ apo_force_manager_set_box_dimensions(apo_force_manager *force_manager,
             apocharmm_c::require_handle_object<apo_force_manager>(
                 force_manager, function_name, "ForceManager handle"));
 
-        const std::vector<double> box_dimensions = {x, y, z};
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<double>(
+            box_dimensions, function_name, "box_dimensions"));
 
-        force_manager->object->setBoxDimensions(box_dimensions);
+        if (box_dimensions_len != 3) {
+          return apocharmm_c::invalid_argument(
+              function_name, "box_dimensions must contain exactly 3 elements");
+        }
+
+        const std::vector<double> cpp_box_dimensions = {
+            box_dimensions[0], box_dimensions[1], box_dimensions[2]};
+
+        force_manager->object->setBoxDimensions(cpp_box_dimensions);
 
         return APO_STATUS_OK;
       },

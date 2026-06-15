@@ -88,6 +88,9 @@ apo_cuda_integrator_propagate(apo_cuda_integrator *integrator,
             apocharmm_c::require_handle_object<apo_cuda_integrator>(
                 integrator, function_name, "CudaIntegrator"));
 
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_positive_int(
+            num_steps, function_name, "num_steps"));
+
         integrator->object->propagate(num_steps);
 
         return APO_STATUS_OK;

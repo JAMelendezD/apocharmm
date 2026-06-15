@@ -109,9 +109,11 @@ void CudaLangevinPistonIntegrator::setReferenceTemperature(
     const double referenceTemperature) {
   m_ReferenceTemperature = referenceTemperature;
 
-  // If the temperature changes, the friction variables need to be updated
-  double oldGamma = m_Pgamma;
-  this->setLangevinPistonFriction(oldGamma);
+  if (m_LangevinPistonDegreesOfFreedom != -1) {
+    // If the temperature changes, the friction variables need to be updated
+    double oldGamma = m_Pgamma;
+    this->setLangevinPistonFriction(oldGamma);
+  }
 
   return;
 }

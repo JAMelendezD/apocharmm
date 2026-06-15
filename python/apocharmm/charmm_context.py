@@ -74,8 +74,7 @@ def _initialize_prototypes() -> None:
 
     lib().apo_charmm_context_get_box_dimensions.argtypes = [
         ctypes.POINTER(ctypes.c_double),
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.POINTER(ctypes.c_double),
+        ctypes.c_size_t,
         ctypes.c_void_p,
     ]
     lib().apo_charmm_context_get_box_dimensions.restype = ctypes.c_int
@@ -148,9 +147,6 @@ class CharmmContext(_ApoObject):
     ) -> None:
         _initialize_prototypes()
 
-        if isinstance(pbc, bool):
-            raise TypeError("pbc must be a PeriodicBoundaryCondition")
-
         try:
             pbc_value: PeriodicBoundaryCondition = PeriodicBoundaryCondition(pbc)
         except ValueError as exc:
@@ -169,7 +165,7 @@ class CharmmContext(_ApoObject):
     def setRandomSeedForVelocities(self, seed: int) -> None:
         _initialize_prototypes()
 
-        if isinstance(seed, bool) or seed < 0 or seed > 2**64 - 1:
+        if seed < 0 or seed > 2**64 - 1:
             raise ValueError("seed must fit in uint64_t")
 
         c_seed: ctypes.c_uint64 = ctypes.c_uint64(seed)
@@ -182,28 +178,21 @@ class CharmmContext(_ApoObject):
 
         return
 
-    def useHolonomicConstraints(self, use_holonomic_constraints: bool) -> None:
+    def useHolonomicConstraints(self, flag: bool) -> None:
         _initialize_prototypes()
 
-        c_use_holonomic_constraints: ctypes.c_bool = ctypes.c_bool(
-            use_holonomic_constraints
-        )
+        c_flag: ctypes.c_bool = ctypes.c_bool(flag)
 
-        status = lib().apo_charmm_context_use_holonomic_constraints(
-            self.handle, c_use_holonomic_constraints
-        )
+        status = lib().apo_charmm_context_use_holonomic_constraints(self.handle, c_flag)
 
-        check_status(
-            status,
-            "CharmmContext.useHolonomicConstraints(useHolonomicConstraints) failed",
-        )
+        check_status(status, "CharmmContext.useHolonomicConstraints(flag) failed")
 
         return
 
     def getNumAtoms(self) -> int:
         _initialize_prototypes()
 
-        num_atoms = ctypes.c_size_t()
+        num_atoms: ctypes.c_size_t = ctypes.c_size_t()
 
         status = lib().apo_charmm_context_get_num_atoms(
             ctypes.byref(num_atoms), self.handle
@@ -217,58 +206,61 @@ class CharmmContext(_ApoObject):
         _initialize_prototypes()
 
         num_atoms: int = self.getNumAtoms()
-        buffer_len: int = 4 * num_atoms
-        c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(buffer_len)
 
-        buffer_type = ctypes.c_double * buffer_len
-        buffer = buffer_type()
+        c_buffer_type = ctypes.c_double * (num_atoms * 4)
+        c_buffer = c_buffer_type()
+        c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(num_atoms * 4)
 
         status = lib().apo_charmm_context_get_coordinates_charges(
-            buffer, c_buffer_len, self.handle
+            c_buffer, c_buffer_len, self.handle
         )
 
         check_status(status, "CharmmContext.getCoordinatesCharges() failed")
 
-        coordinates_charges: list[list[float]] = []
+        xyzq: list[list[float]] = []
         for i in range(num_atoms):
-            coordinates_charges.append(
+            xyzq.append(
                 [
-                    float(buffer[i * 4 + 0]),
-                    float(buffer[i * 4 + 1]),
-                    float(buffer[i * 4 + 2]),
-                    float(buffer[i * 4 + 3]),
+                    float(c_buffer[i * 4 + 0]),
+                    float(c_buffer[i * 4 + 1]),
+                    float(c_buffer[i * 4 + 2]),
+                    float(c_buffer[i * 4 + 3]),
                 ]
             )
 
-        return coordinates_charges
+        return xyzq
 
-    def getBoxDimensions(self) -> tuple[float, float, float]:
+    def getBoxDimensions(self) -> list[float]:
         _initialize_prototypes()
 
-        c_x: ctypes.c_double = ctypes.c_double()
-        c_y: ctypes.c_double = ctypes.c_double()
-        c_z: ctypes.c_double = ctypes.c_double()
+        c_buffer_type = ctypes.c_double * 3
+        c_buffer = c_buffer_type()
+        c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(3)
 
         status = lib().apo_charmm_context_get_box_dimensions(
-            ctypes.byref(c_x), ctypes.byref(c_y), ctypes.byref(c_z), self.handle
+            c_buffer, c_buffer_len, self.handle
         )
 
         check_status(status, "CharmmContext.getBoxDimensions() failed")
 
-        return (float(c_x.value), float(c_y.value), float(c_z.value))
+        box_dimensions: list[float] = []
+        for i in range(3):
+            box_dimensions.append(float(c_buffer[0]))
+
+        return box_dimensions
 
     def getPeriodicBoundaryCondition(self) -> PeriodicBoundaryCondition:
         _initialize_prototypes()
 
-        pbc = ctypes.c_int()
+        c_pbc = ctypes.c_int()
 
         status = lib().apo_charmm_context_get_periodic_boundary_condition(
-            ctypes.byref(pbc), self.handle
+            ctypes.byref(c_pbc), self.handle
         )
 
         check_status(status, "CharmmContext.getPeriodicBoundaryCondition() failed")
 
-        return PeriodicBoundaryCondition(pbc.value)
+        return PeriodicBoundaryCondition(c_pbc.value)
 
     def assignVelocitiesAtTemperature(self, temperature: float) -> None:
         _initialize_prototypes()
@@ -288,12 +280,12 @@ class CharmmContext(_ApoObject):
     def computeTemperature(self) -> float:
         _initialize_prototypes()
 
-        temperature = ctypes.c_double()
+        c_temperature = ctypes.c_double()
 
         status = lib().apo_charmm_context_compute_temperature(
-            ctypes.byref(temperature), self.handle
+            ctypes.byref(c_temperature), self.handle
         )
 
         check_status(status, "CharmmContext.computeTemperature() failed")
 
-        return float(temperature.value)
+        return float(c_temperature.value)

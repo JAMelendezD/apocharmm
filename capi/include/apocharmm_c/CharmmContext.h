@@ -15,6 +15,7 @@
 #include "apocharmm_c/ForceManager.h"
 #include "apocharmm_c/Status.h"
 
+#include <stddef.h>
 #include <stdint.h>
 
 #ifndef __cplusplus
@@ -52,7 +53,8 @@ APOCHARMM_C_API apo_status apo_charmm_context_get_coordinates_charges(
     double *xyzq, const size_t xyzq_len, const apo_charmm_context *context);
 
 APOCHARMM_C_API apo_status apo_charmm_context_get_box_dimensions(
-    double *x, double *y, double *z, const apo_charmm_context *context);
+    double *box_dimensions, const size_t box_dimensions_len,
+    const apo_charmm_context *context);
 
 APOCHARMM_C_API apo_status apo_charmm_context_get_periodic_boundary_condition(
     apo_pbc *pbc, const apo_charmm_context *context);

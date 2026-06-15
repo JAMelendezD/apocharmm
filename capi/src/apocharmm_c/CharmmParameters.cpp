@@ -53,6 +53,11 @@ apo_charmm_parameters_create_from_files(apo_charmm_parameters **out,
             apocharmm_c::prepare_output_pointer<apo_charmm_parameters>(
                 out, function_name, "out"));
 
+        if (num_paths == 0) {
+          return apocharmm_c::invalid_argument(
+              function_name, "paths must contain at least one parameter file");
+        }
+
         APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<const char *>(
             paths, function_name, "paths"));
 

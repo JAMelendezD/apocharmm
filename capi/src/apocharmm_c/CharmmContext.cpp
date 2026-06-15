@@ -196,7 +196,8 @@ apo_charmm_context_get_coordinates_charges(double *xyzq, const size_t xyzq_len,
 }
 
 extern "C" apo_status
-apo_charmm_context_get_box_dimensions(double *x, double *y, double *z,
+apo_charmm_context_get_box_dimensions(double *box_dimensions,
+                                      const size_t box_dimensions_len,
                                       const apo_charmm_context *context) {
   const char *function_name = "apo_charmm_context_get_box_dimensions";
 
@@ -208,9 +209,19 @@ apo_charmm_context_get_box_dimensions(double *x, double *y, double *z,
 
         std::vector<double> box_dims = context->object->getBoxDimensions();
 
-        *x = box_dims[0];
-        *y = box_dims[1];
-        *z = box_dims[2];
+        if (box_dims.size() != 3) {
+          return apocharmm_c::set_last_error(
+              APO_STATUS_RUNTIME_ERROR,
+              "apo_charmm_context_get_box_dimensions: CharmmContext did not "
+              "return exactly 3 box dimensions");
+        }
+
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_output_buffer<double>(
+            box_dimensions, box_dimensions_len, 3, function_name,
+            "Box dimension buffer"));
+
+        for (size_t i = 0; i < 3; i++)
+          box_dimensions[i] = box_dims[i];
 
         return APO_STATUS_OK;
       },

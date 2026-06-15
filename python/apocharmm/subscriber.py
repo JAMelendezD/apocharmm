@@ -71,12 +71,12 @@ class Subscriber(_ApoObject):
     def getReportFrequency(self) -> int:
         _initialize_prototypes()
 
-        report_frequency = ctypes.c_int()
+        c_report_frequency = ctypes.c_int()
 
         status = lib().apo_subscriber_get_report_frequency(
-            ctypes.byref(report_frequency), self.subscriber_handle
+            ctypes.byref(c_report_frequency), self.subscriber_handle
         )
 
         check_status(status, "Subscriber.getReportFrequency() failed")
 
-        return int(report_frequency.value)
+        return int(c_report_frequency.value)

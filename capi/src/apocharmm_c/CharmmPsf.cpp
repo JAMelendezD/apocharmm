@@ -367,7 +367,7 @@ extern "C" apo_status apo_charmm_psf_get_atom_types(char *atyps,
             atomtypes.size(); // Assume that each atom type is 8 characters max
 
         APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_output_buffer<char>(
-            atyps, len, req_len, function_name, "Atom name buffer"));
+            atyps, len, req_len, function_name, "Atom type buffer"));
 
         for (size_t i = 0; i < atomtypes.size(); i++) {
           for (size_t j = 0; j < 8; j++) {
@@ -421,7 +421,7 @@ extern "C" apo_status apo_charmm_psf_get_masses(double *masses,
         const size_t req_len = amass.size();
 
         APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_output_buffer<double>(
-            masses, len, req_len, function_name, "Charge buffer"));
+            masses, len, req_len, function_name, "Mass buffer"));
 
         for (size_t i = 0; i < amass.size(); i++)
           masses[i] = amass[i];

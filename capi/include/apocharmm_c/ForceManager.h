@@ -16,6 +16,8 @@
 #include "apocharmm_c/Export.h"
 #include "apocharmm_c/Status.h"
 
+#include <stddef.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -30,8 +32,8 @@ APOCHARMM_C_API void
 apo_force_manager_destroy(apo_force_manager *force_manager);
 
 APOCHARMM_C_API apo_status apo_force_manager_set_box_dimensions(
-    apo_force_manager *force_manager, const double x, const double y,
-    const double z);
+    apo_force_manager *force_manager, const double *box_dimensions,
+    const size_t box_dimensions_len);
 
 APOCHARMM_C_API apo_status apo_force_manager_set_periodic_boundary_condition(
     apo_force_manager *force_manager, const apo_pbc pbc);

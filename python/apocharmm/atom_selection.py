@@ -76,48 +76,47 @@ class AtomSelection(_ApoObject):
     def getNumAtoms(self) -> int:
         _initialize_prototypes()
 
-        num_atoms: ctypes.c_size_t = ctypes.c_size_t()
+        c_num_atoms: ctypes.c_size_t = ctypes.c_size_t()
 
         status = lib().apo_atom_selection_get_num_atoms(
-            ctypes.byref(num_atoms), self.handle
+            ctypes.byref(c_num_atoms), self.handle
         )
 
         check_status(status, "AtomSelection.getNumAtoms() failed")
 
-        return int(num_atoms.value)
+        return int(c_num_atoms.value)
 
     def getNumSelected(self) -> int:
         _initialize_prototypes()
 
-        num_selected: ctypes.c_size_t = ctypes.c_size_t()
+        c_num_selected: ctypes.c_size_t = ctypes.c_size_t()
 
         status = lib().apo_atom_selection_get_num_selected(
-            ctypes.byref(num_selected), self.handle
+            ctypes.byref(c_num_selected), self.handle
         )
 
         check_status(status, "AtomSelection.getNumSelected() failed")
 
-        return int(num_selected.value)
+        return int(c_num_selected.value)
 
     def getAtomIndices(self) -> list[int]:
         _initialize_prototypes()
 
         num_selected: int = self.getNumSelected()
-        buffer_len: int = num_selected
-        c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(buffer_len)
 
-        buffer_type = ctypes.c_int * buffer_len
-        buffer = buffer_type()
+        c_buffer_type = ctypes.c_int * num_selected
+        c_buffer = c_buffer_type()
+        c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(num_selected)
 
         status = lib().apo_atom_selection_get_atom_indices(
-            buffer, c_buffer_len, self.handle
+            c_buffer, c_buffer_len, self.handle
         )
 
         check_status(status, "AtomSelection.getAtomIndices() failed")
 
         atom_indices: list[int] = []
         for i in range(num_selected):
-            atom_indices.append(int(buffer[i]))
+            atom_indices.append(int(c_buffer[i]))
 
         return atom_indices
 
@@ -126,6 +125,9 @@ class AtomSelection(_ApoObject):
 
         if not isinstance(atom_index, int) or isinstance(atom_index, bool):
             raise TypeError("atom_index must be an int")
+
+        if atom_index < 0 or atom_index > 2**31 - 1:
+            raise ValueError("atom_index must fit in non-negative int")
 
         c_is_selected: ctypes.c_bool = ctypes.c_bool()
         c_atom_index: ctypes.c_int = ctypes.c_int(atom_index)

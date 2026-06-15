@@ -8,6 +8,10 @@ set -e
 # If any of the tests in this script FAIL, DO NOT PUSH YOUR CHANGES TO THE
 # GITHUB REPOSITORY!
 
+echo "###################"
+echo "#### C++ TESTS ####"
+echo "########################################################################"
+
 echo "./bin/unittest-deviceVector"
 ./bin/unittest-deviceVector
 
@@ -34,3 +38,19 @@ rm -rf waterbox_1_s_new.dcd waterbox_1_s_old.dcd
 
 # unittest-restart
 rm -rf tmpNoseHoover.rst tmpLangevinPiston.rst tmpLangevinThermostat.rst
+
+echo "##########################"
+echo "#### Python API TESTS ####"
+echo "########################################################################"
+
+echo "python3 test/pytest/python_api_core.py"
+python3 test/pytest/python_api_core.py
+
+echo -e "\npython3 test/pytest/python_api_validation.py"
+python3 test/pytest/python_api_validation.py
+
+echo -e "\npython3 test/pytest/python_api_integrators.py"
+python3 test/pytest/python_api_integrators.py
+
+echo -e "\npython3 test/pytest/python_api_subscribers.py"
+python3 test/pytest/python_api_subscribers.py

@@ -129,7 +129,7 @@ class CudaIntegrator(_ApoObject):
     def propagate(self, num_steps: int) -> None:
         _initialize_prototypes()
 
-        if isinstance(num_steps, bool) or num_steps < 0 or num_steps > 2**31 - 1:
+        if num_steps < 0 or num_steps > 2**31 - 1:
             raise ValueError("num_steps must fit in non-negative int")
 
         c_num_steps: ctypes.c_int = ctypes.c_int(num_steps)

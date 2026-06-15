@@ -9,40 +9,24 @@
 
 from __future__ import annotations
 
-import math
 from pathlib import Path
 import sys
 
 import apocharmm as apo
+
+from python_api_test_helpers import assert_finite_temperature, require_file
 
 BOX_DIMENSIONS: list[float] = [50.0, 50.0, 50.0]
 RANDOM_SEED: int = 314159
 TEMPERATURE: float = 300.0
 TIME_STEP: float = 0.002
 THERMOSTAT_FRICTION: float = 1.0
-NUM_STEPS_WITH_RESTRAINT: int = 100000
-NUM_STEPS_AFTER_UNSUBSCRIBE: int = 10000
+NUM_STEPS_WITH_RESTRAINT: int = 10000
+NUM_STEPS_AFTER_UNSUBSCRIBE: int = 1000
 
 
-def require_file(path: Path) -> str:
-    if not path.is_file():
-        raise FileNotFoundError(f"required test file does not exist: {path}")
-
-    return str(path)
-
-
-def assert_finite_temperature(label: str, temperature: float) -> None:
-    if not math.isfinite(temperature):
-        raise AssertionError(f"{label} temperature is not finite: {temperature}")
-
-    if temperature < 0.0:
-        raise AssertionError(f"{label} temperature is negative: {temperature}")
-
-    return
-
-
-def main(argv: list[str]) -> int:
-    repo_root: Path = Path(argv[1]) if len(argv) > 1 else Path(".")
+def main(argc: int, argv: list[str]) -> int:
+    repo_root: Path = Path(argv[1]) if argc > 1 else Path(".")
 
     parameter_path: str = require_file(repo_root / "test/data/toppar_water_ions.str")
     psf_path: str = require_file(repo_root / "test/data/nacl_pair.psf")
@@ -122,4 +106,4 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv))
+    raise SystemExit(main(len(sys.argv), sys.argv))

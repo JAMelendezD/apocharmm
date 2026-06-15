@@ -23,6 +23,9 @@ apo_subscriber_set_report_frequency(apo_subscriber *subscriber,
             apocharmm_c::require_handle_object<apo_subscriber>(
                 subscriber, function_name, "Subscriber"));
 
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_positive_int(
+            report_frequency, function_name, "report_frequency"));
+
         subscriber->object->setReportFrequency(report_frequency);
 
         return APO_STATUS_OK;

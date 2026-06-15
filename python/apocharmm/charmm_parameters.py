@@ -54,9 +54,6 @@ class CharmmParameters(_ApoObject):
         handle: ctypes.c_void_p = ctypes.c_void_p()
 
         if isinstance(paths, (list, tuple)):
-            if len(paths) == 0:
-                raise ValueError("CharmmParameters requires at least one file")
-
             encoded_paths: list[bytes] = [encode_path(path) for path in paths]
             num_paths: int = len(encoded_paths)
             c_num_paths: ctypes.c_size_t = ctypes.c_size_t(num_paths)
@@ -81,7 +78,7 @@ class CharmmParameters(_ApoObject):
 
         if handle.value is None:
             raise RuntimeError(
-                "{} returned success but prodced a NULL handle".format(function_name)
+                "{} returned success but produced a NULL handle".format(function_name)
             )
 
         self._handle = handle

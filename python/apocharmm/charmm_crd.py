@@ -78,27 +78,28 @@ class CharmmCrd(_ApoObject):
     def getNumAtoms(self) -> int:
         _initialize_prototypes()
 
-        num_atoms = ctypes.c_size_t()
+        c_num_atoms = ctypes.c_size_t()
 
         status = lib().apo_charmm_crd_get_num_atoms(
-            ctypes.byref(num_atoms), self.handle
+            ctypes.byref(c_num_atoms), self.handle
         )
 
         check_status(status, "CharmmCrd.getNumAtoms() failed")
 
-        return int(num_atoms.value)
+        return int(c_num_atoms.value)
 
     def getCoordinates(self) -> list[list[float]]:
         _initialize_prototypes()
 
         num_atoms: int = self.getNumAtoms()
-        buffer_len: int = 3 * num_atoms
-        c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(buffer_len)
 
-        buffer_type = ctypes.c_double * buffer_len
-        buffer = buffer_type()
+        c_buffer_type = ctypes.c_double * (num_atoms * 3)
+        c_buffer = c_buffer_type()
+        c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(num_atoms * 3)
 
-        status = lib().apo_charmm_crd_get_coordinates(buffer, c_buffer_len, self.handle)
+        status = lib().apo_charmm_crd_get_coordinates(
+            c_buffer, c_buffer_len, self.handle
+        )
 
         check_status(status, "CharmmCrd.getCoordinates() failed")
 
@@ -106,9 +107,9 @@ class CharmmCrd(_ApoObject):
         for i in range(num_atoms):
             coordinates.append(
                 [
-                    float(buffer[i * 3 + 0]),
-                    float(buffer[i * 3 + 1]),
-                    float(buffer[i * 3 + 2]),
+                    float(c_buffer[i * 3 + 0]),
+                    float(c_buffer[i * 3 + 1]),
+                    float(c_buffer[i * 3 + 2]),
                 ]
             )
 

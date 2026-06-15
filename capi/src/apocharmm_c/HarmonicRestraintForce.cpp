@@ -27,13 +27,12 @@ apo_harmonic_restraint_force_create(apo_harmonic_restraint_force **out,
 
   return apocharmm_c::guard(
       [&](void) -> apo_status {
-        apocharmm_c::prepare_output_pointer<apo_harmonic_restraint_force>(
-            out, function_name, "out");
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::prepare_output_pointer<apo_harmonic_restraint_force>(
+                out, function_name, "out"));
 
-        if (num_atoms <= 0) {
-          return apocharmm_c::invalid_argument(function_name,
-                                               "num_atoms must be positive");
-        }
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_positive_int(
+            num_atoms, function_name, "num_atoms"));
 
         std::unique_ptr<apo_harmonic_restraint_force> handle(
             new apo_harmonic_restraint_force());

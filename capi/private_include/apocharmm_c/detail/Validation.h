@@ -22,7 +22,7 @@ namespace apocharmm_c {
 inline apo_status invalid_argument(const char *function_name,
                                    const std::string &message) {
   return set_last_error(APO_STATUS_INVALID_ARGUMENT,
-                        std::string(function_name) + ":" + message);
+                        std::string(function_name) + ": " + message);
 }
 
 template <typename T>
@@ -45,6 +45,16 @@ inline apo_status require_c_string(const char *value, const char *function_name,
 
   return invalid_argument(function_name,
                           std::string(argument_name) + " is NULL or empty");
+}
+
+inline apo_status require_positive_int(const int value,
+                                       const char *function_name,
+                                       const char *argument_name) {
+  if (value > 0)
+    return APO_STATUS_OK;
+
+  return invalid_argument(function_name,
+                          std::string(argument_name) + " must be positive");
 }
 
 template <typename T>
@@ -75,7 +85,7 @@ apo_status require_handle_object(const T *handle, const char *function_name,
     return APO_STATUS_OK;
 
   return invalid_argument(function_name,
-                          std::string(handle_name) + " object is NULLx");
+                          std::string(handle_name) + " object is NULL");
 }
 
 template <typename T>

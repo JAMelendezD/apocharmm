@@ -99,7 +99,7 @@ class HarmonicRestraintForce(_ApoObject):
     def __init__(self, num_atoms: int) -> None:
         super().__init__()
 
-        if isinstance(num_atoms, bool) or not isinstance(num_atoms, int):
+        if not isinstance(num_atoms, int):
             raise TypeError("num_atoms must be an int")
 
         if num_atoms <= 0 or num_atoms > 2**31 - 1:
@@ -147,16 +147,7 @@ class HarmonicRestraintForce(_ApoObject):
     def setForceConstant(self, force_constant: float) -> None:
         _initialize_prototypes()
 
-        if isinstance(force_constant, bool):
-            raise TypeError("force_constant must be a float, not bool")
-
-        if not math.isfinite(force_constant):
-            raise ValueError("force_constant must be finite")
-
-        if force_constant < 0.0:
-            raise ValueError("force_constant must be non-negative")
-
-        c_force_constant: ctypes.c_double = ctypes.c_double(force_constant)
+        c_force_constant: ctypes.c_double = ctypes.c_double(float(force_constant))
 
         status = lib().apo_harmonic_restraint_force_set_force_constant(
             self.handle, c_force_constant
@@ -171,19 +162,14 @@ class HarmonicRestraintForce(_ApoObject):
     def setForceConstants(self, force_constants: Sequence[float]) -> None:
         _initialize_prototypes()
 
-        if isinstance(force_constants, (str, bytes, bytearray)):
-            raise TypeError("force_constants must be a sequence of floats")
+        force_constant_values: list[float] = [float(value) for value in force_constants]
 
-        for index, value in enumerate(force_constants):
-            if isinstance(value, bool):
-                raise TypeError(f"force_constants[{index}] must be a float, not bool")
-
-        buffer_type = ctypes.c_double * len(force_constants)
-        c_force_constants = buffer_type(*force_constants)
-        c_force_constants_len: ctypes.c_size_t = ctypes.c_size_t(len(force_constants))
+        c_buffer_type = ctypes.c_double * len(force_constant_values)
+        c_buffer = c_buffer_type(*force_constant_values)
+        c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(len(force_constant_values))
 
         status = lib().apo_harmonic_restraint_force_set_force_constants(
-            self.handle, c_force_constants, c_force_constants_len
+            self.handle, c_buffer, c_buffer_len
         )
 
         check_status(
@@ -197,45 +183,29 @@ class HarmonicRestraintForce(_ApoObject):
     ) -> None:
         _initialize_prototypes()
 
-        if isinstance(reference_coordinates, (str, bytes, bytearray)):
-            raise TypeError(
-                "reference_coordinates must be a sequence of 3-element coordinate sequences"
-            )
-
         flattened_coordinates: list[float] = []
 
-        for index, coordinate in enumerate(reference_coordinates):
-            if isinstance(coordinate, (str, bytes, bytearray)):
-                raise TypeError(
-                    f"reference_coordinates[{index}] must be a 3-element sequence"
-                )
+        for i, coordinate in enumerate(reference_coordinates):
+            coordinate_values: list[float] = [float(value) for value in coordinate]
 
-            if len(coordinate) != 3:
+            if len(coordinate_values) != 3:
                 raise ValueError(
-                    f"reference_coordinates[{index}] must contain exactly 3 elements"
+                    f"reference_coordinates[{i}] must contain exactly 3 elements"
                 )
 
-            for component, value in enumerate(coordinate):
-                if isinstance(value, bool):
-                    raise TypeError(
-                        f"reference_coordinates[{index}][{component}] must be a float, not bool"
-                    )
+            flattened_coordinates.extend(coordinate_values)
 
-                flattened_coordinates.append(float(value))
-
-        buffer_type = ctypes.c_double * len(flattened_coordinates)
-        c_reference_coordinates = buffer_type(*flattened_coordinates)
-        c_reference_coordinates_len: ctypes.c_size_t = ctypes.c_size_t(
-            len(flattened_coordinates)
-        )
+        c_buffer_type = ctypes.c_double * len(flattened_coordinates)
+        c_buffer = c_buffer_type(*flattened_coordinates)
+        c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(len(flattened_coordinates))
 
         status = lib().apo_harmonic_restraint_force_set_reference_coordinates(
-            self.handle, c_reference_coordinates, c_reference_coordinates_len
+            self.handle, c_buffer, c_buffer_len
         )
 
         check_status(
             status,
-            "HarmonicRestraintForce.setReferenceCoordiantes(reference_coordinates) failed",
+            "HarmonicRestraintForce.setReferenceCoordinates(reference_coordinates) failed",
         )
 
         return
@@ -243,19 +213,14 @@ class HarmonicRestraintForce(_ApoObject):
     def setMasses(self, masses: Sequence[float]) -> None:
         _initialize_prototypes()
 
-        if isinstance(masses, (str, bytes, bytearray)):
-            raise TypeError("masses must be a sequence of floats")
+        mass_values: list[float] = [float(value) for value in masses]
 
-        for index, value in enumerate(masses):
-            if isinstance(value, bool):
-                raise TypeError(f"masses[{index}] must be a float, not bool")
-
-        buffer_type = ctypes.c_double * len(masses)
-        c_masses = buffer_type(*masses)
-        c_masses_len: ctypes.c_size_t = ctypes.c_size_t(len(masses))
+        c_buffer_type = ctypes.c_double * len(mass_values)
+        c_buffer = c_buffer_type(*mass_values)
+        c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(len(mass_values))
 
         status = lib().apo_harmonic_restraint_force_set_masses(
-            self.handle, c_masses, c_masses_len
+            self.handle, c_buffer, c_buffer_len
         )
 
         check_status(status, "HarmonicRestraintForce.setMasses(masses) failed")
@@ -265,28 +230,14 @@ class HarmonicRestraintForce(_ApoObject):
     def setBoxDimensions(self, box_dimensions: Sequence[float]) -> None:
         _initialize_prototypes()
 
-        if isinstance(box_dimensions, (str, bytes, bytearray)):
-            raise TypeError("box_dimensions must be a 3-element sequence of floats")
+        box_values: list[float] = [float(value) for value in box_dimensions]
 
-        if len(box_dimensions) != 3:
-            raise ValueError("box_dimensions must contain exactly 3 elements")
-
-        for index, value in enumerate(box_dimensions):
-            if isinstance(value, bool):
-                raise TypeError(f"box_dimensions[{index}] must be a float, not bool")
-
-            if not math.isfinite(value):
-                raise ValueError(f"box_dimensions[{index}] must be finite")
-
-            if value <= 0.0:
-                raise ValueError(f"box_dimensions[{index}] must be positive")
-
-        buffer_type = ctypes.c_double * 3
-        c_box_dimensions = buffer_type(*box_dimensions)
-        c_box_dimensions_len: ctypes.c_size_t = ctypes.c_size_t(len(box_dimensions))
+        c_buffer_type = ctypes.c_double * len(box_values)
+        c_buffer = c_buffer_type(*box_values)
+        c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(len(box_values))
 
         status = lib().apo_harmonic_restraint_force_set_box_dimensions(
-            self.handle, c_box_dimensions, c_box_dimensions_len
+            self.handle, c_buffer, c_buffer_len
         )
 
         check_status(

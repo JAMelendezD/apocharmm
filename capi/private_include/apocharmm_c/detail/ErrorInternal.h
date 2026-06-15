@@ -31,7 +31,8 @@ apo_status guard(Function &&function, const char *function_name) noexcept {
   try {
     return function();
   } catch (const std::exception &e) {
-    return set_last_error(APO_STATUS_RUNTIME_ERROR, e.what());
+    return set_last_error(APO_STATUS_RUNTIME_ERROR,
+                          std::string(function_name) + ": " + e.what());
   } catch (...) {
     return set_last_error(APO_STATUS_RUNTIME_ERROR,
                           std::string(function_name) +

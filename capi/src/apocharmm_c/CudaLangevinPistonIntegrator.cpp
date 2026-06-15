@@ -395,7 +395,7 @@ apo_cuda_langevin_piston_integrator_get_reference_pressure_tensor(
         if (reference_pressure_tensor.size() != req_len) {
           return apocharmm_c::set_last_error(
               APO_STATUS_RUNTIME_ERROR,
-              "apo_cuda_langevin_piston_integrator_get_refrence_pressure_"
+              "apo_cuda_langevin_piston_integrator_get_reference_pressure_"
               "tensor: reference pressure tensor does not contain 9 elements");
         }
 

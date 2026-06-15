@@ -180,6 +180,9 @@ void HarmonicRestraintForce<AT, CT>::setBoxDimensions(
       (m_BoxDimensions[2] == boxDimensions[2]))
     return;
 
+  // JEG260615: After some thought, I am not entirely convinced this is correct.
+  // So I have commented it out.
+  /* *
   if ((m_BoxDimensions[0] != 0.0) && (m_BoxDimensions[1] != 0.0) &&
       (m_BoxDimensions[2] != 0.0)) {
     // JEG260512: This only works for cubic, tetragonal, and orthorhombic boxes.
@@ -196,6 +199,7 @@ void HarmonicRestraintForce<AT, CT>::setBoxDimensions(
     }
     m_ReferenceCoordinates.transferToDevice();
   }
+  * */
 
   m_BoxDimensions = boxDimensions;
 

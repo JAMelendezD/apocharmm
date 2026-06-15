@@ -194,7 +194,7 @@ class CudaLangevinThermostatIntegrator(CudaIntegrator):
     def setThermostatRngSeed(self, seed: int) -> None:
         _initialize_prototypes()
 
-        if isinstance(seed, bool) or seed < 0 or seed > 2**64 - 1:
+        if seed < 0 or seed > 2**64 - 1:
             raise ValueError("seed must fit in uint64_t")
 
         c_seed: ctypes.c_uint64 = ctypes.c_uint64(seed)
@@ -204,7 +204,7 @@ class CudaLangevinThermostatIntegrator(CudaIntegrator):
         )
 
         check_status(
-            status, "CudaLangevinThermostatIntegrator.setThermostatRngSeed(seed) faield"
+            status, "CudaLangevinThermostatIntegrator.setThermostatRngSeed(seed) failed"
         )
 
         return
@@ -227,11 +227,11 @@ class CudaLangevinThermostatIntegrator(CudaIntegrator):
     def getReferenceTemperature(self) -> float:
         _initialize_prototypes()
 
-        reference_temperature = ctypes.c_double()
+        c_temperature = ctypes.c_double()
 
         status = (
             lib().apo_cuda_langevin_thermostat_integrator_get_reference_temperature(
-                ctypes.byref(reference_temperature), self.handle
+                ctypes.byref(c_temperature), self.handle
             )
         )
 
@@ -240,15 +240,15 @@ class CudaLangevinThermostatIntegrator(CudaIntegrator):
             "CudaLangevinThermostatIntegrator.getReferenceTemperature() failed",
         )
 
-        return float(reference_temperature.value)
+        return float(c_temperature.value)
 
     def getThermostatFriction(self) -> float:
         _initialize_prototypes()
 
-        thermostat_friction = ctypes.c_double()
+        c_friction = ctypes.c_double()
 
         status = lib().apo_cuda_langevin_thermostat_integrator_get_thermostat_friction(
-            ctypes.byref(thermostat_friction), self.handle
+            ctypes.byref(c_friction), self.handle
         )
 
         check_status(
@@ -256,15 +256,15 @@ class CudaLangevinThermostatIntegrator(CudaIntegrator):
             "CudaLangevinThermostatIntegrator.getThermostatFriction() failed",
         )
 
-        return float(thermostat_friction.value)
+        return float(c_friction.value)
 
     def getThermostatRngSeed(self) -> int:
         _initialize_prototypes()
 
-        seed = ctypes.c_uint64()
+        c_seed = ctypes.c_uint64()
 
         status = lib().apo_cuda_langevin_thermostat_integrator_get_thermostat_rng_seed(
-            ctypes.byref(seed), self.handle
+            ctypes.byref(c_seed), self.handle
         )
 
         check_status(
@@ -272,31 +272,31 @@ class CudaLangevinThermostatIntegrator(CudaIntegrator):
             "CudaLangevinThermostatIntegrator.getThermostatRngSeed() failed",
         )
 
-        return int(seed.value)
+        return int(c_seed.value)
 
     def getAverageTemperature(self) -> float:
         _initialize_prototypes()
 
-        average_temperature = ctypes.c_double()
+        c_temperature = ctypes.c_double()
 
         status = lib().apo_cuda_langevin_thermostat_integrator_get_average_temperature(
-            ctypes.byref(average_temperature), self.handle
+            ctypes.byref(c_temperature), self.handle
         )
 
         check_status(
             status, "CudaLangevinThermostatIntegrator.getAverageTemperature() failed"
         )
 
-        return float(average_temperature.value)
+        return float(c_temperature.value)
 
     def getInstantaneousTemperature(self) -> float:
         _initialize_prototypes()
 
-        instantaneous_temperature = ctypes.c_double()
+        c_temperature = ctypes.c_double()
 
         status = (
             lib().apo_cuda_langevin_thermostat_integrator_get_instantaneous_temperature(
-                ctypes.byref(instantaneous_temperature), self.handle
+                ctypes.byref(c_temperature), self.handle
             )
         )
 
@@ -305,4 +305,4 @@ class CudaLangevinThermostatIntegrator(CudaIntegrator):
             "CudaLangevinThermostatIntegrator.getInstantaneousTemperature() failed",
         )
 
-        return float(instantaneous_temperature.value)
+        return float(c_temperature.value)

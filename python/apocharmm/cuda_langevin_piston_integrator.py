@@ -14,7 +14,6 @@ from ._lib import lib
 from .enums import CrystalType
 from .error import check_status
 from .cuda_integrator import CudaIntegrator
-import math
 
 _prototypes_initialized: bool = False
 
@@ -330,41 +329,27 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
 
         return
 
-    def setReferencePressure(self, pressure_tensor: Sequence[float]) -> None:
+    def setReferencePressure(self, pressure_tensor: Sequence[Sequence[float]]) -> None:
         _initialize_prototypes()
 
-        if isinstance(pressure_tensor, (str, bytes, bytearray)):
-            raise TypeError("pressure_tensor must be a 9-element sequence of floats")
+        flattened_pressure_tensor: list[float] = []
 
-        pressure_values: list[float] = []
+        for i, pressure in enumerate(pressure_tensor):
+            pressure_values: list[float] = [float(value) for value in pressure]
 
-        try:
-            iterator = iter(pressure_tensor)
-        except TypeError as exc:
-            raise TypeError("pressure_tensor must be a 9-element sequence of floats")
+            if len(pressure_values) != 3:
+                raise ValueError(
+                    f"pressure_tensor[{i}] must contain exactly 3 elements"
+                )
 
-        for index, value in enumerate(iterator):
-            if isinstance(value, bool):
-                raise TypeError(f"pressure_tensor[{index}] must be a float, not bool")
+            flattened_pressure_tensor.extend(pressure_values)
 
-            pressure_value: float = float(value)
-
-            if not math.isfinite(pressure_value):
-                raise ValueError(f"pressure_tensor[{index}] must be finite")
-
-            pressure_values.append(pressure_value)
-
-        if len(pressure_values) != 9:
-            raise ValueError(
-                "pressure_tensor must contain exactly 9 elements (XX, XY, XZ, YX, YY, YZ, ZX, ZY, ZZ)"
-            )
-
-        pressure_tensor_array = ctypes.c_double * 9
-        c_pressure_tensor = pressure_tensor_array(*pressure_values)
-        c_pressure_tensor_len: ctypes.c_size_t = ctypes.c_size_t(len(pressure_values))
+        c_buffer_type = ctypes.c_double * len(flattened_pressure_tensor)
+        c_buffer = c_buffer_type(*flattened_pressure_tensor)
+        c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(len(flattened_pressure_tensor))
 
         status = lib().apo_cuda_langevin_piston_integrator_set_reference_pressure(
-            self.handle, c_pressure_tensor, c_pressure_tensor_len
+            self.handle, c_buffer, c_buffer_len
         )
 
         check_status(
@@ -393,16 +378,10 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
     def setCrystalType(self, crystal_type: CrystalType | int) -> None:
         _initialize_prototypes()
 
-        if isinstance(crystal_type, bool):
-            raise TypeError("crystal_type must be a CrystalType")
-
         try:
             crystal_type_value: CrystalType = CrystalType(crystal_type)
         except ValueError as exc:
             raise ValueError(f"invalid crystal_type: {crystal_type!r}") from exc
-
-        if crystal_type_value == CrystalType.NONE:
-            raise ValueError("crystal_type must be CUBIC, TETRAGONAL, or ORTHORHOMBIC")
 
         c_crystal_type: ctypes.c_int = ctypes.c_int(int(crystal_type_value))
 
@@ -416,44 +395,17 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
 
         return
 
-    def setLangevinPistonMass(self, mass: list[float]) -> None:
+    def setLangevinPistonMass(self, masses: Sequence[float]) -> None:
         _initialize_prototypes()
 
-        if isinstance(mass, (str, bytes, bytearray)):
-            raise TypeError("mass must be a sequence of 1, 2, or 3 non-negative floats")
+        mass_values: list[float] = [float(value) for value in masses]
 
-        mass_values: list[float] = []
-
-        try:
-            iterator = iter(mass)
-        except TypeError as exc:
-            raise TypeError("mass must be a sequence of 1, 2, or 3 non-negative floats")
-
-        for index, value in enumerate(iterator):
-            if isinstance(value, bool):
-                raise TypeError(f"mass[{index}] must be a float, not bool")
-
-            mass_value: float = float(value)
-
-            if not math.isfinite(mass_value):
-                raise ValueError(f"mass[{index}] must be finite")
-
-            if mass_value < 0.0:
-                raise ValueError(f"mass[{index}] must be non-negative")
-
-            mass_values.append(mass_value)
-
-        if len(mass_values) == 0 or len(mass_values) > 3:
-            raise ValueError(
-                "mass must contain 1, 2, or 3 elements depending on crystal type"
-            )
-
-        mass_array = ctypes.c_double * len(mass_values)
-        c_mass = mass_array(*mass_values)
-        c_mass_len: ctypes.c_size_t = ctypes.c_size_t(len(mass_values))
+        c_buffer_type = ctypes.c_double * len(mass_values)
+        c_buffer = c_buffer_type(*mass_values)
+        c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(len(mass_values))
 
         status = lib().apo_cuda_langevin_piston_integrator_set_langevin_piston_mass(
-            self.handle, c_mass, c_mass_len
+            self.handle, c_buffer, c_buffer_len
         )
 
         check_status(
@@ -465,7 +417,7 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
     def setLangevinPistonFrictionSeed(self, seed: int) -> None:
         _initialize_prototypes()
 
-        if isinstance(seed, bool) or seed < 0 or seed > 2**64 - 1:
+        if seed < 0 or seed > 2**61 - 1:
             raise ValueError("seed must fit in uint64_t")
 
         c_seed: ctypes.c_uint64 = ctypes.c_uint64(seed)
@@ -511,10 +463,10 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
     def getReferenceTemperature(self) -> float:
         _initialize_prototypes()
 
-        reference_temperature = ctypes.c_double()
+        c_temperature = ctypes.c_double()
 
         status = lib().apo_cuda_langevin_piston_integrator_get_reference_temperature(
-            ctypes.byref(reference_temperature), self.handle
+            ctypes.byref(c_temperature), self.handle
         )
 
         check_status(
@@ -522,48 +474,48 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
             "CudaLangevinPistonIntegrator.getReferenceTemperature() failed",
         )
 
-        return float(reference_temperature.value)
+        return float(c_temperature.value)
 
     def getNoseHooverPistonMass(self) -> float:
         _initialize_prototypes()
 
-        nose_hoover_piston_mass = ctypes.c_double()
+        c_mass = ctypes.c_double()
 
         status = lib().apo_cuda_langevin_piston_integrator_get_nose_hoover_piston_mass(
-            ctypes.byref(nose_hoover_piston_mass), self.handle
+            ctypes.byref(c_mass), self.handle
         )
 
         check_status(
             status, "CudaLangevinPistonIntegrator.getNoseHooverPistonMass() failed"
         )
 
-        return float(nose_hoover_piston_mass.value)
+        return float(c_mass.value)
 
     def getAverageTemperature(self) -> float:
         _initialize_prototypes()
 
-        average_temperature = ctypes.c_double()
+        c_temperature = ctypes.c_double()
 
         status = lib().apo_cuda_langevin_piston_integrator_get_average_temperature(
-            ctypes.byref(average_temperature), self.handle
+            ctypes.byref(c_temperature), self.handle
         )
 
         check_status(
             status, "CudaLangevinPistonIntegrator.getAverageTemperature() failed"
         )
 
-        return float(average_temperature.value)
+        return float(c_temperature.value)
 
-    def getReferencePressureTensor(self) -> tuple[float, ...]:
+    def getReferencePressureTensor(self) -> list[list[float]]:
         _initialize_prototypes()
 
-        pressure_tensor_array = ctypes.c_double * 9
-        c_pressure_tensor = pressure_tensor_array()
-        c_pressure_tensor_len: ctypes.c_size_t = ctypes.c_size_t(9)
+        c_buffer_type = ctypes.c_double * 9
+        c_buffer = c_buffer_type()
+        c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(9)
 
         status = (
             lib().apo_cuda_langevin_piston_integrator_get_reference_pressure_tensor(
-                c_pressure_tensor, c_pressure_tensor_len, self.handle
+                c_buffer, c_buffer_len, self.handle
             )
         )
 
@@ -571,32 +523,42 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
             status, "CudaLangevinPistonIntegrator.getReferencePressureTensor() failed"
         )
 
-        return tuple(float(c_pressure_tensor[index]) for index in range(9))
+        pressure_tensor: list[list[float]] = []
+        for i in range(3):
+            pressure_tensor.append(
+                [
+                    float(c_buffer[i * 3 + 0]),
+                    float(c_buffer[i * 3 + 1]),
+                    float(c_buffer[i * 3 + 2]),
+                ]
+            )
+
+        return pressure_tensor
 
     def getCrystalType(self) -> CrystalType:
         _initialize_prototypes()
 
-        crystal_type = ctypes.c_int()
+        c_crystal_type = ctypes.c_int()
 
         status = lib().apo_cuda_langevin_piston_integrator_get_crystal_type(
-            ctypes.byref(crystal_type), self.handle
+            ctypes.byref(c_crystal_type), self.handle
         )
 
         check_status(status, "CudaLangevinPistonIntegrator.getCrystalType() failed")
 
-        return CrystalType(crystal_type.value)
+        return CrystalType(c_crystal_type.value)
 
-    def getLangevinPistonMass(self) -> tuple[float, ...]:
+    def getLangevinPistonMass(self) -> list[float]:
         _initialize_prototypes()
 
-        max_num_mass: int = 3
-        mass_array = ctypes.c_double * max_num_mass
-        c_mass = mass_array()
-        c_mass_len: ctypes.c_size_t = ctypes.c_size_t(max_num_mass)
         c_num_mass: ctypes.c_size_t = ctypes.c_size_t()
 
+        c_buffer_type = ctypes.c_double * 3
+        c_buffer = c_buffer_type()
+        c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(3)
+
         status = lib().apo_cuda_langevin_piston_integrator_get_langevin_piston_mass(
-            ctypes.byref(c_num_mass), c_mass, c_mass_len, self.handle
+            ctypes.byref(c_num_mass), c_buffer, c_buffer_len, self.handle
         )
 
         check_status(
@@ -605,23 +567,27 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
 
         num_mass: int = int(c_num_mass.value)
 
-        if num_mass > max_num_mass:
+        if num_mass > 3:
             raise RuntimeError(
                 "apo_cuda_langevin_piston_integrator_get_langevin_piston_mass returned more than 3 masses"
             )
 
-        return tuple(float(c_mass[index]) for index in range(num_mass))
+        masses: list[float] = []
+        for i in range(num_mass):
+            masses.append(float(c_buffer[i]))
 
-    def getInstantaneousPressureTensor(self) -> tuple[float, ...]:
+        return masses
+
+    def getInstantaneousPressureTensor(self) -> list[list[float]]:
         _initialize_prototypes()
 
-        pressure_tensor_array = ctypes.c_double * 9
-        c_pressure_tensor = pressure_tensor_array()
-        c_pressure_tensor_len: ctypes.c_size_t = ctypes.c_size_t(9)
+        c_buffer_type = ctypes.c_double * 9
+        c_buffer = c_buffer_type()
+        c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(9)
 
         status = (
             lib().apo_cuda_langevin_piston_integrator_get_instantaneous_pressure_tensor(
-                c_pressure_tensor, c_pressure_tensor_len, self.handle
+                c_buffer, c_buffer_len, self.handle
             )
         )
 
@@ -630,16 +596,26 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
             "CudaLangevinPistonIntegrator.getInstantaneousPressureTensor() failed",
         )
 
-        return tuple(float(c_pressure_tensor[index]) for index in range(9))
+        pressure_tensor: list[list[float]] = []
+        for i in range(3):
+            pressure_tensor.append(
+                [
+                    float(c_buffer[i * 3 + 0]),
+                    float(c_buffer[i * 3 + 1]),
+                    float(c_buffer[i * 3 + 2]),
+                ]
+            )
+
+        return pressure_tensor
 
     def getInstantaneousPressureScalar(self) -> float:
         _initialize_prototypes()
 
-        pressure_scalar = ctypes.c_double()
+        c_pressure_scalar = ctypes.c_double()
 
         status = (
             lib().apo_cuda_langevin_piston_integrator_get_instantaneous_pressure_scalar(
-                ctypes.byref(pressure_scalar), self.handle
+                ctypes.byref(c_pressure_scalar), self.handle
             )
         )
 
@@ -648,17 +624,17 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
             "CudaLangevinPistonIntegrator.getInstantaneousPressureScalar() failed",
         )
 
-        return float(pressure_scalar.value)
+        return float(c_pressure_scalar.value)
 
-    def getAveragePressureTensor(self) -> tuple[float, ...]:
+    def getAveragePressureTensor(self) -> list[list[float]]:
         _initialize_prototypes()
 
-        pressure_tensor_array = ctypes.c_double * 9
-        c_pressure_tensor = pressure_tensor_array()
-        c_pressure_tensor_len: ctypes.c_size_t = ctypes.c_size_t(9)
+        c_buffer_type = ctypes.c_double * 9
+        c_buffer = c_buffer_type()
+        c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(9)
 
         status = lib().apo_cuda_langevin_piston_integrator_get_average_pressure_tensor(
-            c_pressure_tensor, c_pressure_tensor_len, self.handle
+            c_buffer, c_buffer_len, self.handle
         )
 
         check_status(
@@ -666,15 +642,25 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
             "CudaLangevinPistonIntegrator.getAveragePressureTensor() failed",
         )
 
-        return tuple(float(c_pressure_tensor[index]) for index in range(9))
+        pressure_tensor: list[list[float]] = []
+        for i in range(3):
+            pressure_tensor.append(
+                [
+                    float(c_buffer[i * 3 + 0]),
+                    float(c_buffer[i * 3 + 1]),
+                    float(c_buffer[i * 3 + 2]),
+                ]
+            )
+
+        return pressure_tensor
 
     def getAveragePressureScalar(self) -> float:
         _initialize_prototypes()
 
-        pressure_scalar = ctypes.c_double()
+        c_pressure_scalar = ctypes.c_double()
 
         status = lib().apo_cuda_langevin_piston_integrator_get_average_pressure_scalar(
-            ctypes.byref(pressure_scalar), self.handle
+            ctypes.byref(c_pressure_scalar), self.handle
         )
 
         check_status(
@@ -682,16 +668,16 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
             "CudaLangevinPistonIntegrator.getAveragePressureScalar() failed",
         )
 
-        return float(pressure_scalar.value)
+        return float(c_pressure_scalar.value)
 
     def getLangevinPistonFrictionSeed(self) -> int:
         _initialize_prototypes()
 
-        seed = ctypes.c_uint64()
+        c_seed = ctypes.c_uint64()
 
         status = (
             lib().apo_cuda_langevin_piston_integrator_get_langevin_piston_friction_seed(
-                ctypes.byref(seed), self.handle
+                ctypes.byref(c_seed), self.handle
             )
         )
 
@@ -700,16 +686,16 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
             "CudaLangevinPistonIntegrator.getLangevinPistonFrictionSeed() failed",
         )
 
-        return int(seed.value)
+        return int(c_seed.value)
 
     def getInstantaneousTemperature(self) -> float:
         _initialize_prototypes()
 
-        instantaneous_temperature = ctypes.c_double()
+        c_temperature = ctypes.c_double()
 
         status = (
             lib().apo_cuda_langevin_piston_integrator_get_instantaneous_temperature(
-                ctypes.byref(instantaneous_temperature), self.handle
+                ctypes.byref(c_temperature), self.handle
             )
         )
 
@@ -718,4 +704,4 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
             "CudaLangevinPistonIntegrator.getInstantaneousTemperature() failed",
         )
 
-        return float(instantaneous_temperature.value)
+        return float(c_temperature.value)
