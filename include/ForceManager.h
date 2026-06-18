@@ -39,6 +39,7 @@ public:
   template <typename ForceType>
   ForceView(ForceType *inputForce)
       : m_Force(static_cast<void *>(inputForce)),
+        m_ContributesVirial(ForceType::contributesVirial),
         initialize_impl{[](void *force, const int numAtoms,
                            const std::vector<double> &boxDimensions) -> void {
           ForceType *ptr = static_cast<ForceType *>(force);
@@ -91,8 +92,11 @@ public:
     return this->getEnergyVirial_impl(m_Force);
   }
 
+  bool contributesVirial(void) const { return m_ContributesVirial; }
+
 private:
   void *m_Force;
+  bool m_ContributesVirial;
   void (*initialize_impl)(void *force, const int numAtoms,
                           const std::vector<double> &boxDimensions);
   void (*clear_impl)(void *force);
@@ -652,6 +656,7 @@ protected:
   CudaContainer<double> m_BondedVirial;
   CudaContainer<double> m_ReciprocalVirial;
   CudaContainer<double> m_DirectVirial;
+  CudaContainer<double> m_SubscribedForceVirial;
   CudaContainer<double> m_TotalVirial;
 
   /**

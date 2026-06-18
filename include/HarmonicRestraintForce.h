@@ -23,6 +23,9 @@
 
 template <typename AT, typename CT> class HarmonicRestraintForce {
 public:
+  static constexpr bool contributesVirial = false;
+
+public:
   HarmonicRestraintForce(void) = delete;
   HarmonicRestraintForce(const int numAtoms);
   ~HarmonicRestraintForce(void);
@@ -36,11 +39,8 @@ public:
   void setReferenceCoordinates(
       const std::vector<std::vector<double>> &referenceCoordinates);
   void setMasses(const std::vector<double> &masses);
-  void setBoxDimensions(const std::vector<double> &boxDimensions);
 
 public:
-  std::shared_ptr<CudaEnergyVirial> getEnergyVirial(void);
-  std::shared_ptr<Force<AT>> getForce(void);
   std::shared_ptr<cudaStream_t> getStream(void);
 
 public:
@@ -48,6 +48,9 @@ public:
   void clear(void);
   void calcForce(const float4 *xyzq, const bool calcEnergy,
                  const bool calcVirial);
+  void setBoxDimensions(const std::vector<double> &boxDimensions);
+  std::shared_ptr<Force<AT>> getForce(void);
+  std::shared_ptr<CudaEnergyVirial> getEnergyVirial(void);
 
 private:
   void dealloc(void);

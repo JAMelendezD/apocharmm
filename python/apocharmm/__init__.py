@@ -22,6 +22,7 @@ from .charmm_parameters import CharmmParameters
 from .charmm_psf import CharmmPsf
 
 from .harmonic_restraint_force import HarmonicRestraintForce
+from .harmonic_center_of_mass_restraint_force import HarmonicCenterOfMassRestraintForce
 
 from .cuda_integrator import CudaIntegrator
 from .cuda_langevin_piston_integrator import CudaLangevinPistonIntegrator
@@ -50,6 +51,7 @@ __all__: list[str] = [
     "CharmmPsf",
     # Forces and restraints
     "HarmonicRestraintForce",
+    "HarmonicCenterOfMassRestraintForce",
     # Integrators
     "CudaIntegrator",
     "CudaLangevinPistonIntegrator",

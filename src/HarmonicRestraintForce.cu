@@ -62,6 +62,16 @@ void HarmonicRestraintForce<AT, CT>::setSelection(
 template <typename AT, typename CT>
 void HarmonicRestraintForce<AT, CT>::setForceConstant(
     const double forceConstant) {
+  if (!std::isfinite(forceConstant)) {
+    throw std::invalid_argument(
+        "HarmonicRestraintForce force constant must be finite");
+  }
+
+  if (forceConstant < 0.0) {
+    throw std::invalid_argument(
+        "HarmonicRestraintForce force constant must be positive");
+  }
+
   m_ForceConstants.set(0.0);
 
   for (const int i : m_Selection.getAtomIndices())
@@ -170,51 +180,6 @@ void HarmonicRestraintForce<AT, CT>::setMasses(
   m_ReferenceCoordinates.transferToDevice();
 
   return;
-}
-
-template <typename AT, typename CT>
-void HarmonicRestraintForce<AT, CT>::setBoxDimensions(
-    const std::vector<double> &boxDimensions) {
-  if ((m_BoxDimensions[0] == boxDimensions[0]) &&
-      (m_BoxDimensions[1] == boxDimensions[1]) &&
-      (m_BoxDimensions[2] == boxDimensions[2]))
-    return;
-
-  // JEG260615: After some thought, I am not entirely convinced this is correct.
-  // So I have commented it out.
-  /* *
-  if ((m_BoxDimensions[0] != 0.0) && (m_BoxDimensions[1] != 0.0) &&
-      (m_BoxDimensions[2] != 0.0)) {
-    // JEG260512: This only works for cubic, tetragonal, and orthorhombic boxes.
-    // If we ever want to do other crystals (e.g. triclinic) we would need to
-    // update all of the code to use the A, B, C, alpha, beta, gamma matrix.
-    const double dx = boxDimensions[0] / m_BoxDimensions[0];
-    const double dy = boxDimensions[1] / m_BoxDimensions[1];
-    const double dz = boxDimensions[2] / m_BoxDimensions[2];
-
-    for (int i = 0; i < m_NumAtoms; i++) {
-      m_ReferenceCoordinates[i].x *= dx;
-      m_ReferenceCoordinates[i].y *= dy;
-      m_ReferenceCoordinates[i].z *= dz;
-    }
-    m_ReferenceCoordinates.transferToDevice();
-  }
-  * */
-
-  m_BoxDimensions = boxDimensions;
-
-  return;
-}
-
-template <typename AT, typename CT>
-std::shared_ptr<CudaEnergyVirial>
-HarmonicRestraintForce<AT, CT>::getEnergyVirial(void) {
-  return m_EnergyVirial;
-}
-
-template <typename AT, typename CT>
-std::shared_ptr<Force<AT>> HarmonicRestraintForce<AT, CT>::getForce(void) {
-  return m_Forces;
 }
 
 template <typename AT, typename CT>
@@ -350,6 +315,73 @@ void HarmonicRestraintForce<AT, CT>::calcForce(const float4 *xyzq,
   }
 
   return;
+}
+
+template <typename AT, typename CT>
+void HarmonicRestraintForce<AT, CT>::setBoxDimensions(
+    const std::vector<double> &boxDimensions) {
+  if (boxDimensions.size() != 3) {
+    std::string msg =
+        "ERROR: HarmonicCenterOfMassRestraintForce::setBoxDimensions(const "
+        "std::vector<double> &): boxDimensions must contain exactly 3 "
+        "elements\n";
+    msg +=
+        "boxDimensions.size() = " + std::to_string(boxDimensions.size()) + "\n";
+    throw std::invalid_argument(msg);
+  }
+
+  for (std::size_t i = 0; i < 3; i++) {
+    if (!std::isfinite(boxDimensions[i])) {
+      throw std::invalid_argument(
+          "HarmonicCenterOfMassRestraintForce box dimensions must be finite");
+    }
+
+    if (boxDimensions[i] <= 0.0) {
+      throw std::invalid_argument(
+          "HarmonicCenterOfMassRestraintForce box dimensions must be positive");
+    }
+  }
+
+  if ((m_BoxDimensions[0] == boxDimensions[0]) &&
+      (m_BoxDimensions[1] == boxDimensions[1]) &&
+      (m_BoxDimensions[2] == boxDimensions[2]))
+    return;
+
+  // JEG260615: After some thought, I am not entirely convinced this is correct.
+  // So I have commented it out.
+  /* *
+  if ((m_BoxDimensions[0] != 0.0) && (m_BoxDimensions[1] != 0.0) &&
+      (m_BoxDimensions[2] != 0.0)) {
+    // JEG260512: This only works for cubic, tetragonal, and orthorhombic boxes.
+    // If we ever want to do other crystals (e.g. triclinic) we would need to
+    // update all of the code to use the A, B, C, alpha, beta, gamma matrix.
+    const double dx = boxDimensions[0] / m_BoxDimensions[0];
+    const double dy = boxDimensions[1] / m_BoxDimensions[1];
+    const double dz = boxDimensions[2] / m_BoxDimensions[2];
+
+    for (int i = 0; i < m_NumAtoms; i++) {
+      m_ReferenceCoordinates[i].x *= dx;
+      m_ReferenceCoordinates[i].y *= dy;
+      m_ReferenceCoordinates[i].z *= dz;
+    }
+    m_ReferenceCoordinates.transferToDevice();
+  }
+  * */
+
+  m_BoxDimensions = boxDimensions;
+
+  return;
+}
+
+template <typename AT, typename CT>
+std::shared_ptr<Force<AT>> HarmonicRestraintForce<AT, CT>::getForce(void) {
+  return m_Forces;
+}
+
+template <typename AT, typename CT>
+std::shared_ptr<CudaEnergyVirial>
+HarmonicRestraintForce<AT, CT>::getEnergyVirial(void) {
+  return m_EnergyVirial;
 }
 
 template <typename AT, typename CT>

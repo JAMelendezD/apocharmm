@@ -8,49 +8,110 @@ set -e
 # If any of the tests in this script FAIL, DO NOT PUSH YOUR CHANGES TO THE
 # GITHUB REPOSITORY!
 
-echo "###################"
-echo "#### C++ TESTS ####"
-echo "########################################################################"
+show_usage() {
+    echo "Usage: $0 [option]"
+    echo
+    echo "Options:"
+    echo "  -cpp        Run only the C++ API tests"
+    echo "  -python     Run only the Python API tests"
+    echo "  -all        Run all tests"
+    echo "  -h, --help  Show this help message"
+    echo
+    echo "With no option, all tests are run."
+}
 
-echo "./bin/unittest-deviceVector"
-./bin/unittest-deviceVector
+cleanup_cpp_test_files() {
+    # unittest-noseHoover
+    rm -rf waterbox_1_s_new.dcd waterbox_1_s_old.dcd
 
-echo "./bin/unittest-charmmPSF"
-./bin/unittest-charmmPSF
+    # unittest-restart
+    rm -rf tmpNoseHoover.rst tmpLangevinPiston.rst tmpLangevinThermostat.rst
 
-echo "./bin/unittest-noseHoover"
-./bin/unittest-noseHoover
+    # unittest-restraintForce
+    rm -rf tmpHarmRestraint.dcd
+    
+}
 
-echo "./bin/unittest-langevinPiston"
-./bin/unittest-langevinPiston
+run_cpp_tests() {
+    echo "###################"
+    echo "#### C++ TESTS ####"
+    echo "########################################################################"
 
-echo "./bin/unittest-langevinThermostat"
-./bin/unittest-langevinThermostat
+    echo "./bin/unittest-deviceVector"
+    ./bin/unittest-deviceVector
 
-echo "./bin/unittest-restartSubscriber"
-./bin/unittest-restartSubscriber
+    echo "./bin/unittest-charmmPSF"
+    ./bin/unittest-charmmPSF
 
-echo "./bin/unittest-restraintForce"
-./bin/unittest-restraintForce
+    echo "./bin/unittest-noseHoover"
+    ./bin/unittest-noseHoover
 
-# unittest-noseHoover
-rm -rf waterbox_1_s_new.dcd waterbox_1_s_old.dcd
+    echo "./bin/unittest-langevinPiston"
+    ./bin/unittest-langevinPiston
 
-# unittest-restart
-rm -rf tmpNoseHoover.rst tmpLangevinPiston.rst tmpLangevinThermostat.rst
+    echo "./bin/unittest-langevinThermostat"
+    ./bin/unittest-langevinThermostat
 
-echo "##########################"
-echo "#### Python API TESTS ####"
-echo "########################################################################"
+    echo "./bin/unittest-restartSubscriber"
+    ./bin/unittest-restartSubscriber
 
-echo "python3 test/pytest/python_api_core.py"
-python3 test/pytest/python_api_core.py
+    echo "./bin/unittest-restraintForce"
+    ./bin/unittest-restraintForce
 
-echo -e "\npython3 test/pytest/python_api_validation.py"
-python3 test/pytest/python_api_validation.py
+    echo "./bin/unittest-harmonicCenterOfMassRestraintForce"
+    ./bin/unittest-harmonicCenterOfMassRestraintForce
 
-echo -e "\npython3 test/pytest/python_api_integrators.py"
-python3 test/pytest/python_api_integrators.py
+    cleanup_cpp_test_files
+}
 
-echo -e "\npython3 test/pytest/python_api_subscribers.py"
-python3 test/pytest/python_api_subscribers.py
+run_python_tests() {
+    echo "##########################"
+    echo "#### Python API TESTS ####"
+    echo "########################################################################"
+
+    echo "python3 test/pytest/python_api_core.py"
+    python3 test/pytest/python_api_core.py
+
+    echo -e "\npython3 test/pytest/python_api_validation.py"
+    python3 test/pytest/python_api_validation.py
+
+    echo -e "\npython3 test/pytest/python_api_integrators.py"
+    python3 test/pytest/python_api_integrators.py
+
+    echo -e "\npython3 test/pytest/python_api_subscribers.py"
+    python3 test/pytest/python_api_subscribers.py
+
+    echo -e "\npython3 test/pytest/python_api_harmonic_center_of_mass_restraint_force.py"
+    python3 test/pytest/python_api_harmonic_center_of_mass_restraint_force.py
+}
+
+if [ "$#" -gt 1 ]; then
+    echo "Error: Expected at most one option."
+    echo
+    show_usage
+    exit 1
+fi
+
+test_option="${1:--all}"
+
+case "$test_option" in
+    -a|--all)
+        run_cpp_tests
+        run_python_tests
+        ;;
+    -c|--cpp)
+        run_cpp_tests
+        ;;
+    -p|--python)
+        run_python_tests
+        ;;
+    --h|--help)
+        show_usage
+        ;;
+    *)
+        echo "Error: Unknown option '$test_option'.'"
+        echo
+        show_usage
+        exit 1
+        ;;
+esac

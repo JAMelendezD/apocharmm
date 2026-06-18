@@ -105,6 +105,8 @@ class HarmonicRestraintForce(_ApoObject):
         if num_atoms <= 0 or num_atoms > 2**31 - 1:
             raise ValueError("num_atoms must fit in positive int")
 
+        _initialize_prototypes()
+
         handle: ctypes.c_void_p = ctypes.c_void_p()
         c_num_atoms: ctypes.c_int = ctypes.c_int(num_atoms)
 

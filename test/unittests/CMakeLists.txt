@@ -17,6 +17,7 @@ set(SOURCES_UNITTESTS_TESTS
 
   # Restraints
   unittest-restraintForce.cpp
+  unittest-harmonicCenterOfMassRestraintForce.cpp
 )
 
 #

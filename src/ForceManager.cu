@@ -57,11 +57,13 @@ ForceManager::ForceManager(void) {
   m_BondedVirial.resize(9);
   m_ReciprocalVirial.resize(9);
   m_DirectVirial.resize(9);
+  m_SubscribedForceVirial.resize(9);
   m_TotalVirial.resize(9);
 
   m_BondedVirial.setToValue(0.0);
   m_ReciprocalVirial.setToValue(0.0);
   m_DirectVirial.setToValue(0.0);
+  m_SubscribedForceVirial.setToValue(0.0);
   m_TotalVirial.setToValue(0.0);
 
   m_ClearGraphCreated = false;
@@ -409,6 +411,18 @@ CudaContainer<double> &ForceManager::getVirial(void) {
     m_TotalVirial[i] =
         m_BondedVirial[i] + m_ReciprocalVirial[i] + m_DirectVirial[i];
   }
+
+  for (std::size_t i = 0; i < m_EnergyVirials.size(); i++) {
+    if (m_ForceViews[i].contributesVirial() == false)
+      continue;
+
+    m_EnergyVirials[i]->getVirial(m_SubscribedForceVirial);
+    m_SubscribedForceVirial.transferToHost();
+
+    for (int j = 0; j < 9; j++)
+      m_TotalVirial[j] += m_SubscribedForceVirial[j];
+  }
+
   m_TotalVirial.transferToDevice();
 
   return m_TotalVirial;
@@ -615,8 +629,10 @@ void ForceManager::calcForcePart2(const float4 *xyzq, const bool calcEnergy,
   m_DirectForcePtr->calc_force(xyzq, calcEnergy, calcVirial);
   gpu_range_stop();
 
-  for (ForceView &forceView : m_ForceViews)
-    forceView.calcForce(xyzq, calcEnergy, calcVirial);
+  for (ForceView &forceView : m_ForceViews) {
+    const bool forceCalcVirial = calcVirial && forceView.contributesVirial();
+    forceView.calcForce(xyzq, calcEnergy, forceCalcVirial);
+  }
 
   return;
 }
@@ -692,14 +708,18 @@ void ForceManager::calcForcePart3(const float4 *xyzq, const bool calcEnergy,
     m_BondedForceValues->convert<double>(*m_BondedStream);
     m_ReciprocalForceValues->convert<double>(*m_ReciprocalStream);
     m_DirectForceValues->convert<double>(*m_DirectStream);
-    for (std::size_t i = 0; i < m_ForceViews.size(); i++)
-      m_ForceValues[i]->convert<double>(*m_ForceStreams[i]);
+    for (std::size_t i = 0; i < m_ForceViews.size(); i++) {
+      if (m_ForceViews[i].contributesVirial())
+        m_ForceValues[i]->convert<double>(*m_ForceStreams[i]);
+    }
 
     cudaCheck(cudaStreamSynchronize(*m_BondedStream));
     cudaCheck(cudaStreamSynchronize(*m_ReciprocalStream));
     cudaCheck(cudaStreamSynchronize(*m_DirectStream));
-    for (std::size_t i = 0; i < m_ForceViews.size(); i++)
-      cudaCheck(cudaStreamSynchronize(*m_ForceStreams[i]));
+    for (std::size_t i = 0; i < m_ForceViews.size(); i++) {
+      if (m_ForceViews[i].contributesVirial())
+        cudaCheck(cudaStreamSynchronize(*m_ForceStreams[i]));
+    }
 
     const int numAtoms = m_Psf->getNumAtoms();
 
@@ -720,18 +740,22 @@ void ForceManager::calcForcePart3(const float4 *xyzq, const bool calcEnergy,
         reinterpret_cast<double *>(m_DirectForceValues->xyz()),
         *m_DirectStream);
     for (std::size_t i = 0; i < m_ForceViews.size(); i++) {
-      m_EnergyVirials[i]->calcVirial(
-          numAtoms, xyzq, m_BoxDimensions[0], m_BoxDimensions[1],
-          m_BoxDimensions[2], this->getForceStride(),
-          reinterpret_cast<double *>(m_ForceValues[i]->xyz()),
-          *m_ForceStreams[i]);
+      if (m_ForceViews[i].contributesVirial()) {
+        m_EnergyVirials[i]->calcVirial(
+            numAtoms, xyzq, m_BoxDimensions[0], m_BoxDimensions[1],
+            m_BoxDimensions[2], this->getForceStride(),
+            reinterpret_cast<double *>(m_ForceValues[i]->xyz()),
+            *m_ForceStreams[i]);
+      }
     }
 
     cudaCheck(cudaStreamSynchronize(*m_BondedStream));
     cudaCheck(cudaStreamSynchronize(*m_ReciprocalStream));
     cudaCheck(cudaStreamSynchronize(*m_DirectStream));
-    for (std::size_t i = 0; i < m_ForceViews.size(); i++)
-      cudaCheck(cudaStreamSynchronize(*m_ForceStreams[i]));
+    for (std::size_t i = 0; i < m_ForceViews.size(); i++) {
+      if (m_ForceViews[i].contributesVirial())
+        cudaCheck(cudaStreamSynchronize(*m_ForceStreams[i]));
+    }
   }
 
   // Copy everything (all EnergyVirials) to Host, add together
