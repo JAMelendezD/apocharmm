@@ -28,10 +28,6 @@
  *
  */
 class CudaIntegrator : public std::enable_shared_from_this<CudaIntegrator> {
-
-  ////////////
-  // PUBLIC //
-  ////////////
 public:
   CudaIntegrator(void);
 
@@ -195,9 +191,6 @@ public:
    */
   int getNumSteps(void) const;
 
-  ///////////////
-  // PROTECTED //
-  ///////////////
 protected:
   /**
    * @brief Returns indices of Subscriber needing update
@@ -215,6 +208,9 @@ protected:
    * an error otherwise. Called every min(10^7, min(reportFreqList)) steps.
    * @todo Unittest this  */
   void checkForNanEnergy(void);
+
+  int wrapCurrentPropagatedStep(const unsigned long long int propagatedStep);
+  void incrementCurrentPropagatedStep(void);
 
 protected:
   // double timeStep;

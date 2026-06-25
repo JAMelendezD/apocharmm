@@ -4,7 +4,7 @@
 // license, as described in the LICENSE file in the top level directory of this
 // project.
 //
-// Author:  Samarjeet Prasad, James E. Gonzales II
+// Author: Samarjeet Prasad, James E. Gonzales II
 //
 // ENDLICENSE
 
@@ -67,6 +67,12 @@ void DcdSubscriber::update(void) {
 
   m_FileStream.seekp(0, std::ofstream::end);
 
+  return;
+}
+
+void DcdSubscriber::openFile(void) {
+  this->checkPath(m_FileName);
+  m_FileStream.open(m_FileName, std::ios::out | std::ios::binary);
   return;
 }
 

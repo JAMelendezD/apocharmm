@@ -39,6 +39,7 @@ public:
   void setLangevinPistonMass(const std::vector<double> &mass);
   void setLangevinPistonFrictionSeed(const std::uint64_t seed);
   void setRngSequencePos(const unsigned long long int rngSequencePos);
+  void setRngStates(const std::string &rngStateString);
   void setLangevinPistonFriction(const double pgamma);
   void resetAverages(void);
 
@@ -74,6 +75,7 @@ public:
   const CudaContainer<double> &getAveragePressureScalar(void) const;
   std::uint64_t getLangevinPistonFrictionSeed(void) const;
   unsigned long long int getRngSequencePos(void) const;
+  std::string getRngStates(void) const;
 
   CudaContainer<double> &getNoseHooverPistonMass(void);
   CudaContainer<double> &getNoseHooverPistonVelocity(void);
@@ -165,6 +167,7 @@ protected:
 
   int m_AverageWindowSize;
   CudaContainer<double> m_KineticEnergy;
+  CudaContainer<double> m_KineticEnergyPartialSums;
   CudaContainer<double> m_AverageTemperature;
   CudaContainer<double> m_AveragePressureTensor;
   CudaContainer<double> m_AveragePressureScalar;

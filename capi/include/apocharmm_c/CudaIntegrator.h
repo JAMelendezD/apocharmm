@@ -30,6 +30,9 @@ APOCHARMM_C_API apo_status apo_cuda_integrator_set_charmm_context(
 APOCHARMM_C_API apo_status apo_cuda_integrator_subscribe(
     apo_cuda_integrator *integrator, apo_subscriber *subscriber);
 
+APOCHARMM_C_API apo_status apo_cuda_integrator_unsubscribe(
+    apo_cuda_integrator *integrator, apo_subscriber *subscriber);
+
 APOCHARMM_C_API apo_status apo_cuda_integrator_propagate(
     apo_cuda_integrator *integrator, const int num_steps);
 

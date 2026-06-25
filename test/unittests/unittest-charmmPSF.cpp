@@ -8,164 +8,275 @@
 //
 // ENDLICENSE
 
-#include "AtomSelector.h"
 #include "CharmmPSF.h"
+#include "apo_test_helpers.h"
 #include "catch.hpp"
-#include "compare.h"
-#include "test_paths.h"
-#include <memory>
-#include <string>
-#include <vector>
 
-static std::vector<int> MakeRange(const int first, const int last) {
-  std::vector<int> values;
-  for (int value = first; value < last; value++)
-    values.push_back(value);
-  return values;
+TEST_CASE("CharmPSFDefaultConstructor") {
+  CharmmPSF psf;
+
+  CHECK(psf.getNumAtoms() == -1);
+  CHECK(psf.getNumBonds() == -1);
+  CHECK(psf.getNumAngles() == -1);
+  CHECK(psf.getNumDihedrals() == -1);
+  CHECK(psf.getNumImpropers() == -1);
+  CHECK(psf.getNumCrossTerms() == -1);
+
+  CHECK(psf.getSegmentIdentifiers().empty() == true);
+  CHECK(psf.getResidueIdentifiers().empty() == true);
+  CHECK(psf.getResidueNames().empty() == true);
+  CHECK(psf.getAtomNames().empty() == true);
+  CHECK(psf.getAtomTypes().empty() == true);
+  CHECK(psf.getCharges().empty() == true);
+  CHECK(psf.getMasses().empty() == true);
+
+  CHECK(psf.getBonds().empty() == true);
+  CHECK(psf.getAngles().empty() == true);
+  CHECK(psf.getDihedrals().empty() == true);
+  CHECK(psf.getImpropers().empty() == true);
+  CHECK(psf.getCrossTerms().empty() == true);
+
+  CHECK(psf.getConnected12().empty() == true);
+  CHECK(psf.getConnected13().empty() == true);
+  CHECK(psf.getConnected14().empty() == true);
+  CHECK(psf.getIblo14().empty() == true);
+  CHECK(psf.getInb14().empty() == true);
+
+  CHECK(psf.getWaterMolecules().size() == 0);
+  CHECK(psf.getResidues().size() == 0);
+  CHECK(psf.getGroups().size() == 0);
+  CHECK(psf.getFileName().empty() == true);
 }
 
-TEST_CASE("1lvz") {
-  const std::string dataPath = getDataPath();
-  auto psf = std::make_shared<CharmmPSF>(dataPath + "1lvz.psf");
+TEST_CASE("CharmmPSFParsesLinearChain") {
+  const std::string fileName = "tmp_charmm_psf_linear_chain.psf";
+  const std::string psfText = R"PSF(PSF
 
-  SECTION("selection") {
-    // ILE LYS GLU ASN LEU LYS ASP CYS GLY LEU PHE
-    auto selector = std::make_shared<AtomSelector>(psf);
+       1 !NTITLE
+ REMARKS generated CharmmPSF linear-chain unit test
+       4 !NATOM
+       1 SEG1     1 RES1 C1   CT1   -0.300000  12.0110           0
+       2 SEG1     1 RES1 H1   HA1    0.100000   1.0080           0
+       3 SEG1     2 RES2 C2   CT2    0.100000  12.0110           0
+       4 SEG1     2 RES2 H2   HA2    0.100000   1.0080           0
+       3 !NBOND: bonds
+       1       2       2       3       3       4
+       2 !NTHETA: angles
+       1       2       3       2       3       4
+       1 !NPHI: dihedrals
+       1       2       3       4
+       0 !NIMPHI: impropers
+       0 !NDON: donors
+       0 !NACC: acceptors
+       0 !NCRTERM: cross-terms
+)PSF";
 
-    // None
-    auto selection = selector->select("none");
-    CHECK(selection.getNumSelected() == 0);
+  apo_test::WriteTextFile(fileName, psfText);
 
-    // All
-    selection = selector->select("all");
-    CHECK(selection.getNumSelected() == 183);
+  CharmmPSF psf(fileName);
 
-    // By number
-    selection = selector->select("bynum 1:5");
-    CHECK(CompareVectors1<int>(selection.getAtomIndices(), MakeRange(0, 5)));
-
-    // By number out of range
-    selection = selector->select("bynu 180 : 200");
-    CHECK(
-        CompareVectors1<int>(selection.getAtomIndices(), MakeRange(179, 183)));
-
-    // Atom name
-    selection = selector->select("type CA");
-    CHECK(
-        CompareVectors1<int>(selection.getAtomIndices(),
-                             {4, 23, 45, 60, 74, 93, 115, 127, 138, 145, 164}));
-
-    // Atom type
-    selection = selector->select("chemical CT1");
-    CHECK(CompareVectors1<int>(
-        selection.getAtomIndices(),
-        {4, 6, 23, 45, 60, 74, 79, 93, 115, 127, 145, 150, 164}));
-
-    // Segment
-    selection = selector->select("segid A000");
-    CHECK(CompareVectors1<int>(selection.getAtomIndices(), MakeRange(0, 183)));
-
-    // Residue identifier
-    selection = selector->select("resid 1");
-    CHECK(CompareVectors1<int>(selection.getAtomIndices(), MakeRange(0, 21)));
-
-    // Residue identifier range
-    selection = selector->select("resi 1:3");
-    CHECK(CompareVectors1<int>(selection.getAtomIndices(), MakeRange(0, 58)));
-
-    // Residue name
-    selection = selector->select("resname GLU");
-    CHECK(CompareVectors1<int>(selection.getAtomIndices(), MakeRange(43, 58)));
-
-    selection = selector->select("resn LYS");
-    const std::vector<int> lys2 = MakeRange(21, 43);
-    const std::vector<int> lys6 = MakeRange(91, 113);
-    std::vector<int> lys = lys2;
-    lys.insert(lys.end(), lys6.begin(), lys6.end());
-    CHECK(CompareVectors1<int>(selection.getAtomIndices(), lys));
-
-    // Atom selection
-    selection = selector->select("atom A000 1 CA");
-    CHECK(CompareVectors1<int>(selection.getAtomIndices(), {4}, 0.0, true));
-
-    // And
-    selection = selector->select("type CA .and. resn GLU");
-    CHECK(CompareVectors1<int>(selection.getAtomIndices(), {45}));
-
-    // Or and precedence
-    // This should parse as: type CA .or. (type N .and. resn ILE)
-    selection = selector->select("type CA .or. type N .and. resn ILE");
-    CHECK(CompareVectors1<int>(
-        selection.getAtomIndices(),
-        {0, 4, 23, 45, 60, 74, 93, 115, 127, 138, 145, 164}, 0.0, true));
-
-    // Parenthesis should change the result
-    selection = selector->select("(type CA .or. type N) .and. resn ILE");
-    CHECK(CompareVectors1<int>(selection.getAtomIndices(), {0, 4}));
-
-    // Not + wildcard
-    selection = selector->select(".not. type H*");
-    CHECK(selection.getNumSelected() == 89);
-
-    // Wildcards
-    selection = selector->select("type H*");
-    CHECK(selection.getNumSelected() == 94);
-
-    selection = selector->select("type HG+");
-    CHECK(CompareVectors1<int>(selection.getAtomIndices(),
-                               {29, 30, 51, 52, 99, 100, 133}));
-
-    selection = selector->select("type HG#");
-    CHECK(CompareVectors1<int>(
-        selection.getAtomIndices(),
-        {9, 10, 11, 13, 14, 29, 30, 51, 52, 80, 99, 100, 133, 151}));
-
-    selection = selector->select("type H%");
-    CHECK(CompareVectors1<int>(selection.getAtomIndices(),
-                               {5,   7,   22,  24,  44,  46,  59,  61,
-                                73,  75,  80,  92,  94,  114, 116, 126,
-                                128, 137, 144, 146, 151, 163, 165, 175}));
-
-    selection = selector->select("type C#");
-    CHECK(CompareVectors1<int>(
-        selection.getAtomIndices(),
-        {19, 41, 56, 70, 89, 111, 123, 134, 141, 160, 180}));
-
-    selection = selector->select("type C%");
-    CHECK(CompareVectors1<int>(selection.getAtomIndices(),
-                               {4,   6,   15,  23,  25,  28,  31,  34,  45,
-                                47,  50,  53,  60,  62,  65,  74,  76,  79,
-                                93,  95,  98,  101, 104, 115, 117, 120, 127,
-                                129, 138, 145, 147, 150, 164, 166, 169, 174}));
-
-    selection = selector->select("type C*");
-    CHECK(selection.getNumSelected() == 57);
-
-    // By residue
-    // OE* occurs in residue GLU only, so .byres. should select the whole GLU
-    // residue
-    selection = selector->select(".byres. type OE*");
-    CHECK(CompareVectors1<int>(selection.getAtomIndices(), MakeRange(43, 58)));
-
-    // selection = selector->select(".byres. ( type CA .and. resn GLU )");
-    CHECK(CompareVectors1<int>(selection.getAtomIndices(), MakeRange(43, 58)));
-
-    // Bonded
-    selection = selector->select(".bonded. bynum 1");
-    CHECK(CompareVectors1<int>(selection.getAtomIndices(), {1, 2, 3, 4}));
-
-    // Atom A000 1 CA is CHARMM atom 5, zero-based 4.
-    // It is bonded to CHARMM atoms 1, 6, 7, 20 -> zero-based 0, 5, 6, 19
-    selection = selector->select(".bonded. (atom A000 1 CA)");
-    CHECK(CompareVectors1<int>(selection.getAtomIndices(), {0, 5, 6, 19}));
-
-    // Syntax error
-    CHECK_THROWS(selector->select(".and. type CA"));
-    CHECK_THROWS(selector->select("type CA resn GLU"));
-    CHECK_THROWS(selector->select("(type CA .or. type N"));
-    CHECK_THROWS(selector->select("bynu A:C"));
-
-    // Not implemented yet
-    CHECK_THROWS(selector->select(".around. type CA"));
+  SECTION("CountsAndFileName") {
+    CHECK(psf.getFileName() == fileName);
+    CHECK(psf.getNumAtoms() == 4);
+    CHECK(psf.getNumBonds() == 3);
+    CHECK(psf.getNumAngles() == 2);
+    CHECK(psf.getNumDihedrals() == 1);
+    CHECK(psf.getNumImpropers() == 0);
+    CHECK(psf.getNumCrossTerms() == 0);
   }
+
+  SECTION("AtomMetadata") {
+    CHECK(psf.getSegmentIdentifiers() ==
+          std::vector<std::string>{"SEG1", "SEG1", "SEG1", "SEG1"});
+    CHECK(psf.getResidueIdentifiers() == std::vector<int>{1, 1, 2, 2});
+    CHECK(psf.getResidueNames() ==
+          std::vector<std::string>{"RES1", "RES1", "RES2", "RES2"});
+    CHECK(psf.getAtomNames() ==
+          std::vector<std::string>{"C1", "H1", "C2", "H2"});
+    CHECK(psf.getAtomTypes() ==
+          std::vector<std::string>{"CT1", "HA1", "CT2", "HA2"});
+
+    REQUIRE(psf.getCharges().size() == 4);
+    CHECK(psf.getCharges()[0] == Approx(-0.3));
+    CHECK(psf.getCharges()[1] == Approx(0.1));
+    CHECK(psf.getCharges()[2] == Approx(0.1));
+    CHECK(psf.getCharges()[3] == Approx(0.1));
+
+    REQUIRE(psf.getMasses().size() == 4);
+    CHECK(psf.getMasses()[0] == Approx(12.011));
+    CHECK(psf.getMasses()[1] == Approx(1.008));
+    CHECK(psf.getMasses()[2] == Approx(12.011));
+    CHECK(psf.getMasses()[3] == Approx(1.008));
+
+    CHECK(psf.getNetCharge() == Approx(0.0).margin(1.0e-12));
+    CHECK(psf.getTotalMass() == Approx(26.038));
+  }
+
+  SECTION("BondedTerms") {
+    REQUIRE(psf.getBonds().size() == 3);
+    CHECK(psf.getBonds()[0].iatom == 0);
+    CHECK(psf.getBonds()[0].jatom == 1);
+    CHECK(psf.getBonds()[1].iatom == 1);
+    CHECK(psf.getBonds()[1].jatom == 2);
+    CHECK(psf.getBonds()[2].iatom == 2);
+    CHECK(psf.getBonds()[2].jatom == 3);
+
+    REQUIRE(psf.getAngles().size() == 2);
+    CHECK(psf.getAngles()[0].iatom == 0);
+    CHECK(psf.getAngles()[0].jatom == 1);
+    CHECK(psf.getAngles()[0].katom == 2);
+    CHECK(psf.getAngles()[1].iatom == 1);
+    CHECK(psf.getAngles()[1].jatom == 2);
+    CHECK(psf.getAngles()[1].katom == 3);
+
+    REQUIRE(psf.getDihedrals().size() == 1);
+    CHECK(psf.getDihedrals()[0].iatom == 0);
+    CHECK(psf.getDihedrals()[0].jatom == 1);
+    CHECK(psf.getDihedrals()[0].katom == 2);
+    CHECK(psf.getDihedrals()[0].latom == 3);
+
+    CHECK(psf.getImpropers().empty() == true);
+    CHECK(psf.getCrossTerms().empty() == true);
+  }
+
+  SECTION("ResiduesGroupsAndWater") {
+    const std::vector<int2> &residues = psf.getResidues().getHostArray();
+    REQUIRE(residues.size() == 2);
+    CHECK(residues[0].x == 0);
+    CHECK(residues[0].y == 1);
+    CHECK(residues[1].x == 2);
+    CHECK(residues[1].y == 3);
+
+    const std::vector<int2> &groups = psf.getGroups().getHostArray();
+    REQUIRE(groups.size() == 1);
+    CHECK(groups[0].x == 0);
+    CHECK(groups[0].y == 3);
+
+    CHECK(psf.getWaterMolecules().size() == 0);
+    CHECK(psf.getWaterMolecules().getHostArray().empty() == true);
+  }
+
+  SECTION("ConnectedComponentsAndExclusions") {
+    const std::vector<std::set<int>> expected12 = {
+        std::set<int>{1}, std::set<int>{0, 2}, std::set<int>{1, 3},
+        std::set<int>{2}};
+    const std::vector<std::set<int>> expected13 = {
+        std::set<int>{2}, std::set<int>{3}, std::set<int>{0}, std::set<int>{1}};
+    const std::vector<std::set<int>> expected14 = {
+        std::set<int>{3}, std::set<int>{}, std::set<int>{}, std::set<int>{0}};
+
+    CHECK(psf.getConnected12() == expected12);
+    CHECK(psf.getConnected13() == expected13);
+    CHECK(psf.getConnected14() == expected14);
+
+    CHECK(psf.getIblo14() == std::vector<int>{3, 5, 6, 6});
+    CHECK(psf.getInb14() == std::vector<int>{2, 3, 4, 3, 4, 4});
+
+    const InclusionExclusion exclusionLists = psf.getInclusionExclusionLists();
+
+    CHECK(exclusionLists.sizes == std::vector<int>{1, 5});
+    CHECK(exclusionLists.in14_ex14 ==
+          std::vector<int>{0, 3, 0, 1, 0, 2, 1, 2, 1, 3, 2, 3});
+  }
+
+  SECTION("CopyConstructorDeepCopy") {
+    CharmmPSF copy(psf);
+
+    CHECK(copy.getFileName() == psf.getFileName());
+    CHECK(copy.getNumAtoms() == psf.getNumAtoms());
+    CHECK(copy.getNumBonds() == psf.getNumBonds());
+    CHECK(copy.getCharges().data() != psf.getCharges().data());
+    CHECK(copy.getAtomNames().data() != psf.getAtomNames().data());
+
+    copy.getCharges()[0] = 9.0;
+    copy.getAtomNames()[0] = "XX";
+
+    CHECK(psf.getCharges()[0] == Approx(-0.3));
+    CHECK(psf.getAtomNames()[0] == "C1");
+    CHECK(copy.getCharges()[0] == Approx(9.0));
+    CHECK(copy.getAtomNames()[0] == "XX");
+    CHECK(copy.getNetCharge() == Approx(9.3));
+  }
+
+  SECTION("RvalueConstructor") {
+    CharmmPSF source(fileName);
+    CharmmPSF copy(std::move(source));
+
+    CHECK(copy.getFileName() == fileName);
+    CHECK(copy.getNumAtoms() == 4);
+    CHECK(copy.getNumBonds() == 3);
+    CHECK(copy.getAtomNames() ==
+          std::vector<std::string>{"C1", "H1", "C2", "H2"});
+    CHECK(copy.getNetCharge() == Approx(0.0).margin(1.0e-12));
+  }
+
+  apo_test::RemoveIfExists(fileName);
+}
+
+TEST_CASE("CharmmPSFDetectsWaterMolecules") {
+  const std::string fileName = "tmp_charmm_psf_water.psf";
+  const std::string psfText = R"PSF(PSF
+
+       1 !NTITLE
+ REMARKS generated CharmmPSF water unit test
+       3 !NATOM
+       1 WAT      1 TIP3 OH2  OT    -0.834000  15.9994           0
+       2 WAT      1 TIP3 H1   HT     0.417000   1.0080           0
+       3 WAT      1 TIP3 H2   HT     0.417000   1.0080           0
+       2 !NBOND: bonds
+       1       2       1       3
+       1 !NTHETA: angles
+       2       1       3
+       0 !NPHI: dihedrals
+       0 !NIMPHI: impropers
+       0 !NDON: donors
+       0 !NACC: acceptors
+       0 !NCRTERM: cross-terms
+)PSF";
+
+  apo_test::WriteTextFile(fileName, psfText);
+
+  CharmmPSF psf(fileName);
+
+  CHECK(psf.getNumAtoms() == 3);
+  CHECK(psf.getNumBonds() == 2);
+  CHECK(psf.getNumAngles() == 1);
+  CHECK(psf.getNetCharge() == Approx(0.0).margin(1.0e-12));
+
+  const std::vector<int4> &waterMolecules =
+      psf.getWaterMolecules().getHostArray();
+  REQUIRE(waterMolecules.size() == 1);
+  CHECK(waterMolecules[0].x == 0);
+  CHECK(waterMolecules[0].y == 1);
+  CHECK(waterMolecules[0].z == 2);
+  CHECK(waterMolecules[0].w == 0);
+
+  const std::vector<int2> &residues = psf.getResidues().getHostArray();
+  REQUIRE(residues.size() == 1);
+  CHECK(residues[0].x == 0);
+  CHECK(residues[0].y == 2);
+
+  const std::vector<int2> &groups = psf.getGroups().getHostArray();
+  REQUIRE(groups.size() == 1);
+  CHECK(groups[0].x == 0);
+  CHECK(groups[0].y == 2);
+
+  apo_test::RemoveIfExists(fileName);
+}
+
+TEST_CASE("CharmmPSFMalformedInpuThrows") {
+  const std::string fileName = "tmp_charmm_psf_malformed.psf";
+  const std::string psfText = R"PSF(PSF
+
+       1 !NTITLE
+ REMARKS missing required sections
+       1 !NATOM
+       1 SEG1     1 RES1 C1   CT1    0.000000  12.0110           0
+)PSF";
+
+  apo_test::WriteTextFile(fileName, psfText);
+
+  CHECK_THROWS_AS(CharmmPSF(fileName), std::runtime_error);
+
+  apo_test::RemoveIfExists(fileName);
 }

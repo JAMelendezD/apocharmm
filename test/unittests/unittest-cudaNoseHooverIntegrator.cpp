@@ -1,0 +1,405 @@
+// BEGINLICENSE
+//
+// This file is part of apoCHARMM, which is distributed under the BSD 3-clause
+// license, as described in the LICENSE file in the top level directory of this
+// project.
+//
+// Author: James E. Gonzales II
+//
+// ENDLICENSE
+
+#include "CharmmContext.h"
+#include "CharmmCrd.h"
+#include "CharmmPSF.h"
+#include "CharmmParameters.h"
+#include "CudaNoseHooverIntegrator.h"
+#include "ForceManager.h"
+#include "apo_test_helpers.h"
+#include "catch.hpp"
+#include "test_paths.h"
+
+namespace {
+
+constexpr int RANDOM_SEED = 314159;
+constexpr int NUM_STEPS = 5;
+constexpr double TIME_STEP = 0.001;
+constexpr double TEMPERATURE = 300.0;
+constexpr double REFERENCE_TEMPERATURE = 315.0;
+constexpr double NOSE_HOOVER_PISTON_MASS = 500.0;
+constexpr double NOSE_HOOVER_PISTON_VELOCITY = 0.125;
+constexpr double NOSE_HOOVER_PISTON_VELOCITY_PREVIOUS = -0.25;
+constexpr double NOSE_HOOVER_PISTON_FORCE = 0.5;
+constexpr double NOSE_HOOVER_PISTON_FORCE_PREVIOUS = -0.75;
+constexpr int MAX_PREDICTOR_CORRECTOR_ITERATIONS = 4;
+constexpr double DETERMINISTIC_TOLERANCE = 0.0;
+constexpr double FINITE_TEMPERATURE_UPPER_BOUND = 1.0e8;
+
+const std::vector<double> BOX_DIMENSIONS = {50.0, 50.0, 50.0};
+
+void CheckIntegratorStateMatches(CudaNoseHooverIntegrator &left,
+                                 CudaNoseHooverIntegrator &right,
+                                 const double tolerance) {
+  CHECK(left.getReferenceTemperature() ==
+        Approx(right.getReferenceTemperature()).margin(tolerance));
+  CHECK(left.usingOldTemperature() == right.usingOldTemperature());
+  CHECK(left.getMaxPredictorCorrectorIterations() ==
+        right.getMaxPredictorCorrectorIterations());
+
+  CHECK(apo_test::CopyScalarToHost<double>(left.getNoseHooverPistonMass()) ==
+        Approx(
+            apo_test::CopyScalarToHost<double>(right.getNoseHooverPistonMass()))
+            .margin(tolerance));
+  CHECK(
+      apo_test::CopyScalarToHost<double>(left.getNoseHooverPistonVelocity()) ==
+      Approx(apo_test::CopyScalarToHost<double>(
+                 right.getNoseHooverPistonVelocity()))
+          .margin(tolerance));
+  CHECK(apo_test::CopyScalarToHost<double>(
+            left.getNoseHooverPistonVelocityPrevious()) ==
+        Approx(apo_test::CopyScalarToHost<double>(
+                   right.getNoseHooverPistonVelocityPrevious()))
+            .margin(tolerance));
+  CHECK(apo_test::CopyScalarToHost<double>(left.getNoseHooverPistonForce()) ==
+        Approx(apo_test::CopyScalarToHost<double>(
+                   right.getNoseHooverPistonForce()))
+            .margin(tolerance));
+  CHECK(apo_test::CopyScalarToHost<double>(
+            left.getNoseHooverPistonForcePrevious()) ==
+        Approx(apo_test::CopyScalarToHost<double>(
+                   right.getNoseHooverPistonForcePrevious()))
+            .margin(tolerance));
+
+  apo_test::CheckVectorsClose<double>(
+      apo_test::CopyToHost<double>(left.getKineticEnergy()),
+      apo_test::CopyToHost<double>(right.getKineticEnergy()), tolerance);
+  apo_test::CheckVectorsClose<double>(
+      apo_test::CopyToHost<double>(left.getAverageTemperature()),
+      apo_test::CopyToHost<double>(right.getAverageTemperature()), tolerance);
+
+  return;
+}
+
+} // namespace
+
+TEST_CASE("CudaNoseHooverIntegratorConstructorDefaults") {
+  CudaNoseHooverIntegrator integrator(TIME_STEP);
+
+  CHECK(integrator.getTimeStep() == Approx(TIME_STEP));
+  CHECK(integrator.getReferenceTemperature() == Approx(300.0));
+  CHECK(integrator.usingOldTemperature() == false);
+  CHECK(integrator.getMaxPredictorCorrectorIterations() == 3);
+
+  CHECK(apo_test::CopyScalarToHost<double>(
+            integrator.getNoseHooverPistonMass()) == Approx(-9999.9999));
+  CHECK(apo_test::CopyScalarToHost<double>(
+            integrator.getNoseHooverPistonVelocity()) == Approx(0.0));
+  CHECK(apo_test::CopyScalarToHost<double>(
+            integrator.getNoseHooverPistonVelocityPrevious()) == Approx(0.0));
+  CHECK(apo_test::CopyScalarToHost<double>(
+            integrator.getNoseHooverPistonForce()) == Approx(0.0));
+  CHECK(apo_test::CopyScalarToHost<double>(
+            integrator.getNoseHooverPistonForcePrevious()) == Approx(0.0));
+
+  apo_test::CheckVectorsClose<double>(
+      apo_test::CopyToHost<double>(integrator.getKineticEnergy()),
+      std::vector<double>{0.0, 0.0}, 0.0);
+  apo_test::CheckVectorsClose<double>(
+      apo_test::CopyToHost<double>(integrator.getAverageTemperature()),
+      std::vector<double>{0.0, 0.0}, 0.0);
+}
+
+TEST_CASE("CudaNoseHooverIntegratorSettersAndReset") {
+  CudaNoseHooverIntegrator integrator(TIME_STEP);
+
+  integrator.setReferenceTemperature(REFERENCE_TEMPERATURE);
+  integrator.setNoseHooverPistonMass(NOSE_HOOVER_PISTON_MASS);
+  integrator.setNoseHooverPistonVelocity(NOSE_HOOVER_PISTON_VELOCITY);
+  integrator.setNoseHooverPistonVelocityPrevious(
+      NOSE_HOOVER_PISTON_VELOCITY_PREVIOUS);
+  integrator.setNoseHooverPistonForce(NOSE_HOOVER_PISTON_FORCE);
+  integrator.setNoseHooverPistonForcePrevious(
+      NOSE_HOOVER_PISTON_FORCE_PREVIOUS);
+  integrator.setMaxPredictorCorrectorIterations(
+      MAX_PREDICTOR_CORRECTOR_ITERATIONS);
+  integrator.useOldTemperature(true);
+
+  CHECK(integrator.getReferenceTemperature() == Approx(REFERENCE_TEMPERATURE));
+  CHECK(integrator.usingOldTemperature() == true);
+  CHECK(integrator.getMaxPredictorCorrectorIterations() ==
+        MAX_PREDICTOR_CORRECTOR_ITERATIONS);
+  CHECK(apo_test::CopyScalarToHost<double>(
+            integrator.getNoseHooverPistonMass()) ==
+        Approx(NOSE_HOOVER_PISTON_MASS));
+  CHECK(apo_test::CopyScalarToHost<double>(
+            integrator.getNoseHooverPistonVelocity()) ==
+        Approx(NOSE_HOOVER_PISTON_VELOCITY));
+  CHECK(apo_test::CopyScalarToHost<double>(
+            integrator.getNoseHooverPistonVelocityPrevious()) ==
+        Approx(NOSE_HOOVER_PISTON_VELOCITY_PREVIOUS));
+  CHECK(apo_test::CopyScalarToHost<double>(
+            integrator.getNoseHooverPistonForce()) ==
+        Approx(NOSE_HOOVER_PISTON_FORCE));
+  CHECK(apo_test::CopyScalarToHost<double>(
+            integrator.getNoseHooverPistonForcePrevious()) ==
+        Approx(NOSE_HOOVER_PISTON_FORCE_PREVIOUS));
+
+  integrator.getAverageTemperature().setToValue(42.0);
+  apo_test::CheckVectorsClose<double>(
+      apo_test::CopyToHost<double>(integrator.getAverageTemperature()),
+      std::vector<double>{42.0, 42.0}, 0.0);
+
+  integrator.resetAverageTemperature();
+  apo_test::CheckVectorsClose<double>(
+      apo_test::CopyToHost<double>(integrator.getAverageTemperature()),
+      std::vector<double>{0.0, 0.0}, 0.0);
+}
+
+TEST_CASE("CudaNoseHooverIntegratorContextInitialization") {
+  const std::string dataPath = getDataPath();
+
+  auto prm =
+      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
+  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
+  auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+
+  auto fm = std::make_shared<ForceManager>(psf, prm);
+  fm->setBoxDimensions(BOX_DIMENSIONS);
+
+  auto ctx = std::make_shared<CharmmContext>(fm);
+  ctx->setCoordinates(crd);
+  ctx->useHolonomicConstraints(false);
+  ctx->setRandomSeedForVelocities(RANDOM_SEED);
+  ctx->assignVelocitiesAtTemperature(TEMPERATURE);
+
+  CudaNoseHooverIntegrator integrator(TIME_STEP);
+  integrator.setReferenceTemperature(REFERENCE_TEMPERATURE);
+  integrator.setNoseHooverPistonMass(NOSE_HOOVER_PISTON_MASS);
+  integrator.setMaxPredictorCorrectorIterations(
+      MAX_PREDICTOR_CORRECTOR_ITERATIONS);
+  integrator.useOldTemperature(false);
+
+  integrator.setCharmmContext(ctx);
+
+  CHECK(integrator.getCharmmContext() == ctx);
+  CHECK(integrator.getNumberOfAtoms() == 2);
+  CHECK(integrator.getCoordsDelta().size() == 2);
+  CHECK(integrator.getCoordsDeltaPrevious().size() == 2);
+  CHECK(apo_test::CopyScalarToHost<double>(
+            integrator.getNoseHooverPistonMass()) ==
+        Approx(NOSE_HOOVER_PISTON_MASS));
+  apo_test::CheckFiniteTemperature(ctx->computeTemperature());
+
+  CHECK_THROWS_AS(integrator.setCharmmContext(ctx), std::invalid_argument);
+}
+
+TEST_CASE("CudaNoseHooverIntegratorAutoPistonMass") {
+  const std::string dataPath = getDataPath();
+
+  auto prm =
+      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
+  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
+  auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+
+  auto fm = std::make_shared<ForceManager>(psf, prm);
+  fm->setBoxDimensions(BOX_DIMENSIONS);
+
+  auto ctx = std::make_shared<CharmmContext>(fm);
+  ctx->setCoordinates(crd);
+  ctx->useHolonomicConstraints(false);
+  ctx->setRandomSeedForVelocities(RANDOM_SEED);
+  ctx->assignVelocitiesAtTemperature(TEMPERATURE);
+
+  CudaNoseHooverIntegrator integrator(TIME_STEP);
+  integrator.setCharmmContext(ctx);
+
+  const double expectedMass = 0.2 * (22.9898 + 35.45);
+
+  CHECK(apo_test::CopyScalarToHost<double>(
+            integrator.getNoseHooverPistonMass()) ==
+        Approx(expectedMass).margin(1.0e-4));
+}
+
+TEST_CASE("CudaNoseHooverIntegratorShortPropagation") {
+  const std::string dataPath = getDataPath();
+
+  auto prm =
+      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
+  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
+  auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+
+  auto fm = std::make_shared<ForceManager>(psf, prm);
+  fm->setBoxDimensions(BOX_DIMENSIONS);
+
+  auto ctx = std::make_shared<CharmmContext>(fm);
+  ctx->setCoordinates(crd);
+  ctx->useHolonomicConstraints(false);
+  ctx->setRandomSeedForVelocities(RANDOM_SEED);
+  ctx->assignVelocitiesAtTemperature(TEMPERATURE);
+
+  CudaNoseHooverIntegrator integrator(TIME_STEP);
+  integrator.setReferenceTemperature(REFERENCE_TEMPERATURE);
+  integrator.setNoseHooverPistonMass(NOSE_HOOVER_PISTON_MASS);
+  integrator.setMaxPredictorCorrectorIterations(
+      MAX_PREDICTOR_CORRECTOR_ITERATIONS);
+  integrator.useOldTemperature(false);
+  integrator.setCharmmContext(ctx);
+  integrator.resetAverageTemperature();
+
+  const std::vector<double4> initialCoordinates =
+      apo_test::CopyToHost<double4>(ctx->getCoordinatesCharges());
+
+  integrator.propagate(NUM_STEPS);
+
+  const std::vector<double4> finalCoordinates =
+      apo_test::CopyToHost<double4>(ctx->getCoordinatesCharges());
+  const std::vector<double> averageTemperature =
+      apo_test::CopyToHost<double>(integrator.getAverageTemperature());
+  const std::vector<double> kineticEnergy =
+      apo_test::CopyToHost<double>(integrator.getKineticEnergy());
+
+  CHECK(integrator.getCurrentPropagatedStep() == NUM_STEPS);
+  CHECK(integrator.getTotNumSteps() ==
+        static_cast<unsigned long long>(NUM_STEPS));
+  CHECK(integrator.getNumSteps() == NUM_STEPS);
+
+  apo_test::CheckFiniteTemperature(ctx->computeTemperature());
+  apo_test::CheckFiniteTemperature(integrator.getInstantaneousTemperature());
+
+  REQUIRE(averageTemperature.size() == 2);
+  apo_test::CheckFiniteTemperature(averageTemperature[0]);
+  apo_test::CheckFiniteTemperature(averageTemperature[1]);
+
+  REQUIRE(kineticEnergy.size() == 2);
+  apo_test::CheckFiniteNonnegativeScalar(kineticEnergy[0]);
+  apo_test::CheckFiniteNonnegativeScalar(kineticEnergy[1]);
+
+  REQUIRE(finalCoordinates.size() == initialCoordinates.size());
+  CHECK((finalCoordinates[0].x != initialCoordinates[0].x ||
+         finalCoordinates[0].y != initialCoordinates[0].y ||
+         finalCoordinates[0].z != initialCoordinates[0].z));
+}
+
+TEST_CASE("CudaNoseHooverIntegratorDeterministicTrajectory") {
+  const std::string dataPath = getDataPath();
+
+  auto prm1 =
+      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
+  auto psf1 = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
+  auto crd1 = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+
+  auto fm1 = std::make_shared<ForceManager>(psf1, prm1);
+  fm1->setBoxDimensions(BOX_DIMENSIONS);
+
+  auto ctx1 = std::make_shared<CharmmContext>(fm1);
+  ctx1->setCoordinates(crd1);
+  ctx1->useHolonomicConstraints(false);
+  ctx1->setRandomSeedForVelocities(RANDOM_SEED);
+  ctx1->assignVelocitiesAtTemperature(TEMPERATURE);
+
+  auto prm2 =
+      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
+  auto psf2 = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
+  auto crd2 = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+
+  auto fm2 = std::make_shared<ForceManager>(psf2, prm2);
+  fm2->setBoxDimensions(BOX_DIMENSIONS);
+
+  auto ctx2 = std::make_shared<CharmmContext>(fm2);
+  ctx2->setCoordinates(crd2);
+  ctx2->useHolonomicConstraints(false);
+  ctx2->setRandomSeedForVelocities(RANDOM_SEED);
+  ctx2->assignVelocitiesAtTemperature(TEMPERATURE);
+
+  apo_test::CheckVectorsClose<double4>(
+      apo_test::CopyToHost<double4>(ctx1->getCoordinatesCharges()),
+      apo_test::CopyToHost<double4>(ctx2->getCoordinatesCharges()),
+      DETERMINISTIC_TOLERANCE);
+  apo_test::CheckVectorsClose<double4>(
+      apo_test::CopyToHost<double4>(ctx1->getVelocityMass()),
+      apo_test::CopyToHost<double4>(ctx2->getVelocityMass()),
+      DETERMINISTIC_TOLERANCE);
+
+  CudaNoseHooverIntegrator integrator1(TIME_STEP);
+  integrator1.setReferenceTemperature(REFERENCE_TEMPERATURE);
+  integrator1.setNoseHooverPistonMass(NOSE_HOOVER_PISTON_MASS);
+  integrator1.setMaxPredictorCorrectorIterations(
+      MAX_PREDICTOR_CORRECTOR_ITERATIONS);
+  integrator1.useOldTemperature(false);
+  integrator1.setCharmmContext(ctx1);
+
+  CudaNoseHooverIntegrator integrator2(TIME_STEP);
+  integrator2.setReferenceTemperature(REFERENCE_TEMPERATURE);
+  integrator2.setNoseHooverPistonMass(NOSE_HOOVER_PISTON_MASS);
+  integrator2.setMaxPredictorCorrectorIterations(
+      MAX_PREDICTOR_CORRECTOR_ITERATIONS);
+  integrator2.useOldTemperature(false);
+  integrator2.setCharmmContext(ctx2);
+
+  CheckIntegratorStateMatches(integrator1, integrator2,
+                              DETERMINISTIC_TOLERANCE);
+
+  const std::vector<double4> initialCoordinates1 =
+      apo_test::CopyToHost<double4>(ctx1->getCoordinatesCharges());
+  const std::vector<double4> initialCoordinates2 =
+      apo_test::CopyToHost<double4>(ctx2->getCoordinatesCharges());
+
+  integrator1.propagate(NUM_STEPS);
+  integrator2.propagate(NUM_STEPS);
+
+  const std::vector<double4> finalCoordinates1 =
+      apo_test::CopyToHost<double4>(ctx1->getCoordinatesCharges());
+  const std::vector<double4> finalCoordinates2 =
+      apo_test::CopyToHost<double4>(ctx2->getCoordinatesCharges());
+
+  apo_test::CheckVectorsClose<double4>(finalCoordinates1, finalCoordinates2,
+                                       DETERMINISTIC_TOLERANCE);
+  apo_test::CheckVectorsClose<double4>(
+      apo_test::CopyToHost<double4>(ctx1->getVelocityMass()),
+      apo_test::CopyToHost<double4>(ctx2->getVelocityMass()),
+      DETERMINISTIC_TOLERANCE);
+  CheckIntegratorStateMatches(integrator1, integrator2,
+                              DETERMINISTIC_TOLERANCE);
+
+  CHECK(integrator1.getCurrentPropagatedStep() == NUM_STEPS);
+  CHECK(integrator2.getCurrentPropagatedStep() == NUM_STEPS);
+  CHECK(integrator1.getTotNumSteps() ==
+        static_cast<unsigned long long>(NUM_STEPS));
+  CHECK(integrator2.getTotNumSteps() ==
+        static_cast<unsigned long long>(NUM_STEPS));
+
+  CHECK((finalCoordinates1[0].x != initialCoordinates1[0].x ||
+         finalCoordinates1[0].y != initialCoordinates1[0].y ||
+         finalCoordinates1[0].z != initialCoordinates1[0].z));
+  CHECK((finalCoordinates2[0].x != initialCoordinates2[0].x ||
+         finalCoordinates2[0].y != initialCoordinates2[0].y ||
+         finalCoordinates2[0].z != initialCoordinates2[0].z));
+}
+
+TEST_CASE("CudaNoseHooverIntegratorRestartValidation") {
+  CudaNoseHooverIntegrator integrator(TIME_STEP);
+
+  CHECK_THROWS_AS(integrator.initializeFromRestartFile("missing.rst"),
+                  std::runtime_error);
+
+  // auto ctx = CreateNaclContext();
+  const std::string dataPath = getDataPath();
+
+  auto prm =
+      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
+  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
+  auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+
+  auto fm = std::make_shared<ForceManager>(psf, prm);
+  fm->setBoxDimensions(BOX_DIMENSIONS);
+
+  auto ctx = std::make_shared<CharmmContext>(fm);
+  ctx->setCoordinates(crd);
+  ctx->useHolonomicConstraints(false);
+  ctx->setRandomSeedForVelocities(RANDOM_SEED);
+  ctx->assignVelocitiesAtTemperature(TEMPERATURE);
+
+  integrator.setCharmmContext(ctx);
+
+  CHECK_THROWS_AS(integrator.initializeFromRestartFile("missing.rst"),
+                  std::runtime_error);
+}

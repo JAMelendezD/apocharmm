@@ -246,10 +246,10 @@ void RestartSubscriber::update(void) {
   std::string RNGSTATE = "";
   if (lp != nullptr) {
     SEED = lp->getLangevinPistonFrictionSeed();
-    RNGSTATE = std::to_string(lp->getRngSequencePos());
+    RNGSTATE = lp->getRngStates();
   } else if (lt != nullptr) {
     SEED = lt->getThermostatRngSeed();
-    RNGSTATE = std::to_string(lt->getRngSequencePos());
+    RNGSTATE = lt->getRngStates();
   }
 
   m_FileStream << " !NATOM,NPRIV,NSTEP,NSAVC,NSAVV,JHSTRT,NDEGF,SEED,NSAVL\n";

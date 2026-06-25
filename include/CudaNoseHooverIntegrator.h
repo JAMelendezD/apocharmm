@@ -74,6 +74,7 @@ protected:
 
   int m_AverageWindowSize;
   CudaContainer<double> m_KineticEnergy;
+  CudaContainer<double> m_KineticEnergyPartialSums;
   CudaContainer<double> m_AverageTemperature;
 
   bool m_UsingOldTemperature;

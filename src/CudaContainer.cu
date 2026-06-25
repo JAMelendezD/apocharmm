@@ -170,6 +170,7 @@ template <typename T> void CudaContainer<T>::resize(const std::size_t count) {
 
 template <typename T> void CudaContainer<T>::set(const std::vector<T> &values) {
   m_HostArray = values;
+  m_DeviceArray.resize(values.size());
   this->transferToDevice();
   return;
 }
@@ -177,6 +178,7 @@ template <typename T> void CudaContainer<T>::set(const std::vector<T> &values) {
 template <typename T>
 void CudaContainer<T>::set(const DeviceVector<T> &values) {
   m_DeviceArray = values;
+  m_HostArray.resize(values.size());
   this->transferToHost();
   return;
 }

@@ -72,6 +72,13 @@ def _initialize_prototypes() -> None:
     ]
     lib().apo_charmm_context_get_coordinates_charges.restype = ctypes.c_int
 
+    lib().apo_charmm_context_get_velocity_mass.argtypes = [
+        ctypes.POINTER(ctypes.c_double),
+        ctypes.c_size_t,
+        ctypes.c_void_p,
+    ]
+    lib().apo_charmm_context_get_velocity_mass.restype = ctypes.c_int
+
     lib().apo_charmm_context_get_box_dimensions.argtypes = [
         ctypes.POINTER(ctypes.c_double),
         ctypes.c_size_t,
@@ -229,6 +236,34 @@ class CharmmContext(_ApoObject):
             )
 
         return xyzq
+
+    def getVelocityMass(self) -> list[list[float]]:
+        _initialize_prototypes()
+
+        num_atoms: int = self.getNumAtoms()
+
+        c_buffer_type = ctypes.c_double * (num_atoms * 4)
+        c_buffer = c_buffer_type()
+        c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(num_atoms * 4)
+
+        status = lib().apo_charmm_context_get_velocity_mass(
+            c_buffer, c_buffer_len, self.handle
+        )
+
+        check_status(status, "CharmmContext.getVelocityMass() failed")
+
+        xyzm: list[list[float]] = []
+        for i in range(num_atoms):
+            xyzm.append(
+                [
+                    float(c_buffer[i * 4 + 0]),
+                    float(c_buffer[i * 4 + 1]),
+                    float(c_buffer[i * 4 + 2]),
+                    float(c_buffer[i * 4 + 3]),
+                ]
+            )
+
+        return xyzm
 
     def getBoxDimensions(self) -> list[float]:
         _initialize_prototypes()

@@ -52,6 +52,9 @@ APOCHARMM_C_API apo_status apo_charmm_context_get_num_atoms(
 APOCHARMM_C_API apo_status apo_charmm_context_get_coordinates_charges(
     double *xyzq, const size_t xyzq_len, const apo_charmm_context *context);
 
+APOCHARMM_C_API apo_status apo_charmm_context_get_velocity_mass(
+    double *xyzm, const size_t xyzm_len, const apo_charmm_context *context);
+
 APOCHARMM_C_API apo_status apo_charmm_context_get_box_dimensions(
     double *box_dimensions, const size_t box_dimensions_len,
     const apo_charmm_context *context);

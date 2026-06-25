@@ -15,6 +15,7 @@
 #include <cpp_utils.h>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <source_location> // C++20
 #include <sstream>
 
@@ -198,7 +199,7 @@ void CudaIntegrator::propagate(const int numSteps) {
     this->propagateOneStep();
 
     m_StepsSinceNeighborListUpdate++;
-    m_CurrentPropagatedStep++;
+    this->incrementCurrentPropagatedStep();
 
     // Check if we have nan-esque energy.
     if (step % minReportFreq == 0)
@@ -365,6 +366,28 @@ void CudaIntegrator::checkForNanEnergy(void) {
     throw std::runtime_error("Kinetic energy is NaN");
   if (std::isnan(potEnergy))
     throw std::runtime_error("Potential energy is NaN");
+
+  return;
+}
+
+int CudaIntegrator::wrapCurrentPropagatedStep(
+    const unsigned long long int propagatedStep) {
+  constexpr unsigned long long int WRAP_MODULUS =
+      static_cast<unsigned long long int>(std::numeric_limits<int>::max()) +
+      1ULL;
+  return static_cast<int>(propagatedStep % WRAP_MODULUS);
+}
+
+void CudaIntegrator::incrementCurrentPropagatedStep(void) {
+  constexpr unsigned long long int WRAP_MODULUS =
+      static_cast<unsigned long long int>(std::numeric_limits<int>::max()) +
+      1ULL;
+
+  const unsigned long long int currentStep =
+      static_cast<unsigned long long int>(m_CurrentPropagatedStep);
+
+  m_CurrentPropagatedStep =
+      static_cast<int>((currentStep + 1ULL) % WRAP_MODULUS);
 
   return;
 }

@@ -417,7 +417,7 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
     def setLangevinPistonFrictionSeed(self, seed: int) -> None:
         _initialize_prototypes()
 
-        if seed < 0 or seed > 2**61 - 1:
+        if seed < 0 or seed > 2**64 - 1:
             raise ValueError("seed must fit in uint64_t")
 
         c_seed: ctypes.c_uint64 = ctypes.c_uint64(seed)

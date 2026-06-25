@@ -78,6 +78,28 @@ apo_cuda_integrator_subscribe(apo_cuda_integrator *integrator,
 }
 
 extern "C" apo_status
+apo_cuda_integrator_unsubscribe(apo_cuda_integrator *integrator,
+                                apo_subscriber *subscriber) {
+  const char *function_name = "apo_cuda_integrator_unsubscribe";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_cuda_integrator>(
+                integrator, function_name, "CudaIntegrator"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_subscriber>(
+                subscriber, function_name, "Subscriber"));
+
+        integrator->object->unsubscribe(subscriber->object);
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status
 apo_cuda_integrator_propagate(apo_cuda_integrator *integrator,
                               const int num_steps) {
   const char *function_name = "apo_cuda_integrator_propagate";

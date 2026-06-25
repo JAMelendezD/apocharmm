@@ -25,6 +25,7 @@ public:
   void setThermostatFriction(const double thermostatFriction);
   void setThermostatRngSeed(const std::uint64_t seed);
   void setRngSequencePos(const unsigned long long int sequencePos);
+  void setRngStates(const std::string &rngStateString);
   void resetAverageTemperature(void);
 
 public:
@@ -32,6 +33,7 @@ public:
   double getThermostatFriction(void) const;
   std::uint64_t getThermostatRngSeed(void) const;
   unsigned long long int getRngSequencePos(void) const;
+  std::string getRngStates(void) const;
   int getAverageWindowSize(void) const;
   const CudaContainer<double> &getKineticEnergy(void) const;
   const CudaContainer<double> &getAverageTemperature(void) const;
@@ -62,5 +64,6 @@ protected:
 
   int m_AverageWindowSize;
   CudaContainer<double> m_KineticEnergy;
+  CudaContainer<double> m_KineticEnergyPartialSums;
   CudaContainer<double> m_AverageTemperature;
 };

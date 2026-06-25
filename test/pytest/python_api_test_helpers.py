@@ -17,11 +17,32 @@ from typing import TypeVar
 T = TypeVar("T")
 
 
+def write_text_file(path: Path, contents: str) -> None:
+    path.write_text(contents, encoding="utf-8")
+    return
+
+
 def require_file(path: Path) -> str:
     if not path.is_file():
         raise FileNotFoundError(f"required test file does not exist: {path}")
 
     return str(path)
+
+
+def assert_file_created(path: Path) -> None:
+    if not path.is_file():
+        raise AssertionError(f"expected subscriber output file does not exist: {path}")
+
+    if path.stat().st_size <= 0:
+        raise AssertionError(f"expected subscriber output file is empty: {path}")
+
+    return
+
+
+def remove_if_exists(path: Path) -> None:
+    if path.exists():
+        path.unlink()
+    return
 
 
 def assert_equal(label: str, observed: T, expected: T) -> None:
@@ -56,6 +77,20 @@ def assert_sequence_close(
     return
 
 
+def assert_nested_sequence_close(
+    label: str,
+    observed: Sequence[Sequence[float]],
+    expected: Sequence[Sequence[float]],
+    tolerance: float,
+) -> None:
+    assert_equal(f"{label} outer length", len(observed), len(expected))
+
+    for i in range(len(expected)):
+        assert_sequence_close(f"{label}[{i}]", observed[i], expected[i], tolerance)
+
+    return
+
+
 def assert_finite_scalar(label: str, value: float) -> None:
     if not math.isfinite(value):
         raise AssertionError(f"{label} is not finite: {value}")
@@ -70,6 +105,13 @@ def assert_finite_sequence(label: str, values: Sequence[float]) -> None:
     return
 
 
+def assert_finite_nested_sequence(
+    label: str, values_values: Sequence[Sequence[float]]
+) -> None:
+    for i, values in enumerate(values_values):
+        assert_finite_sequence(f"{label}[{i}]", values)
+
+
 def assert_finite_nonnegative_scalar(label: str, value: float) -> None:
     assert_finite_scalar(label, value)
 
@@ -81,16 +123,6 @@ def assert_finite_nonnegative_scalar(label: str, value: float) -> None:
 
 def assert_finite_temperature(label: str, temperature: float) -> None:
     assert_finite_nonnegative_scalar(f"{label} temperature", temperature)
-    return
-
-
-def assert_file_created(path: Path) -> None:
-    if not path.is_file():
-        raise AssertionError(f"expected subscriber output file does not exist: {path}")
-
-    if path.stat().st_size <= 0:
-        raise AssertionError(f"expected subscriber output file is empty: {path}")
-
     return
 
 

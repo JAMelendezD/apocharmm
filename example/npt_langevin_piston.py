@@ -73,13 +73,13 @@ def main(argc, argv):
     print(f"     Temperature: {avg_temp:.12f} K")
     print(f"        Pressure: {avg_pres_scalar:.12f}")
     print(
-        f" Pressure Tensor: {avg_pres_tensor[0]:20.12f} {avg_pres_tensor[1]:20.12f} {avg_pres_tensor[2]:20.12f}"
+        f" Pressure Tensor: {avg_pres_tensor[0][0]:20.12f} {avg_pres_tensor[0][1]:20.12f} {avg_pres_tensor[0][2]:20.12f}"
     )
     print(
-        f"                  {avg_pres_tensor[3]:20.12f} {avg_pres_tensor[4]:20.12f} {avg_pres_tensor[5]:20.12f}"
+        f"                  {avg_pres_tensor[1][0]:20.12f} {avg_pres_tensor[1][1]:20.12f} {avg_pres_tensor[1][2]:20.12f}"
     )
     print(
-        f"                  {avg_pres_tensor[6]:20.12f} {avg_pres_tensor[7]:20.12f} {avg_pres_tensor[8]:20.12f}"
+        f"                  {avg_pres_tensor[2][0]:20.12f} {avg_pres_tensor[2][1]:20.12f} {avg_pres_tensor[2][2]:20.12f}"
     )
 
     integrator.resetAverages()
@@ -96,13 +96,13 @@ def main(argc, argv):
     print(f"     Temperature: {avg_temp:.12f} K")
     print(f"        Pressure: {avg_pres_scalar:.12f}")
     print(
-        f" Pressure Tensor: {avg_pres_tensor[0]:20.12f} {avg_pres_tensor[1]:20.12f} {avg_pres_tensor[2]:20.12f}"
+        f" Pressure Tensor: {avg_pres_tensor[0][0]:20.12f} {avg_pres_tensor[0][1]:20.12f} {avg_pres_tensor[0][2]:20.12f}"
     )
     print(
-        f"                  {avg_pres_tensor[3]:20.12f} {avg_pres_tensor[4]:20.12f} {avg_pres_tensor[5]:20.12f}"
+        f"                  {avg_pres_tensor[1][0]:20.12f} {avg_pres_tensor[1][1]:20.12f} {avg_pres_tensor[1][2]:20.12f}"
     )
     print(
-        f"                  {avg_pres_tensor[6]:20.12f} {avg_pres_tensor[7]:20.12f} {avg_pres_tensor[8]:20.12f}"
+        f"                  {avg_pres_tensor[2][0]:20.12f} {avg_pres_tensor[2][1]:20.12f} {avg_pres_tensor[2][2]:20.12f}"
     )
 
     # Setup new integrator for running at higher pressure
@@ -110,7 +110,7 @@ def main(argc, argv):
     integrator.useNoseHooverThermostat(use_nose_hoover_thermostat)
     integrator.setCrystalType(apo.CrystalType.CUBIC)
     integrator.setLangevinPistonFrictionSeed(random_seed)
-    integrator.setReferencePressure([7.0, 0.0, 0.0, 0.0, 7.0, 0.0, 0.0, 0.0, 7.0])
+    integrator.setReferencePressure([[7.0, 0.0, 0.0], [0.0, 7.0, 0.0], [0.0, 0.0, 7.0]])
     integrator.setCharmmContext(ctx)
 
     for ITER in range(21):
@@ -126,13 +126,13 @@ def main(argc, argv):
         print(f"     Temperature: {avg_temp:.12f} K")
         print(f"        Pressure: {avg_pres_scalar:.12f}")
         print(
-            f" Pressure Tensor: {avg_pres_tensor[0]:20.12f} {avg_pres_tensor[1]:20.12f} {avg_pres_tensor[2]:20.12f}"
+            f" Pressure Tensor: {avg_pres_tensor[0][0]:20.12f} {avg_pres_tensor[0][1]:20.12f} {avg_pres_tensor[0][2]:20.12f}"
         )
         print(
-            f"                  {avg_pres_tensor[3]:20.12f} {avg_pres_tensor[4]:20.12f} {avg_pres_tensor[5]:20.12f}"
+            f"                  {avg_pres_tensor[1][0]:20.12f} {avg_pres_tensor[1][1]:20.12f} {avg_pres_tensor[1][2]:20.12f}"
         )
         print(
-            f"                  {avg_pres_tensor[6]:20.12f} {avg_pres_tensor[7]:20.12f} {avg_pres_tensor[8]:20.12f}"
+            f"                  {avg_pres_tensor[2][0]:20.12f} {avg_pres_tensor[2][1]:20.12f} {avg_pres_tensor[2][2]:20.12f}"
         )
 
     return 0

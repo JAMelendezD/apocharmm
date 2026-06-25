@@ -41,6 +41,9 @@ def _initialize_prototypes() -> None:
     lib().apo_cuda_integrator_subscribe.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
     lib().apo_cuda_integrator_subscribe.restype = ctypes.c_int
 
+    lib().apo_cuda_integrator_unsubscribe.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    lib().apo_cuda_integrator_unsubscribe.restype = ctypes.c_int
+
     lib().apo_cuda_integrator_propagate.argtypes = [ctypes.c_void_p, ctypes.c_int]
     lib().apo_cuda_integrator_propagate.restype = ctypes.c_int
 
@@ -123,6 +126,22 @@ class CudaIntegrator(_ApoObject):
         check_status(status, "CudaIntegrator.subscribe(subscriber) failed")
 
         self._subscribers.append(subscriber)
+
+        return
+
+    def unsubscribe(self, subscriber: Subscriber) -> None:
+        _initialize_prototypes()
+
+        if not isinstance(subscriber, Subscriber):
+            raise TypeError("CudaIntegrator.unsubscribe expects a Subscriber")
+
+        status = lib().apo_cuda_integrator_unsubscribe(
+            self.integrator_handle, subscriber.subscriber_handle
+        )
+
+        check_status(status, "CudaIntegrator.unsubscribe(subscriber) failed")
+
+        self._subscribers.remove(subscriber)
 
         return
 

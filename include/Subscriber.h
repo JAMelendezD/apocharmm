@@ -85,7 +85,7 @@ public:
 
   /** @brief Opens output file stream (checks path)
    */
-  void openFile(void);
+  virtual void openFile(void);
 
   /** @brief Add a comment section to the output file. Assumes the input string
    * is formatted.

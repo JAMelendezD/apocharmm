@@ -321,10 +321,9 @@ template <typename AT, typename CT>
 void HarmonicRestraintForce<AT, CT>::setBoxDimensions(
     const std::vector<double> &boxDimensions) {
   if (boxDimensions.size() != 3) {
-    std::string msg =
-        "ERROR: HarmonicCenterOfMassRestraintForce::setBoxDimensions(const "
-        "std::vector<double> &): boxDimensions must contain exactly 3 "
-        "elements\n";
+    std::string msg = "ERROR: HarmonicRestraintForce::setBoxDimensions(const "
+                      "std::vector<double> &): boxDimensions must contain "
+                      "exactly 3 elements\n";
     msg +=
         "boxDimensions.size() = " + std::to_string(boxDimensions.size()) + "\n";
     throw std::invalid_argument(msg);
@@ -333,12 +332,12 @@ void HarmonicRestraintForce<AT, CT>::setBoxDimensions(
   for (std::size_t i = 0; i < 3; i++) {
     if (!std::isfinite(boxDimensions[i])) {
       throw std::invalid_argument(
-          "HarmonicCenterOfMassRestraintForce box dimensions must be finite");
+          "HarmonicRestraintForce box dimensions must be finite");
     }
 
     if (boxDimensions[i] <= 0.0) {
       throw std::invalid_argument(
-          "HarmonicCenterOfMassRestraintForce box dimensions must be positive");
+          "HarmonicRestraintForce box dimensions must be positive");
     }
   }
 

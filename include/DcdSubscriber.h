@@ -4,7 +4,7 @@
 // license, as described in the LICENSE file in the top level directory of this
 // project.
 //
-// Author:  Samarjeet Prasad, James E. Gonzales II
+// Author: Samarjeet Prasad, James E. Gonzales II
 //
 // ENDLICENSE
 
@@ -25,6 +25,7 @@ public:
 
 public:
   void update(void) override;
+  void openFile(void) override;
 
 private:
   void writeHeader(void);

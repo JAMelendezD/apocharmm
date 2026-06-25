@@ -57,34 +57,31 @@ def create_system(
 
 
 def create_configured_restraint(
-    psf: apo.CharmmPsf,
-) -> apo.HarmonicCenterOfMassRestraintForce:
+    psf: apo.CharmmPsf, crd: apo.CharmmCrd
+) -> apo.HarmonicRestraintForce:
     selector = apo.AtomSelector(psf)
     selection = selector.select("all")
 
-    restraint = apo.HarmonicCenterOfMassRestraintForce(psf.getNumAtoms())
+    restraint = apo.HarmonicRestraintForce(psf.getNumAtoms())
     restraint.setSelection(selection)
-    restraint.setReferencePosition([1.41, 1.41, 1.41])
-    restraint.setReferencePosition([1.41, 1.41, 1.41], [1, 1, 1])
-    restraint.setReferenceDistance(0.0)
+    restraint.setReferenceCoordinates(crd.getCoordinates())
     restraint.setMasses(psf.getMasses())
-    restraint.setMassWeighting(False)
-    restraint.setForceConstant(1.0)
+    restraint.setForceConstant(10.0)
+    restraint.setForceConstants([10.0 for _ in range(psf.getNumAtoms())])
+    restraint.setBoxDimensions(BOX_DIMENSIONS)
 
     return restraint
 
 
 def check_construction_and_setters(repo_root: Path) -> None:
-    print("Checking HarmonicCenterOfMassRestraintForce construction and setters...")
+    print("Checking HarmonicRestraintForce construction and setters...")
 
-    _, psf, _, _, _ = create_system(repo_root)
+    _, psf, crd, _, _ = create_system(repo_root)
 
-    restraint = create_configured_restraint(psf)
+    restraint = create_configured_restraint(psf, crd)
 
     assert_equal(
-        "HarmonicCenterOfMassRestraintForce.default_force_tag",
-        restraint.default_force_tag,
-        "hmcm",
+        "HarmonicRestraintForce.default_force_tag", restraint.default_force_tag, "harm"
     )
 
     restraint.close()
@@ -93,16 +90,16 @@ def check_construction_and_setters(repo_root: Path) -> None:
 
 
 def check_subscription_and_short_propagation(repo_root: Path) -> None:
-    print("Checking HarmonicCenterOfMassRestraintForce ForceManager subscription...")
+    print("Checking HarmonicRestraintForce ForceManager subscription...")
 
     _, psf, crd, fm, ctx = create_system(repo_root)
 
-    restraint = create_configured_restraint(psf)
+    restraint = create_configured_restraint(psf, crd)
 
     fm.subscribe(restraint)
 
     expect_exception(
-        "ForceManager rejects duplicate HarmonicCenterOfMassRestraintForce subscription",
+        "ForceManager rejects duplicate HarmonicRestraintForce subscription",
         ValueError,
         lambda: fm.subscribe(restraint),
     )
@@ -116,7 +113,7 @@ def check_subscription_and_short_propagation(repo_root: Path) -> None:
     integrator.propagate(10)
 
     assert_finite_temperature(
-        "post harmonic center-of-mass restraint propagation", ctx.computeTemperature()
+        "post harmonic restraint propagation", ctx.computeTemperature()
     )
 
     fm.unsubscribe(restraint)
@@ -130,27 +127,27 @@ def check_subscription_and_short_propagation(repo_root: Path) -> None:
 
 
 def check_validation(repo_root: Path) -> None:
-    print("Checking HarmonicCenterOfMassRestraintForce validation...")
+    print("Checking HarmonicRestraintForce validation...")
 
-    _, psf, _, fm, _ = create_system(repo_root)
-    restraint = apo.HarmonicCenterOfMassRestraintForce(psf.getNumAtoms())
+    _, psf, crd, fm, _ = create_system(repo_root)
+    restraint = apo.HarmonicRestraintForce(psf.getNumAtoms())
     selector = apo.AtomSelector(psf)
     selection = selector.select("all")
 
     expect_exception(
-        "HarmonicCenterOfMassRestraintForce rejects non-int num_atoms",
+        "HarmonicRestraintForce rejects non-int num_atoms",
         TypeError,
-        lambda: apo.HarmonicCenterOfMassRestraintForce(2.0),  # type: ignore[arg-type]
+        lambda: apo.HarmonicRestraintForce(2.0),  # type: ignore[arg-type]
     )
     expect_exception(
-        "HarmonicCenterOfMassRestraintForce rejects zero num_atoms",
+        "HarmonicRestraintForce rejects zero num_atoms",
         ValueError,
-        lambda: apo.HarmonicCenterOfMassRestraintForce(0),
+        lambda: apo.HarmonicRestraintForce(0),
     )
     expect_exception(
-        "HarmonicCenterOfMassRestraintForce rejects negative num_atoms",
+        "HarmonicRestraintForce rejects negative num_atoms",
         ValueError,
-        lambda: apo.HarmonicCenterOfMassRestraintForce(-1),
+        lambda: apo.HarmonicRestraintForce(-1),
     )
     expect_exception(
         "setSelection rejects non-AtomSelection",
@@ -163,34 +160,34 @@ def check_validation(repo_root: Path) -> None:
         lambda: restraint.setForceConstant(-1.0),
     )
     expect_exception(
-        "setReferencePosition rejects wrong coordinate length",
+        "setForceConstants rejects wrong length",
         apo.ApoCharmmError,
-        lambda: restraint.setReferencePosition([0.0, 0.0]),
+        lambda: restraint.setForceConstants([1.0]),
     )
     expect_exception(
-        "setReferencePosition rejects wrong reference mask length",
-        apo.ApoCharmmError,
-        lambda: restraint.setReferencePosition([0.0, 0.0, 0.0], [1, 1]),
+        "setReferenceCoordinates rejects wrong coordinate length",
+        ValueError,
+        lambda: restraint.setReferenceCoordinates([[0.0, 0.0]]),
     )
     expect_exception(
-        "setReferencePosition rejects inactive reference mask",
+        "setReferenceCoordinates rejects wrong atom count",
         apo.ApoCharmmError,
-        lambda: restraint.setReferencePosition([0.0, 0.0, 0.0], [0, 0, 0]),
-    )
-    expect_exception(
-        "setReferencePosition rejects invalid reference mask value",
-        apo.ApoCharmmError,
-        lambda: restraint.setReferencePosition([0.0, 0.0, 0.0], [1, 2, 1]),
-    )
-    expect_exception(
-        "setReferenceDistance rejects negative reference distance",
-        apo.ApoCharmmError,
-        lambda: restraint.setReferenceDistance(-1.0),
+        lambda: restraint.setReferenceCoordinates([[0.0, 0.0, 0.0]]),
     )
     expect_exception(
         "setMasses rejects wrong length",
         apo.ApoCharmmError,
         lambda: restraint.setMasses([1.0]),
+    )
+    expect_exception(
+        "setBoxDimensions rejects wrong length",
+        apo.ApoCharmmError,
+        lambda: restraint.setBoxDimensions([50.0, 50.0]),
+    )
+    expect_exception(
+        "setBoxDimensions rejects negative dimension",
+        apo.ApoCharmmError,
+        lambda: restraint.setBoxDimensions([50.0, -1.0, 50.0]),
     )
     expect_exception(
         "subscribe rejects non-ForceManager",
@@ -204,12 +201,11 @@ def check_validation(repo_root: Path) -> None:
     )
 
     restraint.setSelection(selection)
-    restraint.setReferencePosition([1.41, 1.41, 1.41])
-    restraint.setReferenceDistance(0.0)
+    restraint.setReferenceCoordinates(crd.getCoordinates())
+    restraint.setMasses(psf.getMasses())
     restraint.setForceConstant(1.0)
-    restraint.setMassWeighting(False)
 
-    fm.subscribe(restraint, "custom-hmcm")
+    fm.subscribe(restraint, "custom-harmonic-restraint")
     fm.unsubscribe(restraint)
 
     restraint.close()
@@ -219,18 +215,16 @@ def check_validation(repo_root: Path) -> None:
 
 
 def check_close_invalidates_handle() -> None:
-    print("Checking HarmonicCenterOfMassRestraintForce close invalidates handle...")
+    print("Checking HarmonicRestraintForce close invalidates handle...")
 
-    restraint = apo.HarmonicCenterOfMassRestraintForce(2)
+    restraint = apo.HarmonicRestraintForce(2)
     restraint.close()
 
     expect_exception(
-        "closed HarmonicCenterOfMassRestraintForce rejects setter",
+        "closed HarmonicRestraintForce rejects setter",
         RuntimeError,
         lambda: restraint.setForceConstant(1.0),
     )
-
-    return
 
 
 def main(argc: int, argv: list[str]) -> int:
@@ -243,7 +237,7 @@ def main(argc: int, argv: list[str]) -> int:
 
     print(
         "\033[32m"
-        + "PASS: HarmonicCenterOfMassRestraintForce Python API tests completed."
+        + "PASS: HarmonicRestraintForce Python API tests completed."
         + "\033[0m"
     )
 

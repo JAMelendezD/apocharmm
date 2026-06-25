@@ -8,9 +8,12 @@
 //
 // ENDLICENSE
 
-#include "Constants.h"
 #include "CudaLangevinThermostatIntegrator.h"
+
+#include "Constants.h"
+#include "CurandStateString.h"
 #include "gpu_utils.h"
+
 #include <random>
 #include <stdexcept>
 
@@ -31,7 +34,11 @@ CudaLangevinThermostatIntegrator::CudaLangevinThermostatIntegrator(
   // 1 -> Old T
   m_AverageWindowSize = 0;
   m_KineticEnergy.resize(2);
+  // m_KineticEnergyPartialSums is allocated in this->initialize();
   m_AverageTemperature.resize(2);
+
+  m_KineticEnergy.setToValue(0.0);
+  m_AverageTemperature.setToValue(0.0);
 }
 
 CudaLangevinThermostatIntegrator::~CudaLangevinThermostatIntegrator(void) {
@@ -71,6 +78,35 @@ void CudaLangevinThermostatIntegrator::setRngSequencePos(
   return;
 }
 
+void CudaLangevinThermostatIntegrator::setRngStates(
+    const std::string &rngStateString) {
+  if (m_Context == nullptr) {
+    throw std::runtime_error("CudaLangevinThermostatIntegrator::"
+                             "setRngStateStirng: CharmmContext is not set");
+  }
+
+  unsigned long long int pos = 0;
+  std::vector<curandStatePhilox4_32_10_t> states;
+  apo::curand_states_from_string(pos, states, rngStateString);
+
+  const int numAtoms = m_Context->getNumAtoms();
+  if (states.size() != static_cast<std::size_t>(numAtoms)) {
+    throw std::invalid_argument(
+        "CudaLangevinThermostatIntegrator::setRngStateString: State count does "
+        "not match number of atoms");
+  }
+
+  this->setRngSequencePos(pos);
+  this->alloc(numAtoms);
+
+  cudaCheck(cudaMemcpy(static_cast<void *>(m_RngStates),
+                       static_cast<const void *>(states.data()),
+                       states.size() * sizeof(curandStatePhilox4_32_10_t),
+                       cudaMemcpyHostToDevice));
+
+  return;
+}
+
 void CudaLangevinThermostatIntegrator::resetAverageTemperature(void) {
   m_AverageWindowSize = 0;
   m_AverageTemperature.setToValue(0.0);
@@ -93,6 +129,29 @@ CudaLangevinThermostatIntegrator::getThermostatRngSeed(void) const {
 unsigned long long int
 CudaLangevinThermostatIntegrator::getRngSequencePos(void) const {
   return m_RngSequencePos;
+}
+
+std::string CudaLangevinThermostatIntegrator::getRngStates(void) const {
+  if (m_Context == nullptr) {
+    throw std::runtime_error("CudaLangevinThermostatIntegrator::getRngStates: "
+                             "CharmmContext is not set");
+  }
+
+  if (m_RngStates == nullptr) {
+    throw std::runtime_error("CudaLangevinThermostatIntegrator::getRngStates: "
+                             "RNG states are not allocated");
+  }
+
+  const int numAtoms = m_Context->getNumAtoms();
+  std::vector<curandStatePhilox4_32_10_t> rngStates(numAtoms);
+
+  cudaCheck(cudaStreamSynchronize(*m_IntegratorStream));
+  cudaCheck(cudaMemcpy(static_cast<void *>(rngStates.data()),
+                       static_cast<const void *>(m_RngStates),
+                       rngStates.size() * sizeof(curandStatePhilox4_32_10_t),
+                       cudaMemcpyDeviceToHost));
+
+  return apo::curand_states_to_string(m_RngSequencePos, rngStates);
 }
 
 int CudaLangevinThermostatIntegrator::getAverageWindowSize(void) const {
@@ -215,6 +274,8 @@ void CudaLangevinThermostatIntegrator::initialize(void) {
 
   this->initializeRng();
 
+  m_KineticEnergyPartialSums.resize(numBlocks * 2);
+
   double4 *coordsCharges =
       m_Context->getCoordinatesCharges().getDeviceArray().data();
   float4 *xyzq = m_Context->getXYZQ().getDeviceArray().data();
@@ -229,6 +290,7 @@ void CudaLangevinThermostatIntegrator::initialize(void) {
     UpdateSinglePrecisionCoordinatesKernel<<<numBlocks, numThreads, 0,
                                              *m_IntegratorStream>>>(
         xyzq, coordsCharges, numAtoms);
+    cudaCheck(cudaGetLastError());
 
     copy_DtoD_async<double4>(coordsCharges, m_CoordsRef.getDeviceArray().data(),
                              numAtoms, *m_IntegratorStream);
@@ -246,11 +308,13 @@ void CudaLangevinThermostatIntegrator::initialize(void) {
       m_CoordsDelta.getDeviceArray().data(),
       m_CoordsDeltaPrevious.getDeviceArray().data(), velMass, numAtoms, forces,
       forceStride, m_ThermostatGamma, m_TimeStep);
+  cudaCheck(cudaGetLastError());
 
   if (m_UsingHolonomicConstraints) {
     BackStepInitializationKernel1<<<numBlocks, numThreads, 0,
                                     *m_IntegratorStream>>>(
         coordsCharges, m_CoordsDeltaPrevious.getDeviceArray().data(), numAtoms);
+    cudaCheck(cudaGetLastError());
 
     m_HolonomicConstraint->handleHolonomicConstraints(
         m_CoordsRef.getDeviceArray().data());
@@ -259,6 +323,7 @@ void CudaLangevinThermostatIntegrator::initialize(void) {
                                     *m_IntegratorStream>>>(
         coordsCharges, m_CoordsDeltaPrevious.getDeviceArray().data(),
         m_CoordsRef.getDeviceArray().data(), numAtoms);
+    cudaCheck(cudaGetLastError());
   }
 
   cudaCheck(cudaStreamSynchronize(*m_IntegratorStream));
@@ -442,12 +507,18 @@ void CudaLangevinThermostatIntegrator::initializeFromRestartFile(
   }
   m_TotNumSteps = NPRIV;
   m_NumSteps = NSTEP;
+  m_CurrentPropagatedStep = CudaIntegrator::wrapCurrentPropagatedStep(NPRIV);
   if (NDEGF != m_Context->getDegreesOfFreedom()) {
     throw std::invalid_argument("NDEGF mismatch in restart file \"" +
                                 rstFileName + "\"");
   }
   this->setThermostatRngSeed(SEED);
-  this->setRngSequencePos((isApoRstFile) ? std::stoull(RNGSTATE) : 0);
+  if (isApoRstFile)
+    this->setRngStates(RNGSTATE);
+  else {
+    this->setRngSequencePos(0);
+    this->initializeRng();
+  }
 
   // Skip ENERGIES and STATISTICS section
 
@@ -542,6 +613,7 @@ void CudaLangevinThermostatIntegrator::initializeFromRestartFile(
                                              *m_IntegratorStream>>>(
         m_Context->getXYZQ().getDeviceArray().data(),
         m_Context->getCoordinatesCharges().getDeviceArray().data(), NATOM);
+    cudaCheck(cudaGetLastError());
     cudaCheck(cudaStreamSynchronize(*m_IntegratorStream));
   }
 
@@ -641,19 +713,19 @@ __global__ static void VelocityUpdateKernel(
   return;
 }
 
-__global__ static void
-ComputeKineticEnergyKernel(double *__restrict__ kineticEnergy,
-                           const double4 *__restrict__ velMass,
-                           const double4 *__restrict__ coordsDelta,
-                           const double4 *__restrict__ coordsDeltaPrevious,
-                           const int numAtoms, const double timeStep) {
+__global__ static void ComputeKineticEnergyPartialSumsKernel(
+    double *__restrict__ kineticEnergyPartialSums,
+    const double4 *__restrict__ velMass,
+    const double4 *__restrict__ coordsDelta,
+    const double4 *__restrict__ coordsDeltaPrevious, const int numAtoms,
+    const double timeStep) {
   constexpr double oneThird = 1.0 / 3.0;
-  const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  const int index = blockIdx.x * blockDim.x + threadIdx.x;
   const int stride = gridDim.x * blockDim.x;
   const double invTimeStep = 1.0 / timeStep;
 
-  double ke[2] = {0.0, 0.0};
-  for (int i = idx; i < numAtoms; i += stride) {
+  double ke0 = 0.0, ke1 = 0.0;
+  for (int i = index; i < numAtoms; i += stride) {
     const double4 u1 =
         make_double4(coordsDeltaPrevious[i].x * invTimeStep,
                      coordsDeltaPrevious[i].y * invTimeStep,
@@ -670,17 +742,37 @@ ComputeKineticEnergyKernel(double *__restrict__ kineticEnergy,
     const double newHalfStepKineticEnergy =
         0.5 * ((u2.x * u2.x) + (u2.y * u2.y) + (u2.z * u2.z)) / v.w;
 
-    ke[0] += oneThird * (oldHalfStepKineticEnergy + onStepKineticEnergy +
-                         newHalfStepKineticEnergy);
-    ke[1] += onStepKineticEnergy;
+    ke0 += oneThird * (oldHalfStepKineticEnergy + onStepKineticEnergy +
+                       newHalfStepKineticEnergy);
+    ke1 += onStepKineticEnergy;
   }
 
-  ke[0] = BlockReduceSum<double>(ke[0]);
-  ke[1] = BlockReduceSum<double>(ke[1]);
+  ke0 = BlockReduceSum<double>(ke0);
+  ke1 = BlockReduceSum<double>(ke1);
 
   if (threadIdx.x == 0) {
-    atomicAdd(kineticEnergy + 0, ke[0]);
-    atomicAdd(kineticEnergy + 1, ke[1]);
+    kineticEnergyPartialSums[blockIdx.x * 2 + 0] = ke0;
+    kineticEnergyPartialSums[blockIdx.x * 2 + 1] = ke1;
+  }
+
+  return;
+}
+
+__global__ static void
+ComputeKineticEnergyKernel(double *__restrict__ kineticEnergy,
+                           const double *__restrict__ kineticEnergyPartialSums,
+                           const int numPartialSums) {
+  double ke0 = 0.0, ke1 = 0.0;
+  for (int i = threadIdx.x; i < numPartialSums; i += blockDim.x * 2) {
+    ke0 += kineticEnergyPartialSums[i * 2 + 0];
+    ke1 += kineticEnergyPartialSums[i * 2 + 1];
+  }
+  ke0 = BlockReduceSum<double>(ke0);
+  ke1 = BlockReduceSum<double>(ke1);
+
+  if (threadIdx.x == 0) {
+    kineticEnergy[0] = ke0;
+    kineticEnergy[1] = ke1;
   }
 
   return;
@@ -734,6 +826,7 @@ void CudaLangevinThermostatIntegrator::propagateOneStep(void) {
                                     *m_IntegratorStream>>>(
           m_CoordsDeltaPrevious.getDeviceArray().data(), xyzq, groups,
           numGroups, boxDimX);
+      cudaCheck(cudaGetLastError());
       cudaCheck(cudaStreamSynchronize(*m_IntegratorStream));
     }
     m_Context->resetNeighborList();
@@ -761,6 +854,7 @@ void CudaLangevinThermostatIntegrator::propagateOneStep(void) {
       coordsCharges, m_CoordsDelta.getDeviceArray().data(), m_RngStates,
       m_CoordsDeltaPrevious.getDeviceArray().data(), velMass, numAtoms, forces,
       forceStride, m_ThermostatGamma, kbt, m_TimeStep);
+  cudaCheck(cudaGetLastError());
 
   m_RngSequencePos += 4; // curand_normal4 iterates 4 steps
 
@@ -774,26 +868,36 @@ void CudaLangevinThermostatIntegrator::propagateOneStep(void) {
       m_CoordsRef.getDeviceArray().data(),
       m_CoordsDeltaPrevious.getDeviceArray().data(), numAtoms,
       m_ThermostatGamma, m_TimeStep);
+  cudaCheck(cudaGetLastError());
 
   cudaCheck(cudaMemsetAsync(
       static_cast<void *>(m_KineticEnergy.getDeviceArray().data()), 0,
       2 * sizeof(double), *m_IntegratorStream));
 
-  ComputeKineticEnergyKernel<<<1, 1024, 0, *m_IntegratorStream>>>(
-      m_KineticEnergy.getDeviceArray().data(), velMass,
+  ComputeKineticEnergyPartialSumsKernel<<<numBlocks, numThreads, 0,
+                                          *m_IntegratorStream>>>(
+      m_KineticEnergyPartialSums.getDeviceArray().data(), velMass,
       m_CoordsDelta.getDeviceArray().data(),
       m_CoordsDeltaPrevious.getDeviceArray().data(), numAtoms, m_TimeStep);
+  cudaCheck(cudaGetLastError());
+
+  ComputeKineticEnergyKernel<<<1, numThreads, 0, *m_IntegratorStream>>>(
+      m_KineticEnergy.getDeviceArray().data(),
+      m_KineticEnergyPartialSums.getDeviceArray().data(), numBlocks);
+  cudaCheck(cudaGetLastError());
 
   UpdateAverageTemperatureKernel<<<1, 32, 0, *m_IntegratorStream>>>(
       m_AverageTemperature.getDeviceArray().data(),
       m_KineticEnergy.getDeviceArray().data(), m_Context->getDegreesOfFreedom(),
       charmm::constants::kBoltz, m_AverageWindowSize);
+  cudaCheck(cudaGetLastError());
 
   m_AverageWindowSize++;
 
   UpdateSinglePrecisionCoordinatesKernel<<<numBlocks, numThreads, 0,
                                            *m_IntegratorStream>>>(
       xyzq, coordsCharges, numAtoms);
+  cudaCheck(cudaGetLastError());
 
   copy_DtoD_async<double4>(m_CoordsDelta.getDeviceArray().data(),
                            m_CoordsDeltaPrevious.getDeviceArray().data(),
@@ -830,6 +934,7 @@ void CudaLangevinThermostatIntegrator::initializeRng(void) {
   const int numBlocks = (numAtoms + numThreads - 1) / numThreads;
   InitializeRngKernel<<<numBlocks, numThreads, 0, *m_IntegratorStream>>>(
       m_RngStates, numAtoms, m_Seed, 0, m_RngSequencePos);
+  cudaCheck(cudaGetLastError());
 
   return;
 }

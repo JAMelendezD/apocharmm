@@ -62,3 +62,10 @@ __all__: list[str] = [
     "DcdSubscriber",
     "RestartSubscriber",
 ]
+
+#
+# Allow Ctrl + C to terminate process before returning back to Python
+#
+import signal
+
+signal.signal(signal.SIGINT, signal.SIG_DFL)

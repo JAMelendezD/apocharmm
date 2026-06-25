@@ -9,80 +9,438 @@
 // ENDLICENSE
 
 #include "CudaContainer.h"
+#include "apo_test_helpers.h"
 #include "catch.hpp"
-#include "compare.h"
-#include "cuda_utils.h"
-#include <vector>
 
-TEST_CASE("ConstructionDestruction") {
+TEST_CASE("CudaContainerConstruction") {
   SECTION("DefaultConstructor") {
     CudaContainer<int> c;
+
     CHECK(c.size() == 0);
     CHECK(c.getHostArray().empty() == true);
     CHECK(c.getDeviceArray().empty() == true);
+    CHECK(c.getDeviceArray().size() == 0);
+    CHECK(c.getDeviceArray().capacity() == 0);
+    CHECK(c.getDeviceArray().data() == nullptr);
   }
 
   SECTION("SizeConstructor") {
-    CudaContainer<int> c(5);
-    CHECK(c.size() == 5);
-    CHECK(c.getHostArray().size() == 5);
-    CHECK(c.getDeviceArray().size() == 5);
+    constexpr std::size_t n = 5;
+    CudaContainer<int> c(n);
+
+    CHECK(c.size() == n);
+    CHECK(c.getHostArray().size() == n);
+    CHECK(c.getDeviceArray().size() == n);
+    CHECK(c.getDeviceArray().capacity() == n);
+    CHECK(c.getDeviceArray().data() != nullptr);
+
+    c.set(7);
+
+    const std::vector<int> expected(n, 7);
+    apo_test::CheckHostAndDeviceEqual(c, expected);
   }
 
   SECTION("HostVectorConstructor") {
-    std::vector<int> v = {1, 2, 3};
-    CudaContainer<int> c(v);
-    CHECK(c.size() == 3);
-    CHECK(c.getHostArray().size() == 3);
-    CHECK(c.getDeviceArray().size() == 3);
-    CHECK(CompareVectors1<int>(c.getHostArray(), v, 0.0, true));
-    CHECK_NOTHROW(c.transferToHost());
-    CHECK(CompareVectors1<int>(c.getHostArray(), v, 0.0, true));
+    const std::vector<int> expected = {1, 2, 3};
+    CudaContainer<int> c(expected);
+
+    apo_test::CheckHostAndDeviceEqual(c, expected);
+  }
+
+  SECTION("HostRvalueConstructor") {
+    const std::vector<int> expected = {1, 2, 3};
+    CudaContainer<int> c(std::vector<int>{1, 2, 3});
+
+    apo_test::CheckHostAndDeviceEqual(c, expected);
   }
 
   SECTION("DeviceVectorConstructor") {
-    DeviceVector<int> v({1, 2, 3});
-    CudaContainer<int> c(v);
-    CHECK(c.size() == 3);
-    CHECK(c.getHostArray().size() == 3);
-    CHECK(c.getDeviceArray().size() == 3);
-    std::vector<int> u = {1, 2, 3};
-    CHECK(CompareVectors1<int>(c.getHostArray(), u, 0.0, true));
-    CHECK_NOTHROW(c.transferToHost());
-    CHECK(CompareVectors1<int>(c.getHostArray(), u, 0.0, true));
+    const std::vector<int> expected = {1, 2, 3};
+    DeviceVector<int> deviceVector(expected);
+    CudaContainer<int> c(deviceVector);
+
+    apo_test::CheckHostAndDeviceEqual(c, expected);
   }
 
-  SECTION("CopyConstructor") {
-    CudaContainer<int> c1(std::vector<int>{1, 2, 3});
+  SECTION("DeviceVectorRvalueConstructor") {
+    const std::vector<int> expected = {1, 2, 3};
+    DeviceVector<int> deviceVector(expected);
+    CudaContainer<int> c(std::move(deviceVector));
+
+    apo_test::CheckHostAndDeviceEqual(c, expected);
+  }
+
+  SECTION("CopyConstructorDeepCopy") {
+    const std::vector<int> expected = {1, 2, 3};
+    const std::vector<int> changed = {4, 5, 6};
+
+    CudaContainer<int> c1(expected);
     CudaContainer<int> c2(c1);
+
     CHECK(c1.size() == c2.size());
     CHECK(c1.getHostArray().data() != c2.getHostArray().data());
     CHECK(c1.getDeviceArray().data() != c2.getDeviceArray().data());
-    CHECK(CompareVectors1(c1.getHostArray(), c2.getHostArray(), 0.0, true));
-    CHECK_NOTHROW(c1.transferToHost());
-    CHECK_NOTHROW(c2.transferToHost());
-    CHECK(
-        CompareVectors1<int>(c1.getHostArray(), c2.getHostArray(), 0.0, true));
+
+    c1.set(changed);
+
+    apo_test::CheckHostAndDeviceEqual(c1, changed);
+    apo_test::CheckHostAndDeviceEqual(c2, expected);
+  }
+
+  SECTION("RvalueConstructor") {
+    const std::vector<int> expected = {1, 2, 3};
+    CudaContainer<int> c1(expected);
+    CudaContainer<int> c2(std::move(c1));
+
+    apo_test::CheckHostAndDeviceEqual(c2, expected);
+  }
+
+  SECTION("DoubleContainer") {
+    const std::vector<double> expected = {1.25, 2.5, 3.75};
+    CudaContainer<double> c(expected);
+
+    apo_test::CheckHostAndDeviceEqual(c, expected);
   }
 }
 
-TEST_CASE("Assignment") {
+TEST_CASE("CudaContainerElementAccess") {
+  SECTION("AtReadsAndWritesHostArray") {
+    CudaContainer<int> c(std::vector<int>{1, 2, 3});
+
+    CHECK(c.at(0) == 1);
+    CHECK(c.at(1) == 2);
+    CHECK(c.at(2) == 3);
+
+    c.at(1) = 7;
+
+    const std::vector<int> expected = {1, 7, 3};
+    CHECK(c.getHostArray() == expected);
+
+    c.transferToDevice();
+
+    CHECK(apo_test::CopyToHost(c.getDeviceArray()) == expected);
+  }
+
+  SECTION("AtThrowsOutOfRange") {
+    CudaContainer<int> c(std::vector<int>{1, 2, 3});
+
+    CHECK_THROWS_AS(c.at(3), std::out_of_range);
+  }
+
+  SECTION("OperatorIndexReadsAndWritesHostArray") {
+    CudaContainer<int> c(std::vector<int>{1, 2, 3});
+
+    CHECK(c[0] == 1);
+    CHECK(c[1] == 2);
+    CHECK(c[2] == 3);
+
+    c[2] = 9;
+
+    const std::vector<int> expected = {1, 2, 9};
+    CHECK(c.getHostArray() == expected);
+
+    c.transferToDevice();
+
+    CHECK(apo_test::CopyToHost(c.getDeviceArray()) == expected);
+  }
+
+  SECTION("ConstElementAccess") {
+    CudaContainer<int> c(std::vector<int>{1, 2, 3});
+    const CudaContainer<int> &constContainer = c;
+
+    CHECK(constContainer.at(0) == 1);
+    CHECK(constContainer[2] == 3);
+  }
+}
+
+TEST_CASE("CudaContainerAssignment") {
   SECTION("AssignFromHostVector") {
+    const std::vector<int> expected = {1, 2, 3};
     CudaContainer<int> c;
-    std::vector<int> u({1, 2, 3});
-    CHECK_NOTHROW(c = u);
-    CHECK(CompareVectors1<int>(c.getHostArray(), u, 0.0, true));
-    CHECK_NOTHROW(c.transferToHost());
-    CHECK(CompareVectors1<int>(c.getHostArray(), u, 0.0, true));
+
+    c = expected;
+
+    apo_test::CheckHostAndDeviceEqual(c, expected);
+  }
+
+  SECTION("AssignFromHostRvalueVector") {
+    const std::vector<int> expected = {1, 2, 3};
+    CudaContainer<int> c;
+
+    c = std::vector<int>{1, 2, 3};
+
+    apo_test::CheckHostAndDeviceEqual(c, expected);
+  }
+
+  SECTION("AssignFromHostVectorShrinksExistingContainer") {
+    const std::vector<int> expected = {1, 2, 3};
+    CudaContainer<int> c(8);
+
+    c = expected;
+
+    apo_test::CheckHostAndDeviceEqual(c, expected);
   }
 
   SECTION("AssignFromDeviceVector") {
+    const std::vector<int> expected = {1, 2, 3};
+    DeviceVector<int> deviceVector(expected);
     CudaContainer<int> c;
-    DeviceVector<int> v({1, 2, 3});
-    CHECK_NOTHROW(c = v);
-    std::vector<int> u({1, 2, 3});
-    CHECK(CompareVectors1<int>(c.getHostArray(), u, 0.0, true));
-    CHECK_NOTHROW(c.transferToHost());
-    CHECK(CompareVectors1<int>(c.getHostArray(), u, 0.0, true));
+
+    c = deviceVector;
+
+    apo_test::CheckHostAndDeviceEqual(c, expected);
+  }
+
+  SECTION("AssignFromDeviceRvalueVector") {
+    const std::vector<int> expected = {1, 2, 3};
+    DeviceVector<int> deviceVector(expected);
+    CudaContainer<int> c;
+
+    c = std::move(deviceVector);
+
+    apo_test::CheckHostAndDeviceEqual(c, expected);
+  }
+
+  SECTION("CopyAssignmentDeepCopy") {
+    const std::vector<int> expected = {1, 2, 3};
+    const std::vector<int> changed = {4, 5, 6};
+
+    CudaContainer<int> c1(expected);
+    CudaContainer<int> c2(8);
+
+    c2 = c1;
+
+    CHECK(c1.getHostArray().data() != c2.getHostArray().data());
+    CHECK(c1.getDeviceArray().data() != c2.getDeviceArray().data());
+
+    c1.set(changed);
+
+    apo_test::CheckHostAndDeviceEqual(c1, changed);
+    apo_test::CheckHostAndDeviceEqual(c2, expected);
+  }
+
+  SECTION("RvalueAssignment") {
+    const std::vector<int> expected = {1, 2, 3};
+    CudaContainer<int> c1(expected);
+    CudaContainer<int> c2(std::vector<int>{9});
+
+    c2 = std::move(c1);
+
+    apo_test::CheckHostAndDeviceEqual(c2, expected);
+  }
+
+  SECTION("SelfAssignment") {
+    const std::vector<int> expected = {1, 2, 3};
+    CudaContainer<int> c(expected);
+
+    CHECK_NOTHROW(c = c);
+    apo_test::CheckHostAndDeviceEqual(c, expected);
+  }
+
+  SECTION("SelfMoveAssignment") {
+    const std::vector<int> expected = {1, 2, 3};
+    CudaContainer<int> c(expected);
+
+    CHECK_NOTHROW(c = std::move(c));
+    apo_test::CheckHostAndDeviceEqual(c, expected);
+  }
+}
+
+TEST_CASE("CudaContainerModifiers") {
+  SECTION("Clear") {
+    CudaContainer<int> c(std::vector<int>{1, 2, 3});
+
+    c.clear();
+
+    CHECK(c.size() == 0);
+    CHECK(c.getHostArray().empty() == true);
+    CHECK(c.getDeviceArray().empty() == true);
+    CHECK(c.getDeviceArray().size() == 0);
+    CHECK(c.getDeviceArray().capacity() == 0);
+    CHECK(c.getDeviceArray().data() == nullptr);
+
+    CHECK_NOTHROW(c.clear());
+    CHECK(c.size() == 0);
+    CHECK(c.getHostArray().empty() == true);
+    CHECK(c.getDeviceArray().empty() == true);
+    CHECK(c.getDeviceArray().data() == nullptr);
+  }
+
+  SECTION("ResizeFromEmpty") {
+    constexpr std::size_t n = 5;
+    CudaContainer<int> c;
+
+    c.resize(n);
+
+    CHECK(c.size() == n);
+    CHECK(c.getHostArray() == std::vector<int>(n, 0));
+    CHECK(c.getDeviceArray().size() == n);
+    CHECK(c.getDeviceArray().capacity() == n);
+    CHECK(c.getDeviceArray().data() != nullptr);
+  }
+
+  SECTION("ResizeGrowPreserve") {
+    CudaContainer<int> c(std::vector<int>{1, 2, 3});
+
+    c.resize(5);
+
+    CHECK(c.size() == 5);
+    CHECK(c.getHostArray() == std::vector<int>{1, 2, 3, 0, 0});
+    CHECK(c.getDeviceArray().size() == 5);
+    CHECK(apo_test::CopyToHost(c.getDeviceArray(), 3) ==
+          std::vector<int>{1, 2, 3});
+  }
+
+  SECTION("ResizeShrinkPreserve") {
+    const std::vector<int> expected = {1, 2, 3};
+    CudaContainer<int> c(std::vector<int>{1, 2, 3, 4, 5});
+
+    c.resize(expected.size());
+
+    apo_test::CheckHostAndDeviceEqual(c, expected);
+  }
+
+  SECTION("ResizeToZero") {
+    CudaContainer<int> c(std::vector<int>{1, 2, 3});
+
+    c.resize(0);
+
+    CHECK(c.size() == 0);
+    CHECK(c.getHostArray().empty() == true);
+    CHECK(c.getDeviceArray().empty() == true);
+    CHECK(c.getDeviceArray().size() == 0);
+  }
+
+  SECTION("ShrinkToFitNonempty") {
+    const std::vector<int> expected = {1, 2, 3};
+    CudaContainer<int> c(std::vector<int>{1, 2, 3, 4, 5});
+
+    c.resize(expected.size());
+    c.shrink_to_fit();
+
+    apo_test::CheckHostAndDeviceEqual(c, expected);
+    CHECK(c.getDeviceArray().capacity() == expected.size());
+  }
+
+  SECTION("ShrinkToFitEmpty") {
+    CudaContainer<int> c;
+
+    CHECK_NOTHROW(c.shrink_to_fit());
+
+    CHECK(c.size() == 0);
+    CHECK(c.getHostArray().empty() == true);
+    CHECK(c.getDeviceArray().empty() == true);
+    CHECK(c.getDeviceArray().capacity() == 0);
+    CHECK(c.getDeviceArray().data() == nullptr);
+  }
+
+  SECTION("PushBackFromEmpty") {
+    const std::vector<int> expected = {4};
+    CudaContainer<int> c;
+
+    c.push_back(4);
+
+    apo_test::CheckHostAndDeviceEqual(c, expected);
+  }
+
+  SECTION("PushBackMany") {
+    std::vector<int> expected(100);
+    for (std::size_t i = 0; i < expected.size(); i++)
+      expected[i] = static_cast<int>(i + 1);
+
+    CudaContainer<int> c;
+    for (std::size_t i = 0; i < expected.size(); i++)
+      c.push_back(static_cast<int>(i + 1));
+
+    apo_test::CheckHostAndDeviceEqual(c, expected);
+  }
+
+  SECTION("PushBackAfterClear") {
+    const std::vector<int> expected = {64};
+    CudaContainer<int> c(std::vector<int>{1, 2, 3});
+
+    c.clear();
+    c.push_back(64);
+
+    apo_test::CheckHostAndDeviceEqual(c, expected);
+  }
+}
+
+TEST_CASE("CudaContainerSetAndTransfer") {
+  SECTION("SetFromHostVectorResizeDevice") {
+    const std::vector<int> expected = {1, 2, 3};
+    CudaContainer<int> c(5);
+
+    c.set(expected);
+
+    apo_test::CheckHostAndDeviceEqual(c, expected);
+  }
+
+  SECTION("SetFromDeviceVectorResizeHost") {
+    const std::vector<int> expected = {1, 2, 3};
+    CudaContainer<int> c(std::vector<int>{9, 9, 9, 9, 9});
+    DeviceVector<int> deviceVector(expected);
+
+    c.set(deviceVector);
+
+    apo_test::CheckHostAndDeviceEqual(c, expected);
+  }
+
+  SECTION("SetScalar") {
+    CudaContainer<int> c(4);
+
+    c.set(11);
+
+    const std::vector<int> expected(4, 11);
+    apo_test::CheckHostAndDeviceEqual(c, expected);
+  }
+
+  SECTION("SetToValueAlias") {
+    CudaContainer<int> c(4);
+
+    c.setToValue(-2);
+
+    const std::vector<int> expected(4, -2);
+    apo_test::CheckHostAndDeviceEqual(c, expected);
+  }
+
+  SECTION("TransferToDevice") {
+    CudaContainer<int> c(std::vector<int>{1, 2, 3});
+
+    c.getHostArray()[1] = 20;
+    c.transferToDevice();
+
+    const std::vector<int> expected = {1, 20, 3};
+    CHECK(c.getHostArray() == expected);
+    CHECK(apo_test::CopyToHost(c.getDeviceArray()) == expected);
+  }
+
+  SECTION("TransferToHost") {
+    CudaContainer<int> c(std::vector<int>{1, 2, 3});
+    const std::vector<int> expected = {4, 5, 6};
+
+    apo_test::CopyToDevice(c.getDeviceArray(), expected);
+    c.transferToHost();
+
+    CHECK(c.getHostArray() == expected);
+    CHECK(apo_test::CopyToHost(c.getDeviceArray()) == expected);
+  }
+
+  SECTION("TransferAliases") {
+    CudaContainer<int> c(std::vector<int>{1, 2, 3});
+
+    c.getHostArray()[0] = 7;
+    c.transferFromHost();
+
+    const std::vector<int> hostChange = {7, 2, 3};
+    CHECK(c.getHostArray() == hostChange);
+    CHECK(apo_test::CopyToHost(c.getDeviceArray()) == hostChange);
+
+    const std::vector<int> deviceChange = {4, 5, 6};
+    apo_test::CopyToDevice(c.getDeviceArray(), deviceChange);
+    c.transferFromDevice();
+
+    CHECK(c.getHostArray() == deviceChange);
+    CHECK(apo_test::CopyToHost(c.getDeviceArray()) == deviceChange);
   }
 }
