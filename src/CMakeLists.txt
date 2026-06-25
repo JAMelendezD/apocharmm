@@ -88,25 +88,12 @@ target_compile_definitions(apoCHARMMlib PUBLIC USE_TEXTURE_OBJECTS)
 
 set_target_properties(apoCHARMMlib PROPERTIES
   POSITION_INDEPENDENT_CODE ON
+  CUDA_ARCHITECTURES "${APOCHARMM_CUDA_ARCHITECTURES}"
+  # CUDA_SEPARABLE_COMPILATION ON
+  # COMPILE_FLAGS "-rdc=true"
+  # LINK_FLAGS "-lcudadevrt"
 )
-# set_target_properties(apoCHARMMlib PROPERTIES
-#   CUDA_ARCHITECTURES "80"
-# )
-set_target_properties(apoCHARMMlib PROPERTIES
-  CUDA_ARCHITECTURES "60;70;80;90"
-)
-# set_target_properties(apoCHARMMlib PROPERTIES
-#   CUDA_ARCHITECTURES "native"
-# )
-# set_target_properties(apoCHARMMlib PROPERTIES
-#   CUDA_SEPARABLE_COMPILATION ON
-# )
-# set_target_properties(apoCHARMMlib PROPERTIES
-#   COMPILE_FLAGS "-rdc=true"
-# )
-# set_target_properties(apoCHARMMlib PROPERTIES
-#   LINK_FLAGS "-lcudadevrt"
-# )
+
 target_include_directories(apoCHARMMlib PUBLIC ${apoCHARMM_SOURCE_DIR}/include)
 
 target_link_libraries(apoCHARMMlib

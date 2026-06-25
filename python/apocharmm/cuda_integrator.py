@@ -8,6 +8,8 @@
 # ENDLICENSE
 
 import ctypes
+import signal
+import threading
 
 from ._base import _ApoObject
 from ._lib import encode_path, lib
@@ -153,9 +155,22 @@ class CudaIntegrator(_ApoObject):
 
         c_num_steps: ctypes.c_int = ctypes.c_int(num_steps)
 
-        status = lib().apo_cuda_integrator_propagate(
-            self.integrator_handle, c_num_steps
+        restore_signal_handler: bool = (
+            threading.current_thread() is threading.main_thread()
         )
+        previous_sigint_handler = None
+
+        if restore_signal_handler:
+            previous_sigint_handler = signal.getsignal(signal.SIGINT)
+            signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+        try:
+            status = lib().apo_cuda_integrator_propagate(
+                self.integrator_handle, c_num_steps
+            )
+        finally:
+            if restore_signal_handler:
+                signal.signal(signal.SIGINT, previous_sigint_handler)
 
         check_status(status, "CudaIntegrator.propagate(num_steps) failed")
 

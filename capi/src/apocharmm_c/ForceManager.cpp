@@ -85,6 +85,66 @@ apo_force_manager_set_box_dimensions(apo_force_manager *force_manager,
       function_name);
 }
 
+extern "C" apo_status
+apo_force_manager_set_kappa(apo_force_manager *force_manager,
+                            const double kappa) {
+  const char *function_name = "apo_force_manager_set_kappa";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      function_name);
+}
+
+extern "C" apo_status
+apo_force_manager_set_cutoff(apo_force_manager *force_manager,
+                             const double cutoff) {
+  const char *function_name = "apo_force_manager_set_cutoff";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      function_name);
+}
+
+extern "C" apo_status
+apo_force_manager_set_ctonnb(apo_force_manager *force_manager,
+                             const double ctonnb) {
+  const char *function_name = "apo_force_manager_set_ctonnb";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      function_name);
+}
+
+extern "C" apo_status
+apo_force_manager_set_ctofnb(apo_force_manager *force_manager,
+                             const double ctofnb) {
+  const char *function_name = "apo_force_manager_set_ctofnb";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      function_name);
+}
+
+extern "C" apo_status
+apo_force_manager_set_fft_grid(apo_force_manager *force_manager,
+                               const int *grid, const size_t grid_len) {
+  const char *function_name = "apo_force_manager_set_fft_grid";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      function_name);
+}
+
+extern "C" apo_status
+apo_force_manager_set_pme_spline_order(apo_force_manager *force_manager,
+                                       const int order) {
+  const char *function_name = "apo_force_manager_set_pme_spline_order";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      function_name);
+}
+
 extern "C" apo_status apo_force_manager_set_periodic_boundary_condition(
     apo_force_manager *force_manager, const apo_pbc pbc) {
   const char *function_name =
@@ -107,6 +167,76 @@ extern "C" apo_status apo_force_manager_set_periodic_boundary_condition(
       function_name);
 }
 
+extern "C" apo_status
+apo_force_manager_set_vdw_type(apo_force_manager *force_manager,
+                               const int vdwType) {
+  const char *function_name = "apo_force_manager_set_vdw_type";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      function_name);
+}
+
+extern "C" apo_status apo_force_manager_set_print_energy_decomposition(
+    apo_force_manager *force_manager, const bool flag) {
+  const char *function_name =
+      "apo_force_manager_set_print_energy_decomposition";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      function_name);
+}
+
+extern "C" apo_status
+apo_force_manager_get_kappa(double *kappa,
+                            const apo_force_manager *force_manager) {
+  const char *function_name = "apo_force_manager_get_kappa";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      function_name);
+}
+
+extern "C" apo_status
+apo_force_manager_get_cutoff(double *cutoff,
+                             const apo_force_manager *force_manager) {
+  const char *function_name = "apo_force_manager_get_cutoff";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      function_name);
+}
+
+extern "C" apo_status
+apo_force_manager_get_ctonnb(double *ctonnb,
+                             const apo_force_manager *force_manager) {
+  const char *function_name = "apo_force_manager_get_ctonnb";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      function_name);
+}
+
+extern "C" apo_status
+apo_force_manager_get_ctofnb(double *ctofnb,
+                             const apo_force_manager *force_manager) {
+  const char *function_name = "apo_force_manager_get_ctofnb";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      function_name);
+}
+
+extern "C" apo_status
+apo_force_manager_get_fft_grid(int *grid, const size_t grid_len,
+                               const apo_force_manager *force_manager) {
+  const char *function_name = "apo_force_manager_get_fft_grid";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      function_name);
+}
+
 extern "C" apo_status apo_force_manager_get_periodic_boundary_condition(
     apo_pbc *pbc, const apo_force_manager *force_manager) {
   const char *function_name =
@@ -125,5 +255,15 @@ extern "C" apo_status apo_force_manager_get_periodic_boundary_condition(
             pbc, force_manager->object->getPeriodicBoundaryCondition(),
             function_name);
       },
+      function_name);
+}
+
+extern "C" apo_status
+apo_force_manager_get_vdw_type(int *vdw_type,
+                               const apo_force_manager *force_manager) {
+  const char *function_name = "apo_force_manager_get_vdw_type";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
       function_name);
 }

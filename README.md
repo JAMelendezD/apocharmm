@@ -53,20 +53,47 @@ cd apocharmm/
 ```
 
 (If you already cloned this repository without the `--recursive` flag, simply
-run `git submodule update --init --force --remote` from within the `apocharmm/`
+run `git submodule update --init --recursive` from within the `apocharmm/`
 directory).
 
 ### 1. Compile the source code
 
-By default, the Python API is built as well. If you would like to disable it,
-replace the CMake command below with
-`cmake -DAPOCHARMM_ENABLE_PYTHON_API=OFF ..`
+By default, the Python API and unit tests are built.
+
+For a standard release build:
 
 ```
-mkdir build
-cd build/
-cmake ..
-make -j
+cmake -S . -B build
+cmake --build build --parallel
+```
+
+For a debug build:
+
+```
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --parallel
+```
+
+To build without the Python C API:
+
+```
+cmake -S . -B build -DAPOCHARMM_ENABLE_PYTHON_API=OFF
+cmake --build build --parallel
+```
+
+To build without unit tests:
+
+```
+cmake -S . -B build -DBUILD_TESTING=OFF
+cmake --build build --parallel
+```
+
+To restrict CUDA architectures, set `APOCHARMM_CUDA_ARCHITECTURES`. For example,
+to build only for NVIDIA Ampere and Hopper GPUs:
+
+```
+cmake -S . -B build -DAPOCHARMM_CUDA_ARCHITECTURES="80;90"
+cmake --build build --parallel
 ```
 
 ### 2. Enable use of the Python API
@@ -85,8 +112,61 @@ export PYTHONPATH=/absolute/path/to/apocharmm/python:$PYTHONPATH
 
 ## Testing and Examples
 
-To ensure that your installation of apoCHARMM is working correctly, you can run
-the [test shell script](run_tests.sh).
+apoCHARMM uses CTest to run both the C++ unit tests and the Python API tests.
+CTest is enabled when `BUILD_TESTING=ON`, which is the default CMake behavior.
+
+After configuring and building apoCHARMM run all registered tests with:
+
+```
+ctest --test-dir build --output-on-failure
+```
+
+To run only the C++ API tests:
+
+```
+ctest --test-dir build -L cpp_api --output-on-failure
+```
+
+To run only the Python API tests:
+
+```
+ctest --test-dir build -L python_api --output-on-failure
+```
+
+To run a single test, use `-R` with the test name or a regular expression.
+
+For example:
+
+```
+ctest --test-dir build -R python_api_charmm_psf --output-on-failure
+```
+
+or:
+
+```
+ctest --test-dir build -R unittest-cudaNoseHooverIntegrator --output-on-failure
+```
+
+The Python API tests are only registered when the Python C API is built. By
+default, this is enabled. To disable the Python C API and Python API tests,
+configure with:
+
+```
+cmake -S . -B build -DAPOCHARMM_ENABLE_PYTHON_API=OFF
+```
+
+To configure apoCHARMM without any tests:
+
+```
+cmake -S . -B build -DBUILD_TESTING=OFF
+```
+
+The convenience script [run_tests.sh](run_tests.sh) can also be used to run the
+test suite:
+
+```
+./run_tests.sh
+```
 
 Example scripts of how to perform simple tasks in apoCHARMM can be found in the
 [example directory](example).

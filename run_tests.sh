@@ -6,6 +6,8 @@
 # If any of the tests in this script FAIL, DO NOT PUSH YOUR CHANGES TO THE
 # GITHUB REPOSITORY!
 
+set -euo pipefail
+
 show_usage() {
     echo "Usage: $0 [option]"
     echo
@@ -18,135 +20,10 @@ show_usage() {
     echo "With no option, all tests are run."
 }
 
-run_cpp_tests() {
-    echo "###################"
-    echo "#### C++ TESTS ####"
-    echo "########################################################################"
-
-    # Base tests
-    echo "./bin/unittest-deviceVector"
-    ./bin/unittest-deviceVector
-    echo
-    echo "./bin/unittest-cudaContainer"
-    ./bin/unittest-cudaContainer
-
-    # Manager tests
-    # echo
-    # echo "./bin/unittest-charmmContext"
-    # ./bin/unittest-charmmContext
-    # echo
-    # echo "./bin/unittest-forceManager"
-    # ./bin/unittest-forceManager
-
-    # Object tests
-    echo
-    echo "./bin/unittest-charmmPSF"
-    ./bin/unittest-charmmPSF
-    echo
-    echo "./bin/unittest-charmmParameters"
-    ./bin/unittest-charmmParameters
-    echo
-    echo "./bin/unittest-coordinates"
-    ./bin/unittest-coordinates
-    echo
-    echo "./bin/unittest-charmmCrd"
-    ./bin/unittest-charmmCrd
-    echo
-    echo "./bin/unittest-atomSelection"
-    ./bin/unittest-atomSelection
-
-    # Subscriber tests
-    echo
-    echo "./bin/unittest-dcdSubscriber"
-    ./bin/unittest-dcdSubscriber
-    echo
-    echo "./bin/unittest-restartSubscriber"
-    ./bin/unittest-restartSubscriber
-
-    # Integrator tests
-    echo
-    echo "./bin/unittest-cudaIntegrator"
-    ./bin/unittest-cudaIntegrator
-    echo
-    echo "./bin/unittest-cudaNoseHooverIntegrator"
-    ./bin/unittest-cudaNoseHooverIntegrator
-    echo
-    echo "./bin/unittest-cudaLangevinThermostatIntegrator"
-    ./bin/unittest-cudaLangevinThermostatIntegrator
-    echo
-    echo "./bin/unittest-cudaLangevinPistonIntegrator"
-    ./bin/unittest-cudaLangevinPistonIntegrator
-
-    # Restraint tests
-    echo
-    echo "./bin/unittest-harmonicRestraintForce"
-    ./bin/unittest-harmonicRestraintForce
-    echo
-    echo "./bin/unittest-harmonicCenterOfMassRestraintForce"
-    ./bin/unittest-harmonicCenterOfMassRestraintForce
-}
-
-run_python_tests() {
-    echo "##########################"
-    echo "#### Python API TESTS ####"
-    echo "########################################################################"
-
-    # Manager tests
-    # echo "python3 test/pytest/python_api_charmm_context.py"
-    # python3 test/pytest/python_api_charmm_context.py
-    # echo
-    # echo "python3 test/pytest/python_api_force_manager.py"
-    # python3 test/pytest/python_api_force_manager.py
-
-    # Object tests
-    echo
-    echo "python3 test/pytest/python_api_charmm_parameters.py"
-    python3 test/pytest/python_api_charmm_parameters.py
-    echo
-    echo "python3 test/pytest/python_api_charmm_psf.py"
-    python3 test/pytest/python_api_charmm_psf.py
-    echo
-    echo "python3 test/pytest/python_api_charmm_crd.py"
-    python3 test/pytest/python_api_charmm_crd.py
-    echo
-    echo "python3 test/pytest/python_api_atom_selection.py"
-    python3 test/pytest/python_api_atom_selection.py
-
-    # Subscriber tests
-    echo
-    echo "python3 test/pytest/python_api_dcd_subscriber.py"
-    python3 test/pytest/python_api_dcd_subscriber.py
-    echo
-    echo "python3 test/pytest/python_api_restart_subscriber.py"
-    python3 test/pytest/python_api_restart_subscriber.py
-
-    # Integrator tests
-    echo
-    echo "python3 test/pytest/python_api_cuda_integrator.py"
-    python3 test/pytest/python_api_cuda_integrator.py
-    echo
-    echo "python3 test/pytest/python_api_cuda_nose_hoover_integrator.py"
-    python3 test/pytest/python_api_cuda_nose_hoover_integrator.py
-    echo
-    echo "python3 test/pytest/python_api_cuda_langevin_thermostat_integrator.py"
-    python3 test/pytest/python_api_cuda_langevin_thermostat_integrator.py
-    echo
-    echo "python3 test/pytest/python_api_cuda_langevin_piston_integrator.py"
-    python3 test/pytest/python_api_cuda_langevin_piston_integrator.py
-
-    # Restraint tests
-    echo
-    echo "python3 test/pytest/python_api_harmonic_restraint_force.py"
-    python3 test/pytest/python_api_harmonic_restraint_force.py
-    echo
-    echo "python3 test/pytest/python_api_harmonic_center_of_mass_restraint_force.py"
-    python3 test/pytest/python_api_harmonic_center_of_mass_restraint_force.py
-}
+BUILD_DIR="build"
 
 if [ "$#" -eq 0 ]; then
-    clear
-    run_cpp_tests
-    run_python_tests
+    ctest --test-dir "${BUILD_DIR}" --output-on-failure
     exit 0
 fi
 
@@ -159,21 +36,19 @@ fi
 
 case "$1" in
     -a|--all)
-        clear
-        run_cpp_tests
-        run_python_tests
+        ctest --test-dir "${BUILD_DIR}" --output-on-failure
         ;;
     -c|--cpp)
-        run_cpp_tests
+        ctest --test-dir "${BUILD_DIR}" -L cpp_api --output-on-failure
         ;;
     -p|--python)
-        run_python_tests
+        ctest --test-dir "${BUILD_DIR}" -L python_api --output-on-failure
         ;;
     -h|--help)
         show_usage
         ;;
     *)
-        echo "Error: Unknown option '$test_option'.'"
+        echo "Error: Unknown option '$1'."
         echo
         show_usage
         exit 1

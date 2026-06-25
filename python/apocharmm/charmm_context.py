@@ -280,7 +280,7 @@ class CharmmContext(_ApoObject):
 
         box_dimensions: list[float] = []
         for i in range(3):
-            box_dimensions.append(float(c_buffer[0]))
+            box_dimensions.append(float(c_buffer[i]))
 
         return box_dimensions
 

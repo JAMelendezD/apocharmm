@@ -262,21 +262,16 @@ void CudaIntegrator::subscribe(
 
 void CudaIntegrator::unsubscribe(std::shared_ptr<Subscriber> sub) {
   auto subIterator = std::find(m_Subscribers.begin(), m_Subscribers.end(), sub);
-  if (subIterator != m_Subscribers.end())
-    m_Subscribers.erase(subIterator);
-  else {
-    // std::stringstream tmpexc;
-    // tmpexc << "Subscriber not found (file " << sub->getFileName() << ")"
-    //        << std::endl;
-    // throw std::invalid_argument(tmpexc.str());
+
+  if (subIterator == m_Subscribers.end()) {
     throw std::invalid_argument("Subscriber not found (file \"" +
                                 sub->getFileName() + "\")");
   }
-  // if you unsubscribe, you should also remove the corresponding freq
-  auto freqIterator =
-      std::find(m_ReportFreqList.begin(), m_ReportFreqList.end(),
-                sub->getReportFrequency());
-  m_ReportFreqList.erase(freqIterator);
+
+  const std::size_t index = static_cast<std::size_t>(
+      std::distance(m_Subscribers.begin(), subIterator));
+  m_Subscribers.erase(subIterator);
+  m_ReportFreqList.erase(m_ReportFreqList.begin() + index);
 
   return;
 }

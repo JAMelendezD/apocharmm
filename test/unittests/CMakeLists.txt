@@ -4,7 +4,8 @@ set(SOURCES_UNITTESTS_TESTS
   unittest-deviceVector.cpp
   unittest-cudaContainer.cpp
 
-  # # Manager tests
+  # Manager tests
+  # unittest-charmmContext.cpp
   # unittest-forceManager.cpp
 
   # Object tests
@@ -29,81 +30,122 @@ set(SOURCES_UNITTESTS_TESTS
   unittest-harmonicCenterOfMassRestraintForce.cpp
 )
 
-#
-# Stuff below shouldn't need to be modified
-#
-set(SOURCES_UNITTESTS_MAIN unittest-main.cpp)
+###################################################
+#### STUFF BELOW SHOULDN'T NEED TO BE MODIFIED ####
+###################################################
+########################################################################
+set(SOURCES_UNITTESTS_MAIN
+  unittest-main.cpp
+)
 
-# A function to check that the given hard-coded list contains all headers + sources in the given folder.
+set(SOURCES_UNITTESTS_HEADERS
+  apo_test_helpers.h
+  catch.hpp
+  test_paths.h
+)
+
+# A function to check that the given hard-coded list contains all headers and
+# sources in the given folder.
 function(CheckFileList LIST_VAR FOLDER)
-  set(MESSAGE " should be added to the variable ${LIST_VAR}")
-  set(MESSAGE "${MESSAGE} in ${CMAKE_CURRENT_LIST_FILE}\n")
-  file(GLOB GLOBBED_LIST "${FOLDER}/*.cpp"
-    "${FOLDER}/*.hpp")
+  file(GLOB GLOBBED_LIST CONFIGURE_DEPENDS
+    "${FOLDER}/*.cpp"
+    "${FOLDER}/*.cu"
+    "${FOLDER}/*.h"
+    "${FOLDER}/*.hpp"
+    "${FOLDER}/*.hcu"
+    "${FOLDER}/*.cuh"
+  )
+
   list(REMOVE_ITEM GLOBBED_LIST ${${LIST_VAR}})
+
+  if(GLOBBED_LIST)
+    list(SORT GLOBBED_LIST)
+
+    set(MESSAGE "The following files are in ${FOLDER} but are not listed in ${LIST_VAR}:\n")
+    foreach(file_name ${GLOBBED_LIST})
+      file(RELATIVE_PATH relative_file_name "${FOLDER}" "${file_name}")
+      string(APPEND MESSAGE "  ${relative_file_name}\n")
+    endforeach()
+
+    string(APPEND MESSAGE "\nAdd them to ${LIST_VAR} in ${CMAKE_CURRENT_LIST_FILE}, or remove them if they are obsolete.")
+    message(FATAL_ERROR "${MESSAGE}")
+  endif()
 endfunction()
 
 set(UNITTEST_DIR ${PROJECT_SOURCE_DIR}/test/unittests)
 
 set(HEADER_DIR ${UNITTEST_DIR})
 
-# Check if all sources are listed; warn if not.
+# Fail if any unit-test source or header is not listed.
 set(SOURCES_ALL
   ${SOURCES_UNITTESTS_MAIN}
   ${SOURCES_UNITTESTS_TESTS}
+  ${SOURCES_UNITTESTS_HEADERS}
 )
 
 foreach(name ${SOURCES_ALL})
-    list(APPEND SOURCES_ALL_PATH ${UNITTEST_DIR}/${name})
+  list(APPEND SOURCES_ALL_PATH ${UNITTEST_DIR}/${name})
 endforeach()
 
 CheckFileList(SOURCES_ALL_PATH ${UNITTEST_DIR})
 
-# Create serial target names.
-string(REPLACE ".cpp" "" BASENAMES_UNITTESTS_TESTS "${SOURCES_UNITTESTS_TESTS}")
-string(REPLACE ".cu" "" BASENAMES_UNITTESTS_TESTS "${BASENAMES_UNITTESTS_TESTS}")
-set(TARGETS_UNITTESTS_TESTS ${BASENAMES_UNITTESTS_TESTS})
+set(TARGETS_UNITTESTS_TESTS)
 
-set(TARGETS_ALL ${TARGETS_UNITTESTS_TESTS} CatchMain)
+# Define shared Catch2 main object.
+add_library(CatchMain OBJECT
+  ${UNITTEST_DIR}/${SOURCES_UNITTESTS_MAIN}
+  ${HEADER_DIR}/catch.hpp
+)
 
-# Define program targets:
-add_library(CatchMain OBJECT ${UNITTEST_DIR}/${SOURCES_UNITTESTS_MAIN} ${HEADER_DIR}/catch.hpp)
+foreach(source_file ${SOURCES_UNITTESTS_TESTS})
+  get_filename_component(name "${source_file}" NAME_WE)
+  list(APPEND TARGETS_UNITTESTS_TESTS ${name})
 
-foreach(name ${TARGETS_UNITTESTS_TESTS})
-  set(filename ${name}.cpp)
+  add_executable(${name}
+    ${UNITTEST_DIR}/${source_file}
+    $<TARGET_OBJECTS:CatchMain>
+    ${HEADER_DIR}/catch.hpp
+  )
 
-  add_executable(${name} ${filename} $<TARGET_OBJECTS:CatchMain> ${HEADER_DIR}/catch.hpp)
+  target_compile_definitions(${name} PRIVATE
+    DATA_PATH="${PROJECT_SOURCE_DIR}/test/data/"
+  )
 
-  target_compile_definitions(${name} PUBLIC DATA_PATH="${PROJECT_SOURCE_DIR}/test/data/")
   target_link_libraries(${name} PRIVATE
     ${EXTERNAL_LIBRARIES}
     apoCHARMMlib
     CUDA::cudart
   )
-  set_property(TARGET ${name} PROPERTY CUDA_RUNTIME_LIBRARY SHARED) # For CMake 3.23 and later
 
-  set_target_properties(${name} PROPERTIES LINKER_LANGUAGE CUDA)
+  set_target_properties(${name} PROPERTIES
+    CUDA_RUNTIME_LIBRARY SHARED
+    LINKER_LANGUAGE CUDA
+  )
+
   add_test(NAME ${name}
     COMMAND ${name}
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/test/unittests)
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/test/unittests
+  )
+
+  set_tests_properties(${name} PROPERTIES
+    LABELS "cpp_api"
+  )
 endforeach()
+
+set(TARGETS_ALL ${TARGETS_UNITTESTS_TESTS} CatchMain)
 
 foreach(name ${TARGETS_ALL})
   target_include_directories(${name} PRIVATE ${HEADER_DIR})
 
-  # GCC specific warning go here
-  if(CMAKE_CXX_COMPILER_ID MATCHES "GCC")
-    # Actually keep these
-    target_compile_options(${name} PRIVATE -Wweak-vtables -Wexit-time-destructors -Wglobal-constructors -Wmissing-noreturn -Wno-int-in-bool-context)
-  endif()
+  target_compile_options(${name} PRIVATE
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU>:-Wmissing-noreturn>
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU>:-Wno-int-in-bool-context>
 
-  # Clang specific warning go here
-  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    # Actually keep these
-    target_compile_options(${name} PRIVATE -Wweak-vtables -Wexit-time-destructors -Wglobal-constructors)
-  endif()
+    $<$<COMPILE_LANG_AND_ID:CXX,Clang>:-Wweak-vtables>
+    $<$<COMPILE_LANG_AND_ID:CXX,Clang>:-Wexit-time-destructors>
+    $<$<COMPILE_LANG_AND_ID:CXX,Clang>:-Wglobal-constructors>
 
-  if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-    target_compile_options(${name} PRIVATE /W4 /w44265 /WX)
-  endif()
+    $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/W4>
+    $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/w44265>
+  )
 endforeach()

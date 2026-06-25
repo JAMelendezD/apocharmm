@@ -182,9 +182,9 @@ void CheckVectorsEqual(const std::string &label, const std::vector<T> &observed,
 }
 
 template <>
-void CheckVectorsEqual(const std::string &label,
-                       const std::vector<int2> &observed,
-                       const std::vector<int2> &expected) {
+inline void CheckVectorsEqual(const std::string &label,
+                              const std::vector<int2> &observed,
+                              const std::vector<int2> &expected) {
   INFO("vector label: " << label);
   REQUIRE(observed.size() == expected.size());
 
@@ -213,9 +213,9 @@ void CheckVectorsEqual(const std::string &label,
 }
 
 template <>
-void CheckVectorsEqual(const std::string &label,
-                       const std::vector<int4> &observed,
-                       const std::vector<int4> &expected) {
+inline void CheckVectorsEqual(const std::string &label,
+                              const std::vector<int4> &observed,
+                              const std::vector<int4> &expected) {
   INFO("vector label: " << label);
   REQUIRE(observed.size() == expected.size());
 
@@ -286,10 +286,9 @@ void CheckVectorsClose(const std::string &label, const std::vector<T> &observed,
 }
 
 template <>
-void CheckVectorsClose(const std::string &label,
-                       const std::vector<float3> &observed,
-                       const std::vector<float3> &expected,
-                       const double tolerance) {
+inline void
+CheckVectorsClose(const std::string &label, const std::vector<float3> &observed,
+                  const std::vector<float3> &expected, const double tolerance) {
   INFO("vector label: " << label);
   REQUIRE(observed.size() == expected.size());
 
@@ -326,10 +325,10 @@ void CheckVectorsClose(const std::string &label,
 }
 
 template <>
-void CheckVectorsClose(const std::string &label,
-                       const std::vector<double3> &observed,
-                       const std::vector<double3> &expected,
-                       const double tolerance) {
+inline void CheckVectorsClose(const std::string &label,
+                              const std::vector<double3> &observed,
+                              const std::vector<double3> &expected,
+                              const double tolerance) {
   INFO("vector label: " << label);
   REQUIRE(observed.size() == expected.size());
 
@@ -362,10 +361,9 @@ void CheckVectorsClose(const std::string &label,
 }
 
 template <>
-void CheckVectorsClose(const std::string &label,
-                       const std::vector<float4> &observed,
-                       const std::vector<float4> &expected,
-                       const double tolerance) {
+inline void
+CheckVectorsClose(const std::string &label, const std::vector<float4> &observed,
+                  const std::vector<float4> &expected, const double tolerance) {
   INFO("vector label: " << label);
   REQUIRE(observed.size() == expected.size());
 
@@ -407,10 +405,10 @@ void CheckVectorsClose(const std::string &label,
 }
 
 template <>
-void CheckVectorsClose(const std::string &label,
-                       const std::vector<double4> &observed,
-                       const std::vector<double4> &expected,
-                       const double tolerance) {
+inline void CheckVectorsClose(const std::string &label,
+                              const std::vector<double4> &observed,
+                              const std::vector<double4> &expected,
+                              const double tolerance) {
   INFO("vector label: " << label);
   REQUIRE(observed.size() == expected.size());
 
