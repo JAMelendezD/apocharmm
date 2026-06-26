@@ -28,6 +28,8 @@
 class CharmmContext : public std::enable_shared_from_this<CharmmContext> {
 public:
   CharmmContext(void);
+  CharmmContext(std::shared_ptr<CharmmPSF> psf,
+                std::shared_ptr<CharmmParameters> prm);
   CharmmContext(std::shared_ptr<ForceManager> forceManager);
   ~CharmmContext(void) = default;
 

@@ -48,6 +48,30 @@ CharmmContext::CharmmContext(void)
       m_VirialKineticEnergyTensor(9), m_Temperature(0.0f),
       m_UsingHolonomicConstraints(false) {}
 
+CharmmContext::CharmmContext(std::shared_ptr<CharmmPSF> psf,
+                             std::shared_ptr<CharmmParameters> prm)
+    : CharmmContext() {
+  if (psf == nullptr) {
+    throw std::invalid_argument("CharmmContext::CharmmContest: psf == nullptr");
+  }
+
+  if (prm == nullptr) {
+    throw std::invalid_argument("CharmmContext::CharmmContest: prm == nullptr");
+  }
+
+  std::vector<int> devices = {0, 1, 2, 3};
+  start_gpu(1, 1, 0, devices);
+
+  this->setPsf(psf);
+  this->setPrm(prm);
+  this->setForceManager(std::make_shared<ForceManager>());
+
+  this->useHolonomicConstraints(true);
+
+  std::random_device rd{};
+  m_RandomSeed = rd();
+}
+
 CharmmContext::CharmmContext(std::shared_ptr<ForceManager> forceManager)
     : CharmmContext() {
   std::vector<int> devices = {0, 1, 2, 3};

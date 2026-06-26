@@ -201,3 +201,40 @@ TEST_CASE("CharmmContextCanAttachForceManagerBeforeStagingState") {
                                       fm->getBoxDimensions(), BOX_DIMENSIONS,
                                       TOLERANCE);
 }
+
+TEST_CASE("CharmmContextConstructsFromPsfAndParameters") {
+  auto prm = std::make_shared<CharmmParameters>(getDataPath() +
+                                                "toppar_water_ions.str");
+  auto psf = std::make_shared<CharmmPSF>(getDataPath() + "nacl_pair.psf");
+  auto crd = std::make_shared<CharmmCrd>(getDataPath() + "nacl_pair.cor");
+
+  auto ctx = std::make_shared<CharmmContext>(psf, prm);
+
+  REQUIRE(ctx->getForceManager() != nullptr);
+  CHECK(ctx->getPsf() == psf);
+  CHECK(ctx->getPrm() == prm);
+  CHECK(ctx->getForceManager()->getPsf() == psf);
+  CHECK(ctx->getForceManager()->getPrm() == prm);
+
+  CHECK(ctx->getForceManager()->isInitialized() == false);
+
+  ctx->setBoxDimensions(BOX_DIMENSIONS);
+
+  CHECK(ctx->getForceManager()->isInitialized() == true);
+
+  apo_test::CheckVectorsClose<double>("CharmmContext box dimensions",
+                                      ctx->getBoxDimensions(), BOX_DIMENSIONS,
+                                      TOLERANCE);
+
+  apo_test::CheckVectorsClose<double>(
+      "ForceManager box dimensions", ctx->getForceManager()->getBoxDimensions(),
+      BOX_DIMENSIONS, TOLERANCE);
+
+  ctx->setCoordinates(crd);
+
+  CHECK(ctx->getNumAtoms() == psf->getNumAtoms());
+  CHECK(ctx->getCoordinatesCharges().size() ==
+        static_cast<std::size_t>(psf->getNumAtoms()));
+  CHECK(ctx->getVelocityMass().size() ==
+        static_cast<std::size_t>(psf->getNumAtoms()));
+}
