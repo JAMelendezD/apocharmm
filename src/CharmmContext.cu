@@ -620,6 +620,8 @@ void CharmmContext::setBoxDimensions(const std::vector<double> &boxDimensions) {
   if (m_ForceManager != nullptr) {
     m_ForceManager->setBoxDimensions(m_BoxDimensions);
     m_BoxDimensions = m_ForceManager->getBoxDimensions();
+    m_HasBoxDimensions = hasValidBoxDimensions(m_BoxDimensions);
+    this->initializeForceManagerIfReady();
   }
 
   return;
@@ -788,8 +790,10 @@ void CharmmContext::setPsf(std::shared_ptr<CharmmPSF> psf) {
 
   m_Psf = psf;
 
-  if (m_ForceManager != nullptr)
+  if (m_ForceManager != nullptr) {
     m_ForceManager->setPsf(m_Psf);
+    this->initializeForceManagerIfReady();
+  }
 
   return;
 }
@@ -800,8 +804,10 @@ void CharmmContext::setPrm(std::shared_ptr<CharmmParameters> prm) {
 
   m_Prm = prm;
 
-  if (m_ForceManager != nullptr)
+  if (m_ForceManager != nullptr) {
     m_ForceManager->setPrm(m_Prm);
+    this->initializeForceManagerIfReady();
+  }
 
   return;
 }
@@ -921,6 +927,9 @@ void CharmmContext::initializeForceManagerIfReady(void) {
     return;
 
   if (m_ForceManager->isInitialized())
+    return;
+
+  if (!this->hasCompleteForceManagerState())
     return;
 
   m_ForceManager->initialize();

@@ -107,10 +107,7 @@ TEST_CASE("CharmmContextStagedStateCanLoadCoordinatesAfterBackendInitialize") {
   auto fm = std::make_shared<ForceManager>();
   ctx->setForceManager(fm);
 
-  // Keep this explicit for now. If a later patch auto-initializes in
-  // setForceManager(), this remains harmless.
-  if (!fm->isInitialized())
-    fm->initialize();
+  CHECK(fm->isInitialized() == true);
 
   ctx->setCoordinates(crd);
 
@@ -169,4 +166,38 @@ TEST_CASE("ForceManagerContextBackPointerDoesNotOwnCharmmContext") {
 
   CHECK(fm->hasCharmmContext() == false);
   CHECK(fm->getContext() == nullptr);
+}
+
+TEST_CASE("CharmmContextCanAttachForceManagerBeforeStagingState") {
+  auto prm = std::make_shared<CharmmParameters>(getDataPath() +
+                                                "toppar_water_ions.str");
+  auto psf = std::make_shared<CharmmPSF>(getDataPath() + "nacl_pair.psf");
+
+  auto ctx = std::make_shared<CharmmContext>();
+  auto fm = std::make_shared<ForceManager>();
+
+  ctx->setForceManager(fm);
+
+  CHECK(fm->isInitialized() == false);
+
+  ctx->setPsf(psf);
+  CHECK(fm->isInitialized() == false);
+
+  ctx->setPrm(prm);
+  CHECK(fm->isInitialized() == false);
+
+  ctx->setBoxDimensions(BOX_DIMENSIONS);
+
+  CHECK(fm->isInitialized() == true);
+  CHECK(ctx->getPsf() == psf);
+  CHECK(ctx->getPrm() == prm);
+  CHECK(fm->getPsf() == psf);
+  CHECK(fm->getPrm() == prm);
+
+  apo_test::CheckVectorsClose<double>("CharmmContext box dimensions",
+                                      ctx->getBoxDimensions(), BOX_DIMENSIONS,
+                                      TOLERANCE);
+  apo_test::CheckVectorsClose<double>("ForceManager box dimensions",
+                                      fm->getBoxDimensions(), BOX_DIMENSIONS,
+                                      TOLERANCE);
 }
