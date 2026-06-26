@@ -4,18 +4,21 @@
 // license, as described in the LICENSE file in the top level directory of this
 // project.
 //
-// Author: Samarjeet Prasad
+// Author: Samarjeet Prasad, James E. Gonzales II
 //
 // ENDLICENSE
 
 #include "CharmmContext.h"
 
 #include "CharmmCrd.h"
-#include "Checkpoint.h"
+// #include "Checkpoint.h"
 #include "Constants.h"
 #include "PBC.h"
 #include "cuda_utils.h"
 #include "gpu_utils.h"
+
+#include <cassert>
+#include <cmath>
 #include <cstdlib>
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -23,257 +26,160 @@
 #include <iomanip>
 #include <iostream>
 #include <random>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
-CharmmContext::CharmmContext(std::shared_ptr<ForceManager> fmIn)
-    : forceManager(fmIn) {
+CharmmContext::CharmmContext(void)
+    : m_RandomSeed(0), m_Psf(nullptr), m_Prm(nullptr),
+      m_BoxDimensions({-9999.9999, -9999.9999, -9999.9999}),
+      m_ForceManager(nullptr), m_NumAtoms(-1), m_NumDegreesOfFreedom(-1),
+      m_Pbc(PBC::P1), m_CoordinatesChargesSP(), m_CoordinatesChargesDP(),
+      m_VelocitiesInverseMasses(), m_KineticEnergy(1), m_Pressure(9),
+      m_VirialKineticEnergyTensor(9), m_Temperature(0.0f),
+      m_UsingHolonomicConstraints(false) {}
 
+CharmmContext::CharmmContext(std::shared_ptr<ForceManager> forceManager)
+    : CharmmContext() {
   std::vector<int> devices = {0, 1, 2, 3};
   start_gpu(1, 1, 0, devices);
 
-  useHolonomicConstraints(true);
+  m_ForceManager = forceManager;
 
-  kineticEnergy.resize(1);
-  virialKineticEnergyTensor.resize(9);
+  this->requireForceManager(
+      "CharmmContext::CharmmContext(std::shared_ptr<ForceManager>)");
 
-  if (!forceManager->isInitialized()) {
-    forceManager->initialize();
-  }
-  pressure.resize(9);
+  this->useHolonomicConstraints(true);
 
-  // linkBackForceManager();
+  if (!m_ForceManager->isInitialized())
+    m_ForceManager->initialize();
+
+  this->syncStateFromForceManager();
 
   std::random_device rd{};
-  seed = rd();
+  m_RandomSeed = rd();
 }
 
-// Copy Constructor . Does not copy CharmmContext.
 CharmmContext::CharmmContext(const CharmmContext &other)
     : std::enable_shared_from_this<CharmmContext>(other) {
-  this->numAtoms = other.numAtoms;
-  this->xyzq = other.xyzq;
-  this->coordsCharge = other.coordsCharge;
-  this->velocityMass = other.velocityMass;
-  this->kineticEnergy = other.kineticEnergy;
-  this->pressure = other.pressure;
-  this->temperature = other.temperature;
-  this->numDegreesOfFreedom = other.numDegreesOfFreedom;
-  this->usingHolonomicConstraints = other.usingHolonomicConstraints;
-  this->seed = other.seed;
+  m_Psf = other.m_Psf;
+  m_Prm = other.m_Prm;
+  m_BoxDimensions = other.m_BoxDimensions;
+  m_Pbc = other.m_Pbc;
+
+  m_NumAtoms = other.m_NumAtoms;
+  m_CoordinatesChargesSP = other.m_CoordinatesChargesSP;
+  m_CoordinatesChargesDP = other.m_CoordinatesChargesDP;
+  m_VelocitiesInverseMasses = other.m_VelocitiesInverseMasses;
+  m_KineticEnergy = other.m_KineticEnergy;
+  m_Pressure = other.m_Pressure;
+  m_Temperature = other.m_Temperature;
+  m_NumDegreesOfFreedom = other.m_NumDegreesOfFreedom;
+  m_UsingHolonomicConstraints = other.m_UsingHolonomicConstraints;
+  m_RandomSeed = other.m_RandomSeed;
 }
 
-void CharmmContext::setupFromCheckpoint(
-    std::shared_ptr<Checkpoint> checkpoint) {
-  numAtoms = checkpoint->get<int>("numAtoms");
-  // coordsCharge = checkpoint->get<CudaContainer<double4>>("coordsCharge");
-
-  return;
-}
+// void CharmmContext::setupFromCheckpoint(
+//     std::shared_ptr<Checkpoint> checkpoint) {
+//   m_NumAtoms = checkpoint->get<int>("numAtoms");
+//   return;
+// }
 
 void CharmmContext::setMasses(const std::vector<double> &masses) {
-  if (masses.size() != static_cast<std::size_t>(numAtoms)) {
+  if (masses.size() != static_cast<std::size_t>(m_NumAtoms)) {
     std::stringstream tmpexc;
     tmpexc << "Masses vector size does not match numAtoms (" << masses.size()
-           << " != " << numAtoms << ")\n";
+           << " != " << m_NumAtoms << ")\n";
     throw std::invalid_argument(tmpexc.str());
   }
 
-  for (int i = 0; i < numAtoms; i++)
-    velocityMass[i].w = 1.0 / masses[i];
-  velocityMass.transferToDevice();
+  for (int i = 0; i < m_NumAtoms; i++)
+    m_VelocitiesInverseMasses[i].w = 1.0 / masses[i];
+
+  m_VelocitiesInverseMasses.transferToDevice();
 
   return;
 }
 
-void CharmmContext::setNumAtoms(const int num) { numAtoms = num; }
+void CharmmContext::setNumAtoms(const int numAtoms) {
+  m_NumAtoms = numAtoms;
+  return;
+}
 
 void CharmmContext::setCoordinates(const std::shared_ptr<Coordinates> crd) {
+  this->requireForceManager("CharmmContext::setCoordinates");
   this->setCoordinates(crd->getCoordinatesD());
   return;
 }
 
-void CharmmContext::setCoordinates(const std::vector<double4> &coords) {
-  if (!forceManager->isComposite())
-    assert(coords.size() == forceManager->getNumAtoms());
+void CharmmContext::setCoordinates(const std::vector<double4> &coordinates) {
+  if (!m_ForceManager->isComposite())
+    assert(coordinates.size() == m_ForceManager->getNumAtoms());
 
-  if (!forceManager->hasCharmmContext())
+  if (!m_ForceManager->hasCharmmContext())
     this->linkBackForceManager();
 
-  this->setNumAtoms(coords.size());
+  this->setNumAtoms(coordinates.size());
 
-  velocityMass.resize(numAtoms);
-  this->setMasses(forceManager->getPsf()->getMasses());
+  m_VelocitiesInverseMasses.resize(m_NumAtoms);
+  this->setMasses(m_ForceManager->getPsf()->getMasses());
 
-  this->useHolonomicConstraints(usingHolonomicConstraints);
-  std::vector<double> charges = forceManager->getPsf()->getCharges();
+  this->useHolonomicConstraints(m_UsingHolonomicConstraints);
+  std::vector<double> charges = m_ForceManager->getPsf()->getCharges();
 
-  xyzq.resize(numAtoms);
-  coordsCharge.resize(numAtoms);
-  for (int i = 0; i < numAtoms; i++) {
-    xyzq[i] = make_float4(
-        static_cast<float>(coords[i].x), static_cast<float>(coords[i].y),
-        static_cast<float>(coords[i].z), static_cast<float>(charges[i]));
-    coordsCharge[i] =
-        make_double4(coords[i].x, coords[i].y, coords[i].z, charges[i]);
+  m_CoordinatesChargesSP.resize(m_NumAtoms);
+  m_CoordinatesChargesDP.resize(m_NumAtoms);
+  for (int i = 0; i < m_NumAtoms; i++) {
+    m_CoordinatesChargesSP[i] = make_float4(
+        static_cast<float>(coordinates[i].x),
+        static_cast<float>(coordinates[i].y),
+        static_cast<float>(coordinates[i].z), static_cast<float>(charges[i]));
+    m_CoordinatesChargesDP[i] = make_double4(coordinates[i].x, coordinates[i].y,
+                                             coordinates[i].z, charges[i]);
   }
-  xyzq.transferToDevice();
-  coordsCharge.transferToDevice();
+
+  m_CoordinatesChargesSP.transferToDevice();
+  m_CoordinatesChargesDP.transferToDevice();
 
   this->resetNeighborList();
-
   return;
 }
 
-std::vector<std::vector<double>> CharmmContext::getCoordinates() {
-  // auto coords = xyzq.get_xyz();
-  coordsCharge.transferFromDevice();
-  std::vector<std::vector<double>> coordsVec;
-  for (int i = 0; i < numAtoms; i++) {
-    std::vector<double> tmp = {coordsCharge[i].x, coordsCharge[i].y,
-                               coordsCharge[i].z};
-    coordsVec.push_back(tmp);
+std::vector<std::vector<double>> CharmmContext::getCoordinates(void) {
+  m_CoordinatesChargesDP.transferFromDevice();
+
+  std::vector<std::vector<double>> coordinates;
+  for (int i = 0; i < m_NumAtoms; i++) {
+    std::vector<double> coordinate = {m_CoordinatesChargesDP[i].x,
+                                      m_CoordinatesChargesDP[i].y,
+                                      m_CoordinatesChargesDP[i].z};
+    coordinates.push_back(coordinate);
   }
-  return coordsVec;
+
+  return coordinates;
 }
 
-// void CharmmContext::setCoordinatesNumpy(pybind11::array_t<double>
-// input_array) {
-//   // Get shape and data type of array
-//   auto shape = input_array.shape();
-//   throw std::invalid_argument("setCoordinatesNumpy not implemented fully");
-//   /*std::string dtype = input_array.dtype().name();
+void CharmmContext::setCoords(const std::vector<float> &coordinates) {
+  assert(coordinates.size() == static_cast<std::size_t>(m_NumAtoms * 3));
 
-//   // Print shape and data type
-//   std::cout << "Array shape: (";
-//   for (size_t i = 0; i < shape.size(); i++) {
-//     std::cout << shape[i];
-//     if (i < shape.size() - 1) {
-//       std::cout << ", ";
-//     }
-//   }
-//   std::cout << ")" << std::endl;
-//   std::cout << "Array data type: " << dtype << std::endl;
-//   */
-// }
-
-void CharmmContext::setCoords(const std::vector<float> &coords) {
-  assert(coords.size() == numAtoms * 3);
-
-  for (int i = 0; i < numAtoms; i++) {
-    xyzq[i].x = coords[i * 3 + 0];
-    xyzq[i].y = coords[i * 3 + 1];
-    xyzq[i].z = coords[i * 3 + 2];
+  for (int i = 0; i < m_NumAtoms; i++) {
+    m_CoordinatesChargesSP[i].x = coordinates[i * 3 + 0];
+    m_CoordinatesChargesSP[i].y = coordinates[i * 3 + 1];
+    m_CoordinatesChargesSP[i].z = coordinates[i * 3 + 2];
   }
-  xyzq.transferToDevice();
-  resetNeighborList();
+
+  m_CoordinatesChargesSP.transferToDevice();
+  this->resetNeighborList();
+  return;
 }
 
-// std::vector<float> CharmmContext::getCoords() { return xyzq.get_xyz(); }
-
-int CharmmContext::getNumAtoms() const { return numAtoms; }
-
-/* *
-__global__ static void
-ImageCenterKernel(PBC pbc, float3 boxSize, int stride, int numGroups,
-                  const int2 *__restrict__ groups, double4 *__restrict__ xyzq,
-                  float4 *__restrict__ xyzqf, double4 *__restrict__ velMass,
-                  double *__restrict__ force) {
-
-  int index = blockDim.x * blockIdx.x + threadIdx.x;
-
-  if (index < numGroups) {
-    int2 group = groups[index];
-    float gx = 0.0f;
-    float gy = 0.0f;
-    float gz = 0.0f;
-
-    for (int i = group.x; i <= group.y; ++i) {
-      gx += xyzqf[i].x;
-      gy += xyzqf[i].y;
-      gz += xyzqf[i].z;
-    }
-
-    gx /= (group.y - group.x + 1);
-    gy /= (group.y - group.x + 1);
-    gz /= (group.y - group.x + 1);
-
-    if (gx < -0.5 * boxSize.x) {
-      for (int i = group.x; i <= group.y; ++i) {
-        xyzq[i].x += boxSize.x;
-        xyzqf[i].x += boxSize.x;
-        if (pbc == PBC::P21) {
-          xyzq[i].y = -xyzq[i].y;
-          xyzqf[i].y = -xyzqf[i].y;
-          xyzq[i].z = -xyzq[i].z;
-          xyzqf[i].z = -xyzqf[i].z;
-
-          velMass[i].y = -velMass[i].y;
-          velMass[i].z = -velMass[i].z;
-
-          force[stride + i] = -force[stride + i];
-          force[2 * stride + i] = -force[2 * stride + i];
-
-          gy = -gy;
-          gz = -gz;
-        }
-      }
-    }
-
-    if (gx > 0.5 * boxSize.x) {
-      for (int i = group.x; i <= group.y; ++i) {
-        xyzq[i].x -= boxSize.x;
-        xyzqf[i].x -= boxSize.x;
-        if (pbc == PBC::P21) {
-          xyzq[i].y = -xyzq[i].y;
-          xyzqf[i].y = -xyzqf[i].y;
-          xyzq[i].z = -xyzq[i].z;
-          xyzqf[i].z = -xyzqf[i].z;
-
-          velMass[i].y = -velMass[i].y;
-          velMass[i].z = -velMass[i].z;
-
-          force[stride + i] = -force[stride + i];
-          force[2 * stride + i] = -force[2 * stride + i];
-
-          gy = -gy;
-          gz = -gz;
-        }
-      }
-    }
-
-    if (gy < -0.5 * boxSize.y) {
-      for (int i = group.x; i <= group.y; ++i) {
-        xyzq[i].y += boxSize.y;
-        xyzqf[i].y += boxSize.y;
-      }
-    }
-
-    if (gy > 0.5 * boxSize.y) {
-      for (int i = group.x; i <= group.y; ++i) {
-        xyzq[i].y -= boxSize.y;
-        xyzqf[i].y -= boxSize.y;
-      }
-    }
-
-    if (gz < -0.5 * boxSize.z) {
-      for (int i = group.x; i <= group.y; ++i) {
-        xyzq[i].z += boxSize.z;
-        xyzqf[i].z += boxSize.z;
-      }
-    }
-
-    if (gz > 0.5 * boxSize.z) {
-      for (int i = group.x; i <= group.y; ++i) {
-        xyzq[i].z -= boxSize.z;
-        xyzqf[i].z -= boxSize.z;
-      }
-    }
-  }
-}
-* */
+int CharmmContext::getNumAtoms(void) const { return m_NumAtoms; }
 
 __global__ static void ImageCenteringKernel(
-    double4 *__restrict__ coordsChargesD, float4 *__restrict__ coordsChargesF,
-    double4 *__restrict__ velMass, double *__restrict__ forces,
+    double4 *__restrict__ coordinatesChargesDP,
+    float4 *__restrict__ coordinatesChargesSP,
+    double4 *__restrict__ velocitiesInverseMasses, double *__restrict__ forces,
     const int forceStride, const int2 *__restrict__ groups, const int numGroups,
     const double boxX, const double boxY, const double boxZ, const PBC pbc) {
   const int index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -282,29 +188,31 @@ __global__ static void ImageCenteringKernel(
   for (int i = index; i < numGroups; i += stride) {
     const int2 group = groups[i];
 
-    double gx = 0.0, gy = 0.0, gz = 0.0;
+    double gx = 0.0;
+    double gy = 0.0;
+    double gz = 0.0;
     for (int j = group.x; j <= group.y; j++) {
-      gx += coordsChargesD[j].x;
-      gy += coordsChargesD[j].y;
-      gz += coordsChargesD[j].z;
+      gx += coordinatesChargesDP[j].x;
+      gy += coordinatesChargesDP[j].y;
+      gz += coordinatesChargesDP[j].z;
     }
+
     const double ng = static_cast<double>(group.y - group.x + 1);
     gx /= ng;
     gy /= ng;
     gz /= ng;
 
-    // -X Recenter
     if (gx < -0.5 * boxX) {
       for (int j = group.x; j <= group.y; j++) {
-        coordsChargesD[j].x += boxX;
-        coordsChargesF[j].x += static_cast<float>(boxX);
+        coordinatesChargesDP[j].x += boxX;
+        coordinatesChargesSP[j].x += static_cast<float>(boxX);
         if (pbc == PBC::P21) {
-          coordsChargesD[j].y = -coordsChargesD[j].y;
-          coordsChargesD[j].z = -coordsChargesD[j].z;
-          coordsChargesF[j].y = -coordsChargesF[j].y;
-          coordsChargesF[j].z = -coordsChargesF[j].z;
-          velMass[j].y = -velMass[j].y;
-          velMass[j].z = -velMass[j].z;
+          coordinatesChargesDP[j].y = -coordinatesChargesDP[j].y;
+          coordinatesChargesDP[j].z = -coordinatesChargesDP[j].z;
+          coordinatesChargesSP[j].y = -coordinatesChargesSP[j].y;
+          coordinatesChargesSP[j].z = -coordinatesChargesSP[j].z;
+          velocitiesInverseMasses[j].y = -velocitiesInverseMasses[j].y;
+          velocitiesInverseMasses[j].z = -velocitiesInverseMasses[j].z;
           forces[1 * forceStride + j] = -forces[1 * forceStride + j];
           forces[2 * forceStride + j] = -forces[2 * forceStride + j];
           gy = -gy;
@@ -313,18 +221,17 @@ __global__ static void ImageCenteringKernel(
       }
     }
 
-    // +X Recenter
     if (gx > 0.5 * boxX) {
       for (int j = group.x; j <= group.y; j++) {
-        coordsChargesD[j].x -= boxX;
-        coordsChargesF[j].x -= static_cast<float>(boxX);
+        coordinatesChargesDP[j].x -= boxX;
+        coordinatesChargesSP[j].x -= static_cast<float>(boxX);
         if (pbc == PBC::P21) {
-          coordsChargesD[j].y = -coordsChargesD[j].y;
-          coordsChargesD[j].z = -coordsChargesD[j].z;
-          coordsChargesF[j].y = -coordsChargesF[j].y;
-          coordsChargesF[j].z = -coordsChargesF[j].z;
-          velMass[j].y = -velMass[j].y;
-          velMass[j].z = -velMass[j].z;
+          coordinatesChargesDP[j].y = -coordinatesChargesDP[j].y;
+          coordinatesChargesDP[j].z = -coordinatesChargesDP[j].z;
+          coordinatesChargesSP[j].y = -coordinatesChargesSP[j].y;
+          coordinatesChargesSP[j].z = -coordinatesChargesSP[j].z;
+          velocitiesInverseMasses[j].y = -velocitiesInverseMasses[j].y;
+          velocitiesInverseMasses[j].z = -velocitiesInverseMasses[j].z;
           forces[1 * forceStride + j] = -forces[1 * forceStride + j];
           forces[2 * forceStride + j] = -forces[2 * forceStride + j];
           gy = -gy;
@@ -333,35 +240,31 @@ __global__ static void ImageCenteringKernel(
       }
     }
 
-    // -Y Recenter
     if (gy < -0.5 * boxY) {
       for (int j = group.x; j <= group.y; j++) {
-        coordsChargesD[j].y += boxY;
-        coordsChargesF[j].y += static_cast<float>(boxY);
+        coordinatesChargesDP[j].y += boxY;
+        coordinatesChargesSP[j].y += static_cast<float>(boxY);
       }
     }
 
-    // +Y Recenter
     if (gy > 0.5 * boxY) {
       for (int j = group.x; j <= group.y; j++) {
-        coordsChargesD[j].y -= boxY;
-        coordsChargesF[j].y -= static_cast<float>(boxY);
+        coordinatesChargesDP[j].y -= boxY;
+        coordinatesChargesSP[j].y -= static_cast<float>(boxY);
       }
     }
 
-    // -Z Recenter
     if (gz < -0.5 * boxZ) {
       for (int j = group.x; j <= group.y; j++) {
-        coordsChargesD[j].z += boxZ;
-        coordsChargesF[j].z += static_cast<float>(boxZ);
+        coordinatesChargesDP[j].z += boxZ;
+        coordinatesChargesSP[j].z += static_cast<float>(boxZ);
       }
     }
 
-    // +Z Recenter
     if (gz > 0.5 * boxZ) {
       for (int j = group.x; j <= group.y; j++) {
-        coordsChargesD[j].z -= boxZ;
-        coordsChargesF[j].z -= static_cast<float>(boxZ);
+        coordinatesChargesDP[j].z -= boxZ;
+        coordinatesChargesSP[j].z -= static_cast<float>(boxZ);
       }
     }
   }
@@ -370,158 +273,113 @@ __global__ static void ImageCenteringKernel(
 }
 
 void CharmmContext::imageCentering(void) {
-  const double boxx = forceManager->getBoxDimensions()[0];
-  const double boxy = forceManager->getBoxDimensions()[1];
-  const double boxz = forceManager->getBoxDimensions()[2];
+  const double boxX = m_ForceManager->getBoxDimensions()[0];
+  const double boxY = m_ForceManager->getBoxDimensions()[1];
+  const double boxZ = m_ForceManager->getBoxDimensions()[2];
 
   double *forces = this->getForces()->xyz();
   const int forceStride = this->getForceStride();
 
-  const CudaContainer<int2> &groups = forceManager->getPsf()->getGroups();
+  const CudaContainer<int2> &groups = m_ForceManager->getPsf()->getGroups();
   const int numGroups = groups.size();
 
   constexpr int numThreads = 128;
   const int numBlocks = (numGroups + numThreads - 1) / numThreads;
 
   ImageCenteringKernel<<<numBlocks, numThreads>>>(
-      coordsCharge.getDeviceArray().data(), xyzq.getDeviceArray().data(),
-      velocityMass.getDeviceArray().data(), forces, forceStride,
-      groups.getDeviceArray().data(), numGroups, boxx, boxy, boxz,
-      forceManager->getPeriodicBoundaryCondition());
+      m_CoordinatesChargesDP.getDeviceArray().data(),
+      m_CoordinatesChargesSP.getDeviceArray().data(),
+      m_VelocitiesInverseMasses.getDeviceArray().data(), forces, forceStride,
+      groups.getDeviceArray().data(), numGroups, boxX, boxY, boxZ,
+      m_ForceManager->getPeriodicBoundaryCondition());
 
   cudaCheck(cudaDeviceSynchronize());
-
-  // coordsCharge.transferToHost();
-  // xyzq.transferToHost();
-  // for (int i = 0; i < numAtoms; i++) {
-  //   std::cout << "i = " << i << std::endl;
-  //   std::cout << "D: " << coordsCharge[i].x << ", " << coordsCharge[i].y <<
-  //   ", "
-  //             << coordsCharge[i].z << ", " << coordsCharge[i].w << std::endl;
-  //   std::cout << "F: " << xyzq[i].x << ", " << xyzq[i].y << ", " << xyzq[i].z
-  //             << ", " << xyzq[i].w << std::endl;
-  // }
-
   return;
 }
 
-void CharmmContext::resetNeighborList() {
+void CharmmContext::resetNeighborList(void) {
+  this->requireForceManager("CharmmContext::resetNeighborList");
   this->imageCentering();
-  forceManager->resetNeighborList(xyzq.getDeviceArray().data());
+  m_ForceManager->resetNeighborList(
+      m_CoordinatesChargesSP.getDeviceArray().data());
   return;
 }
 
 void CharmmContext::calculateForces(bool reset, bool calcEnergy,
                                     bool calcVirial) {
-  forceManager->calcForce(xyzq.getDeviceArray().data(), reset, calcEnergy,
-                          calcVirial);
+  this->requireForceManager("CharmmContext::calculateForces");
+  m_ForceManager->calcForce(m_CoordinatesChargesSP.getDeviceArray().data(),
+                            reset, calcEnergy, calcVirial);
   return;
 }
 
-float CharmmContext::getPotentialEnergies() {
-  return forceManager->getPotentialEnergies();
+float CharmmContext::getPotentialEnergies(void) {
+  return m_ForceManager->getPotentialEnergies();
 }
 
-std::shared_ptr<Force<double>> CharmmContext::getForces() {
-  return forceManager->getForces();
+std::shared_ptr<Force<double>> CharmmContext::getForces(void) {
+  this->requireForceManager("CharmmContext::getForces");
+  return m_ForceManager->getForces();
 }
 
-float CharmmContext::getTemperature() { return temperature; }
+float CharmmContext::getTemperature(void) const { return m_Temperature; }
 
-void CharmmContext::setTemperature(const float temp) { temperature = temp; }
-
-__global__ void
-calculateCenterOfMassMomemtumKernel(int numAtoms,
-                                    double4 *__restrict__ velmass) {
-
-  // int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  // float4 com;
-  // for (int i = idx; i < numAtoms; i += blockDim.x * gridDim.x) {
-  //   auto mass = 1.0 / velmass[i].w;
-  //   com.x = velmass[i].x * mass;
-  //   com.y = velmass[i].y * mass;
-  //   com.z = velmass[i].z * mass;
-  // }
+void CharmmContext::setTemperature(const float temperature) {
+  m_Temperature = temperature;
   return;
 }
 
-void CharmmContext::removeCenterOfMassMotion() {
-  /*
-  // TODO : do this in the kernel rather than the host side
-  velocityMass.transferFromDevice();
-
-  // Remove the center of mass velocity
-  float3 com = {0.0, 0.0, 0.0};
-  float totalMass = 0.0;
-  for (int i = 0; i < numAtoms; ++i) {
-    com.x += velocityMass[i].x / velocityMass[i].w;
-    com.y += velocityMass[i].y / velocityMass[i].w;
-    com.z += velocityMass[i].z / velocityMass[i].w;
-    totalMass += 1 / velocityMass[i].w;
-  }
-  com.x /= totalMass;
-  com.y /= totalMass;
-  com.z /= totalMass;
-
-  for (int i = 0; i < numAtoms; ++i) {
-    velocityMass[i].x -= com.x;
-    velocityMass[i].y -= com.y;
-    velocityMass[i].z -= com.z;
-  }
-
-  velocityMass.transferToDevice();
-  */
+__global__ void calculateCenterOfMassMomemtumKernel(
+    int numAtoms, double4 *__restrict__ velocitiesInverseMasses) {
+  return;
 }
 
-void CharmmContext::assignVelocitiesAtTemperature(float temp) {
-  if (numAtoms == -1) {
+void CharmmContext::removeCenterOfMassMotion(void) { return; }
+
+void CharmmContext::assignVelocitiesAtTemperature(const float temperature) {
+  if (m_NumAtoms == -1) {
     throw std::invalid_argument(
         "numAtoms = -1 in CharmmContext::assignVelocitiesAtTemperature -- This "
         "Context object was not initialized properly (no Coordinate given "
         "?).\n Make sure you used setCoordinates before trying to "
         "assignVelocities.");
   }
-  setTemperature(temp);
-  double boltz = charmm::constants::kBoltz * temperature;
 
-  // std::random_device rd{};
-  //  std::mt19937 gen{rd()};
-  // std::cout << "seed = " << seed << std::endl;
-  std::mt19937 gen{seed};
+  this->setTemperature(temperature);
+  const double boltz = charmm::constants::kBoltz * m_Temperature;
 
-  for (int i = 0; i < numAtoms; i++) {
-    double sd = boltz * velocityMass[i].w;
+  std::mt19937 gen{m_RandomSeed};
+
+  for (int i = 0; i < m_NumAtoms; i++) {
+    double sd = boltz * m_VelocitiesInverseMasses[i].w;
     sd = sqrt(sd);
 
     std::normal_distribution<> d(0, sd);
 
-    velocityMass[i].x = d(gen);
-    velocityMass[i].y = d(gen);
-    velocityMass[i].z = d(gen);
+    m_VelocitiesInverseMasses[i].x = d(gen);
+    m_VelocitiesInverseMasses[i].y = d(gen);
+    m_VelocitiesInverseMasses[i].z = d(gen);
   }
 
-  velocityMass.transferToDevice();
-  removeCenterOfMassMotion();
+  m_VelocitiesInverseMasses.transferToDevice();
+  this->removeCenterOfMassMotion();
 
   float kineticEnergy = 0.0;
-  for (int i = 0; i < numAtoms; ++i) {
-    kineticEnergy += 1.0 / velocityMass[i].w *
-                     (pow(velocityMass[i].x, 2) + pow(velocityMass[i].y, 2) +
-                      pow(velocityMass[i].z, 2));
+  for (int i = 0; i < m_NumAtoms; ++i) {
+    kineticEnergy += 1.0 / m_VelocitiesInverseMasses[i].w *
+                     (pow(m_VelocitiesInverseMasses[i].x, 2) +
+                      pow(m_VelocitiesInverseMasses[i].y, 2) +
+                      pow(m_VelocitiesInverseMasses[i].z, 2));
   }
   kineticEnergy *= 0.5;
-  int ndegf = getDegreesOfFreedom();
+  const int ndegf = this->getDegreesOfFreedom();
 
-  // std::cout << "Velocities assigned at temperature " << temp << "\n";
-
-  // std::cout << "dof : " << ndegf << "\n";
-  float backTemp =
+  const float backTemp =
       kineticEnergy / (1 / 2.0 * ndegf * charmm::constants::kBoltz);
-  // std::cout << "calculated temp from ke (host) : " << backTemp << "\n";
+  static_cast<void>(backTemp);
 
-  velocityMass.transferToDevice();
-  // std::cout << "calculated temp from ke : " << computeTemperature() <<
-  // "\n";
+  m_VelocitiesInverseMasses.transferToDevice();
+  return;
 }
 
 static std::vector<std::string> split(std::string line) {
@@ -534,7 +392,7 @@ static std::vector<std::string> split(std::string line) {
 }
 
 void CharmmContext::assignVelocitiesFromCHARMMVelocityFile(
-    std::string fileName) {
+    const std::string fileName) {
   std::ifstream fin(fileName);
 
   if (!fin.is_open()) {
@@ -543,28 +401,28 @@ void CharmmContext::assignVelocitiesFromCHARMMVelocityFile(
   }
 
   std::string line;
-  //  comment lines
   while (1) {
     std::getline(fin, line);
     if (line[0] != '*')
       break;
   }
 
-  int nAtoms = std::stoul(line);
-  assert(nAtoms == numAtoms);
+  const int nAtoms = std::stoul(line);
+  assert(nAtoms == m_NumAtoms);
 
   int i = 0;
 
   std::getline(fin, line);
-  while (i < numAtoms) {
+  while (i < m_NumAtoms) {
     if (line.size() == 0) {
-      // std::cerr << "ERROR: Blank line read in " << fileName << "\n.
-      // Exiting\n";
       throw std::invalid_argument("ERROR: Blank line read in " + fileName +
                                   "\n. Exiting\n");
       exit(0);
     }
+
     auto content = split(line);
+    static_cast<void>(content);
+
     int atomId, resId, resIdInSeg;
     std::string resName, atomName, segName;
     float x, y, z, bFactor;
@@ -573,130 +431,97 @@ void CharmmContext::assignVelocitiesFromCHARMMVelocityFile(
     ss >> atomId >> resId >> resName >> atomName >> x >> y >> z >> segName >>
         resIdInSeg >> bFactor;
 
-    velocityMass[i].x = x;
-    velocityMass[i].y = y;
-    velocityMass[i].z = z;
+    m_VelocitiesInverseMasses[i].x = x;
+    m_VelocitiesInverseMasses[i].y = y;
+    m_VelocitiesInverseMasses[i].z = z;
 
     std::getline(fin, line);
     ++i;
   }
 
   float kineticEnergy = 0.0;
-  for (int i = 0; i < numAtoms; ++i) {
-    kineticEnergy += 1.0 / velocityMass[i].w *
-                     (pow(velocityMass[i].x, 2) + pow(velocityMass[i].y, 2) +
-                      pow(velocityMass[i].z, 2));
+  for (int i = 0; i < m_NumAtoms; ++i) {
+    kineticEnergy += 1.0 / m_VelocitiesInverseMasses[i].w *
+                     (pow(m_VelocitiesInverseMasses[i].x, 2) +
+                      pow(m_VelocitiesInverseMasses[i].y, 2) +
+                      pow(m_VelocitiesInverseMasses[i].z, 2));
   }
   kineticEnergy *= 0.5;
-  // int ndegf = numAtoms; // This is only for water molecules
-  int ndegf = getDegreesOfFreedom();
+
+  const int ndegf = this->getDegreesOfFreedom();
 
   std::cout << "dof : " << ndegf << "\n";
-  float backTemp =
+  const float backTemp =
       kineticEnergy / (1 / 2.0 * ndegf * charmm::constants::kBoltz);
   std::cout << "calculated temp from ke (host) : " << backTemp << "\n";
 
-  velocityMass.transferToDevice();
-  std::cout << "calculated temp from ke : " << computeTemperature() << "\n";
+  m_VelocitiesInverseMasses.transferToDevice();
+  std::cout << "calculated temp from ke : " << this->computeTemperature()
+            << "\n";
+  return;
 }
 
-void CharmmContext::assignVelocities(const std::vector<double> velIn) {
-  assert(velIn.size() == numAtoms * 3);
-  for (int i = 0; i < numAtoms; ++i) {
-    velocityMass[i].x = velIn[i * 3];
-    velocityMass[i].y = velIn[i * 3 + 1];
-    velocityMass[i].z = velIn[i * 3 + 2];
+void CharmmContext::assignVelocities(const std::vector<double> velocities) {
+  assert(velocities.size() == static_cast<std::size_t>(m_NumAtoms * 3));
+
+  for (int i = 0; i < m_NumAtoms; ++i) {
+    m_VelocitiesInverseMasses[i].x = velocities[i * 3];
+    m_VelocitiesInverseMasses[i].y = velocities[i * 3 + 1];
+    m_VelocitiesInverseMasses[i].z = velocities[i * 3 + 2];
   }
-  velocityMass.transferToDevice();
+
+  m_VelocitiesInverseMasses.transferToDevice();
+  return;
 }
 
 void CharmmContext::assignVelocities(
-    const std::vector<std::vector<double>> velIn) {
-  assert(velIn.size() == numAtoms);
-  for (int i = 0; i < numAtoms; ++i) {
-    assert(velIn[i].size() == 3);
-    velocityMass[i].x = velIn[i][0];
-    velocityMass[i].y = velIn[i][1];
-    velocityMass[i].z = velIn[i][2];
-  }
-  velocityMass.transferToDevice();
-}
+    const std::vector<std::vector<double>> velocities) {
+  assert(velocities.size() == static_cast<std::size_t>(m_NumAtoms));
 
-CudaContainer<double4> &CharmmContext::getVelocityMass() {
-  return velocityMass;
-}
-
-CudaContainer<double4> &CharmmContext::getCoordinatesCharges() {
-  return coordsCharge;
-}
-
-const CudaContainer<float4> &CharmmContext::getXYZQ(void) const { return xyzq; }
-
-CudaContainer<float4> &CharmmContext::getXYZQ(void) { return xyzq; }
-
-int CharmmContext::getForceStride() const {
-  return forceManager->getForceStride();
-}
-
-// JEG250506: THIS HAS A RACE CONDITION
-/* *
-// Cuda Kernel to compute kinetic energy
-__global__ void
-calculateKineticEnergyKernel(int numAtoms, const double4 *__restrict__ velMass,
-                             double *__restrict__ kineticEnergy) {
-  constexpr int blockSize = 128;
-  __shared__ double sdata[blockSize];
-  int threadId = threadIdx.x;
-  sdata[threadId] = 0.0;
-  size_t index = threadIdx.x + blockDim.x * blockIdx.x;
-
-  if (index == 0)
-    kineticEnergy[0] = 0.0;
-
-  while (index < numAtoms) {
-    sdata[threadId] += 0.5 *
-                       ((velMass[index].x * velMass[index].x) +
-                        (velMass[index].y * velMass[index].y) +
-                        (velMass[index].z * velMass[index].z)) /
-                       velMass[index].w;
-    index += gridDim.x * blockDim.x; // grid stride to load data
+  for (int i = 0; i < m_NumAtoms; ++i) {
+    assert(velocities[i].size() == 3);
+    m_VelocitiesInverseMasses[i].x = velocities[i][0];
+    m_VelocitiesInverseMasses[i].y = velocities[i][1];
+    m_VelocitiesInverseMasses[i].z = velocities[i][2];
   }
 
-  for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1) {
-    __syncthreads();
-    if (threadId < s) // parallel sweep reduction
-      sdata[threadId] += sdata[threadId + s];
-  }
-
-  if (threadId == 0)
-    atomicAdd(kineticEnergy, sdata[0]);
+  m_VelocitiesInverseMasses.transferToDevice();
+  return;
 }
 
-void CharmmContext::calculateKineticEnergy() {
-  int numThreads = 128; // this is the blockSize
-  int numBlocks = 64;
-
-  calculateKineticEnergyKernel<<<numBlocks, numThreads>>>(
-      numAtoms, velocityMass.getDeviceArray().data(),
-      kineticEnergy.getDeviceArray().data());
-
-  cudaCheck(cudaDeviceSynchronize()); // TODO fix this
+CudaContainer<double4> &CharmmContext::getVelocityMass(void) {
+  return m_VelocitiesInverseMasses;
 }
-* */
 
-__global__ static void
-CalculateKineticEnergyKernel(double *__restrict__ kineticEnergy,
-                             const double4 *__restrict__ velMass,
-                             const int numAtoms) {
+CudaContainer<double4> &CharmmContext::getCoordinatesCharges(void) {
+  return m_CoordinatesChargesDP;
+}
+
+const CudaContainer<float4> &CharmmContext::getXYZQ(void) const {
+  return m_CoordinatesChargesSP;
+}
+
+CudaContainer<float4> &CharmmContext::getXYZQ(void) {
+  return m_CoordinatesChargesSP;
+}
+
+int CharmmContext::getForceStride(void) const {
+  return m_ForceManager->getForceStride();
+}
+
+__global__ static void CalculateKineticEnergyKernel(
+    double *__restrict__ kineticEnergy,
+    const double4 *__restrict__ velocitiesInverseMasses, const int numAtoms) {
   const int idx = blockIdx.x * blockDim.x + threadIdx.x;
   const int stride = gridDim.x * blockDim.x;
 
   double ke = 0.0;
   for (int i = idx; i < numAtoms; i += stride) {
     ke += 0.5 *
-          ((velMass[i].x * velMass[i].x) + (velMass[i].y * velMass[i].y) +
-           (velMass[i].z * velMass[i].z)) /
-          velMass[i].w;
+          ((velocitiesInverseMasses[i].x * velocitiesInverseMasses[i].x) +
+           (velocitiesInverseMasses[i].y * velocitiesInverseMasses[i].y) +
+           (velocitiesInverseMasses[i].z * velocitiesInverseMasses[i].z)) /
+          velocitiesInverseMasses[i].w;
   }
 
   ke = BlockReduceSum<double>(ke);
@@ -709,86 +534,101 @@ CalculateKineticEnergyKernel(double *__restrict__ kineticEnergy,
 
 void CharmmContext::calculateKineticEnergy(void) {
   cudaCheck(
-      cudaMemset(static_cast<void *>(kineticEnergy.getDeviceArray().data()), 0,
-                 sizeof(double)));
+      cudaMemset(static_cast<void *>(m_KineticEnergy.getDeviceArray().data()),
+                 0, sizeof(double)));
+
   CalculateKineticEnergyKernel<<<1, 1024>>>(
-      kineticEnergy.getDeviceArray().data(),
-      velocityMass.getDeviceArray().data(), numAtoms);
+      m_KineticEnergy.getDeviceArray().data(),
+      m_VelocitiesInverseMasses.getDeviceArray().data(), m_NumAtoms);
 
   cudaCheck(cudaDeviceSynchronize());
-
   return;
 }
 
-double CharmmContext::getKineticEnergy() {
-  calculateKineticEnergy();
-  kineticEnergy.transferFromDevice();
-  return kineticEnergy.getHostArray()[0];
+double CharmmContext::getKineticEnergy(void) {
+  this->calculateKineticEnergy();
+  m_KineticEnergy.transferFromDevice();
+  return m_KineticEnergy.getHostArray()[0];
 }
 
-float CharmmContext::computeTemperature() {
-  // auto kineticEnergy = calculateKineticEnergy();
-  if (numAtoms == -1 || velocityMass.size() == 0) {
+float CharmmContext::computeTemperature(void) {
+  if (m_NumAtoms == -1 || m_VelocitiesInverseMasses.size() == 0) {
     throw std::invalid_argument(
         "No atoms in the system -- coordinates have not been loaded and/or "
         "velocities not assigned.");
   }
-  double ke = getKineticEnergy();
-  int numDegreesOfFreedom = getDegreesOfFreedom();
-  return ke / (0.5 * numDegreesOfFreedom * charmm::constants::kBoltz);
+
+  const double kineticEnergy = this->getKineticEnergy();
+  const int numDegreesOfFreedom = this->getDegreesOfFreedom();
+  return kineticEnergy /
+         (0.5 * numDegreesOfFreedom * charmm::constants::kBoltz);
 }
 
-void CharmmContext::setPeriodicBoundaryCondition(const PBC _pbc) {
-  forceManager->setPeriodicBoundaryCondition(_pbc);
-  resetNeighborList();
+void CharmmContext::setPeriodicBoundaryCondition(const PBC pbc) {
+  this->requireForceManager("CharmmContext::setPeriodicBoundaryCondition");
+
+  m_ForceManager->setPeriodicBoundaryCondition(pbc);
+  m_Pbc = m_ForceManager->getPeriodicBoundaryCondition();
+
+  this->resetNeighborList();
+
+  return;
 }
 
-PBC CharmmContext::getPeriodicBoundaryCondition() {
-  return forceManager->getPeriodicBoundaryCondition();
+PBC CharmmContext::getPeriodicBoundaryCondition(void) const {
+  return m_ForceManager->getPeriodicBoundaryCondition();
 }
 
 const std::vector<double> &CharmmContext::getBoxDimensions(void) const {
-  return forceManager->getBoxDimensions();
+  return m_ForceManager->getBoxDimensions();
 }
 
 std::vector<double> &CharmmContext::getBoxDimensions(void) {
-  return forceManager->getBoxDimensions();
+  return m_ForceManager->getBoxDimensions();
 }
 
 void CharmmContext::setBoxDimensions(const std::vector<double> &boxDimensions) {
-  forceManager->setBoxDimensions(boxDimensions);
+  this->requireForceManager("CharmmContext::setBoxDimensions");
+
+  m_ForceManager->setBoxDimensions(boxDimensions);
+  m_BoxDimensions = m_ForceManager->getBoxDimensions();
+
+  return;
 }
 
-std::vector<Bond> CharmmContext::getBonds() {
-  return forceManager->getPsf()->getBonds();
+std::vector<Bond> CharmmContext::getBonds(void) {
+  return m_ForceManager->getPsf()->getBonds();
 }
 
-int CharmmContext::getDegreesOfFreedom() { return numDegreesOfFreedom; }
+int CharmmContext::getDegreesOfFreedom(void) const {
+  return m_NumDegreesOfFreedom;
+}
 
 void CharmmContext::calculatePotentialEnergy(bool reset, bool print) {
-  forceManager->calcForce(xyzq.getDeviceArray().data(), reset, true, true);
+  m_ForceManager->calcForce(m_CoordinatesChargesSP.getDeviceArray().data(),
+                            reset, true, true);
   if (print == true)
     std::cout << "Implement some nice printing" << std::endl;
   return;
 }
-CudaContainer<double> &CharmmContext::getPotentialEnergy() {
-  return forceManager->getPotentialEnergy();
+
+CudaContainer<double> &CharmmContext::getPotentialEnergy(void) {
+  return m_ForceManager->getPotentialEnergy();
 }
 
-double CharmmContext::getVolume() const {
-  auto boxSize = forceManager->getBoxDimensions();
-  double boxx = boxSize[0];
-  double boxy = boxSize[1];
-  double boxz = boxSize[2];
+double CharmmContext::getVolume(void) const {
+  auto boxSize = m_ForceManager->getBoxDimensions();
+  const double boxX = boxSize[0];
+  const double boxY = boxSize[1];
+  const double boxZ = boxSize[2];
 
-  return boxx * boxy * boxz;
+  return boxX * boxY * boxZ;
 }
 
-// calculate Kinetic component to the pressure
 static __global__ void
-calculateKineticKernel(int numAtoms, const double4 *__restrict__ velMass,
+calculateKineticKernel(int numAtoms,
+                       const double4 *__restrict__ velocitiesInverseMasses,
                        double *accumulant) {
-  // TODO : convert this to a logn summation like KE in charmmcontext
   constexpr int blockSize = 128 * 9;
   __shared__ double sdata[blockSize];
   int threadId = threadIdx.x;
@@ -800,16 +640,25 @@ calculateKineticKernel(int numAtoms, const double4 *__restrict__ velMass,
 
   for (int i = index; i < numAtoms; i += blockDim.x)
     if (index < numAtoms) {
-      double rvc = 0.5 / velMass[index].w;
-      sdata[threadId + 0] = rvc * velMass[i].x * velMass[i].x;
-      sdata[threadId + 1] = rvc * velMass[i].x * velMass[i].y;
-      sdata[threadId + 2] = rvc * velMass[i].x * velMass[i].z;
-      sdata[threadId + 3] = rvc * velMass[i].y * velMass[i].x;
-      sdata[threadId + 4] = rvc * velMass[i].y * velMass[i].y;
-      sdata[threadId + 5] = rvc * velMass[i].y * velMass[i].z;
-      sdata[threadId + 6] = rvc * velMass[i].z * velMass[i].x;
-      sdata[threadId + 7] = rvc * velMass[i].z * velMass[i].y;
-      sdata[threadId + 8] = rvc * velMass[i].z * velMass[i].z;
+      double rvc = 0.5 / velocitiesInverseMasses[index].w;
+      sdata[threadId + 0] =
+          rvc * velocitiesInverseMasses[i].x * velocitiesInverseMasses[i].x;
+      sdata[threadId + 1] =
+          rvc * velocitiesInverseMasses[i].x * velocitiesInverseMasses[i].y;
+      sdata[threadId + 2] =
+          rvc * velocitiesInverseMasses[i].x * velocitiesInverseMasses[i].z;
+      sdata[threadId + 3] =
+          rvc * velocitiesInverseMasses[i].y * velocitiesInverseMasses[i].x;
+      sdata[threadId + 4] =
+          rvc * velocitiesInverseMasses[i].y * velocitiesInverseMasses[i].y;
+      sdata[threadId + 5] =
+          rvc * velocitiesInverseMasses[i].y * velocitiesInverseMasses[i].z;
+      sdata[threadId + 6] =
+          rvc * velocitiesInverseMasses[i].z * velocitiesInverseMasses[i].x;
+      sdata[threadId + 7] =
+          rvc * velocitiesInverseMasses[i].z * velocitiesInverseMasses[i].y;
+      sdata[threadId + 8] =
+          rvc * velocitiesInverseMasses[i].z * velocitiesInverseMasses[i].z;
     }
 
   for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1) {
@@ -834,90 +683,53 @@ calculateKineticKernel(int numAtoms, const double4 *__restrict__ velMass,
   }
 }
 
-void CharmmContext::computePressure() {
-  auto ke = getKineticEnergy();
+void CharmmContext::computePressure(void) {
+  auto kineticEnergy = this->getKineticEnergy();
+  static_cast<void>(kineticEnergy);
 
-  // TODO : put this a separate stream
-  // TODO: the kinetic component computed here is wrong (accumulates over
-  // time.)
   calculateKineticKernel<<<1, 1024>>>(
-      numAtoms, velocityMass.getDeviceArray().data(),
-      virialKineticEnergyTensor.getDeviceArray().data());
+      m_NumAtoms, m_VelocitiesInverseMasses.getDeviceArray().data(),
+      m_VirialKineticEnergyTensor.getDeviceArray().data());
 
   cudaCheck(cudaDeviceSynchronize());
 
-  auto vcell = charmm::constants::patmos / getVolume();
-  // std::cout << "[CTX] vcell : " << vcell << "\n";
+  const double vcell = charmm::constants::patmos / this->getVolume();
 
-  // TODO : calculate the non-diagonal entries
-
-  // get the virial from force manager
-  auto virial = forceManager->getVirial();
+  auto virial = m_ForceManager->getVirial();
   virial.transferFromDevice();
 
-  virialKineticEnergyTensor.transferFromDevice();
+  m_VirialKineticEnergyTensor.transferFromDevice();
 
   for (int i = 0; i < 9; ++i) {
-    pressure[i] = (2.0 * virialKineticEnergyTensor.getHostArray()[i] +
-                   virial.getHostArray()[i]) /
-                  vcell;
+    m_Pressure[i] = (2.0 * m_VirialKineticEnergyTensor.getHostArray()[i] +
+                     virial.getHostArray()[i]) /
+                    vcell;
   }
 
-  /* Debug printing
-    std::cout << "-------------------------------" << std::endl;
-    std::cout << "[CTX] Pressure" << std::endl;
-    int k = 0;
-    for (int i = 0; i < 3; i++) {
-      std::cout << "[CTX] ";
-      for (int j = 0; j < 3; j++)
-        std::cout <<  pressure[k++] << " ";
-      std::cout << "\n";
-    }
-    std::cout << "[CTX] virialKineticEnergyTensor " << std::endl;
-    k=0;
-    for (int i = 0; i < 3; i++) {
-      std::cout << "[CTX] ";
-      for (int j = 0; j < 3; j++)
-        std::cout <<  virialKineticEnergyTensor.getHostArray()[k++] << " ";
-      std::cout << "\n";
-    }
-
-    std::cout << "[CTX] virial " << std::endl;
-    k=0;
-    for (int i = 0; i < 3; i++) {
-      std::cout << "[CTX] ";
-      for (int j = 0; j < 3; j++)
-        std::cout <<  virial.getHostArray()[k++] << " ";
-      std::cout << "\n";
-    }
-    std::cout << "[CTX] vcell: " << vcell << "\n";
-  */
-
-  pressure.transferToDevice();
-
+  m_Pressure.transferToDevice();
   return;
 }
 
-CudaContainer<double> &CharmmContext::getVirial() {
-  return forceManager->getVirial();
+CudaContainer<double> &CharmmContext::getVirial(void) {
+  return m_ForceManager->getVirial();
 }
 
-CudaContainer<int4> CharmmContext::getWaterMolecules() {
-  return forceManager->getPsf()->getWaterMolecules();
+CudaContainer<int4> CharmmContext::getWaterMolecules(void) {
+  return m_ForceManager->getPsf()->getWaterMolecules();
 }
 
-CudaContainer<int4> CharmmContext::getShakeAtoms() {
-  return forceManager->getShakeAtoms();
+CudaContainer<int4> CharmmContext::getShakeAtoms(void) {
+  return m_ForceManager->getShakeAtoms();
 }
 
-CudaContainer<float4> CharmmContext::getShakeParams() {
-  return forceManager->getShakeParams();
+CudaContainer<float4> CharmmContext::getShakeParams(void) {
+  return m_ForceManager->getShakeParams();
 }
 
-void CharmmContext::useHolonomicConstraints(bool set) {
-  usingHolonomicConstraints = set;
-  int ndegf = numAtoms * 3;
-  auto pbc = forceManager->getPeriodicBoundaryCondition();
+void CharmmContext::useHolonomicConstraints(const bool useConstraints) {
+  m_UsingHolonomicConstraints = useConstraints;
+  int ndegf = m_NumAtoms * 3;
+  auto pbc = m_ForceManager->getPeriodicBoundaryCondition();
   if (pbc == PBC::P1) {
     ndegf -= 3;
   } else if (pbc == PBC::P21) {
@@ -925,10 +737,10 @@ void CharmmContext::useHolonomicConstraints(bool set) {
   } else {
   }
 
-  if (usingHolonomicConstraints) {
-    ndegf -= getWaterMolecules().size() * 3;
+  if (m_UsingHolonomicConstraints) {
+    ndegf -= this->getWaterMolecules().size() * 3;
     int numShakeConstraints = 0;
-    auto shakeAtoms = forceManager->getShakeAtoms().getHostArray();
+    auto shakeAtoms = m_ForceManager->getShakeAtoms().getHostArray();
     for (std::size_t i = 0; i < shakeAtoms.size(); ++i) {
       ++numShakeConstraints;
       if (shakeAtoms[i].z != -1)
@@ -939,101 +751,84 @@ void CharmmContext::useHolonomicConstraints(bool set) {
     ndegf -= numShakeConstraints;
   }
 
-  // TODO : other restraints need to be accounted for as well
-  numDegreesOfFreedom = ndegf;
+  m_NumDegreesOfFreedom = ndegf;
+  return;
 }
 
-void CharmmContext::orient() {}
+void CharmmContext::orient(void) { return; }
 
-void CharmmContext::setForceManager(std::shared_ptr<ForceManager> fm) {
-  forceManager = fm;
+void CharmmContext::setForceManager(
+    std::shared_ptr<ForceManager> forceManager) {
+  if (forceManager == nullptr) {
+    throw std::invalid_argument("CharmmContext::setForceManager(std::shared_"
+                                "ptr<ForceManager>): forceManager == nullptr");
+  }
+
+  m_ForceManager = forceManager;
+  this->syncStateFromForceManager();
+
+  return;
 }
 
-void CharmmContext::linkBackForceManager() {
-  forceManager->setCharmmContext(shared_from_this());
+std::shared_ptr<ForceManager> CharmmContext::getForceManager(void) {
+  return m_ForceManager;
+}
+
+std::shared_ptr<CharmmPSF> CharmmContext::getPsf(void) const { return m_Psf; }
+
+std::shared_ptr<CharmmParameters> CharmmContext::getPrm(void) const {
+  return m_Prm;
+}
+
+void CharmmContext::linkBackForceManager(void) {
+  m_ForceManager->setContext(shared_from_this());
+  return;
 }
 
 void CharmmContext::writeCrd(std::string fileName) {
-
   std::ofstream fout(fileName);
 
   if (!fout.is_open()) {
     throw std::invalid_argument("ERROR! Can't open the crd file to write \n");
   }
+
+  return;
 }
 
-/* *
-void CharmmContext::readRestart(std::string fileName) {
-  std::ifstream restartFile(fileName);
-  std::string line, sectionString = "!VX";
-
-  if (!restartFile.is_open()) {
-    throw std::invalid_argument("ERROR: Cannot open the file " + fileName +
-                                "\nExiting\n");
-    exit(0);
-  }
-
-  // find numAtoms
-  int lineCount = 0;
-  while (std::getline(restartFile, line)) {
-    lineCount++;
-    if (line.find(sectionString) != std::string::npos) {
-      break;
-    }
-  }
-  numAtoms = (lineCount - 3);
-  restartFile.clear();
-  restartFile.seekg(0);
-
-  if (numAtoms == -1) {
-    throw std::invalid_argument("ERROR: numAtoms is still -1.\n");
-  }
-
-  // First line SHOULD BE a comment saying !XOLD, YOLD, ZOLD
-  std::getline(restartFile, line);
-
-  // Extract the positions to a float3 vector, then create a CharmmCrd file
-  // from it
-  std::vector<double4> crds(numAtoms);
-
-  for (int i = 0; i < numAtoms; i++) {
-    std::getline(restartFile, line);
-    std::stringstream ss(line);
-    crds[i] = make_double4(0.0, 0.0, 0.0, 0.0);
-    ss >> crds[i].x >> crds[i].y >> crds[i].z;
-  }
-  this->setCoordinates(crds);
-
-  // Pass the blank line & the comment-title line
-  std::getline(restartFile, line);
-  std::getline(restartFile, line);
-  double vx, vy, vz;
-  // Extract the velocities
-  for (int count = 0; count < numAtoms; count++) {
-    std::getline(restartFile, line);
-    std::stringstream ss(line);
-    ss >> vx >> vy >> vz;
-    // Save somewhere !
-    double4 vm = velocityMass[count];
-    vm.x = vx;
-    vm.y = vy;
-    vm.z = vz;
-    velocityMass[count] = vm;
-  }
-  velocityMass.transferToDevice();
-
-  // Find the box dimension line
-  while (std::getline(restartFile, line)) {
-    if (line.find("!BOXX") != std::string::npos) {
-      break;
-    }
-  }
-  if (std::getline(restartFile, line)) {
-    std::stringstream ss(line);
-    ss >> x >> y >> z;
-    setBoxDimensions({x, y, z});
-  }
+int CharmmContext::getNumDegreesOfFreedom(void) const {
+  return m_NumDegreesOfFreedom;
 }
-* */
 
-int CharmmContext::getNumDegreesOfFreedom() { return numDegreesOfFreedom; }
+void CharmmContext::setRandomSeedForVelocities(const std::uint64_t randomSeed) {
+  m_RandomSeed = randomSeed;
+  return;
+}
+
+std::uint64_t CharmmContext::getRandomSeedForVelocities(void) const {
+  return m_RandomSeed;
+}
+
+CudaContainer<double> CharmmContext::getPressure(void) const {
+  return m_Pressure;
+}
+
+bool CharmmContext::isUsingHolonomicConstraints(void) const {
+  return m_UsingHolonomicConstraints;
+}
+
+void CharmmContext::requireForceManager(const std::string &functionName) const {
+  if (m_ForceManager == nullptr)
+    throw std::invalid_argument(functionName + ": ForceManager is not set");
+  return;
+}
+
+void CharmmContext::syncStateFromForceManager(void) {
+  this->requireForceManager("CharmmContext::syncStateFromForceManager");
+
+  m_Psf = m_ForceManager->getPsf();
+  m_Prm = m_ForceManager->getPrm();
+  m_BoxDimensions = m_ForceManager->getBoxDimensions();
+  m_Pbc = m_ForceManager->getPeriodicBoundaryCondition();
+
+  return;
+}

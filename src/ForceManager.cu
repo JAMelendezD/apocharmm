@@ -114,7 +114,7 @@ ForceManager::ForceManager(const ForceManager &other) : ForceManager() {
 
 ForceManager::~ForceManager(void) { this->dealloc(); }
 
-void ForceManager::setCharmmContext(std::shared_ptr<CharmmContext> ctx) {
+void ForceManager::setContext(std::shared_ptr<CharmmContext> ctx) {
   m_Context = ctx;
   return;
 }

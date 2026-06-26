@@ -172,7 +172,7 @@ public:
    *
    * @param ctx CharmmContext object
    */
-  void setCharmmContext(std::shared_ptr<CharmmContext> ctx);
+  void setContext(std::shared_ptr<CharmmContext> ctx);
 
   /** @brief Sets "psf" variable to a given CharmmPSF object
    *
