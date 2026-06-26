@@ -492,6 +492,27 @@ apo_force_manager_get_fft_grid(int *grid, const size_t grid_len,
       function_name);
 }
 
+extern "C" apo_status
+apo_force_manager_get_pme_spline_order(int *order,
+                                       const apo_force_manager *force_manager) {
+  const char *function_name = "apo_force_manager_get_pme_spline_order";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_force_manager>(
+                force_manager, function_name, "ForceManager"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_pointer<int>(order, function_name, "order"));
+
+        *order = force_manager->object->getPmeSplineOrder();
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
 extern "C" apo_status apo_force_manager_get_periodic_boundary_condition(
     apo_pbc *pbc, const apo_force_manager *force_manager) {
   const char *function_name =

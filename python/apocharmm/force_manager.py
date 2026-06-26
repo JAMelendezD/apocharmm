@@ -151,6 +151,12 @@ def _initialize_prototypes() -> None:
     ]
     lib().apo_force_manager_get_periodic_boundary_condition.restype = ctypes.c_int
 
+    lib().apo_force_manager_get_pme_spline_order.argtypes = [
+        ctypes.POINTER(ctypes.c_int),
+        ctypes.c_void_p,
+    ]
+    lib().apo_force_manager_get_pme_spline_order.restype = ctypes.c_int
+
     lib().apo_force_manager_get_vdw_type.argtypes = [
         ctypes.POINTER(ctypes.c_int),
         ctypes.c_void_p,
@@ -502,6 +508,19 @@ class ForceManager(_ApoObject):
         check_status(status, "ForceManager.getFFTGrid() failed")
 
         return (int(c_buffer[0]), int(c_buffer[1]), int(c_buffer[2]))
+
+    def getPmeSplineOrder(self) -> int:
+        _initialize_prototypes()
+
+        c_order: ctypes.c_int = ctypes.c_int()
+
+        status = lib().apo_force_manager_get_pme_spline_order(
+            ctypes.byref(c_order), self.handle
+        )
+
+        check_status(status, "ForceManager.getPmeSplineOrder() failed")
+
+        return float(c_order.value)
 
     def getPeriodicBoundaryCondition(self) -> PeriodicBoundaryCondition:
         _initialize_prototypes()

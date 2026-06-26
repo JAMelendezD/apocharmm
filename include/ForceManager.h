@@ -504,7 +504,7 @@ protected:
    * @brief Check that a vector contains correct dimensions (positive, non-zero
    * numbers). Returns true if so, throws an error otherwise.
    */
-  void checkBoxDimensions(const std::vector<double> &size);
+  void checkBoxDimensions(const std::vector<double> &boxDimensions);
 
 private:
   void dealloc(void);

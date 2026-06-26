@@ -88,6 +88,9 @@ APOCHARMM_C_API apo_status apo_force_manager_get_ctofnb(
 APOCHARMM_C_API apo_status apo_force_manager_get_fft_grid(
     int *grid, const size_t grid_len, const apo_force_manager *force_manager);
 
+APOCHARMM_C_API apo_status apo_force_manager_get_pme_spline_order(
+    int *order, const apo_force_manager *force_manager);
+
 APOCHARMM_C_API apo_status apo_force_manager_get_periodic_boundary_condition(
     apo_pbc *pbc, const apo_force_manager *force_manager);
 

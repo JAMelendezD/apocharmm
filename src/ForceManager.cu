@@ -11,7 +11,9 @@
 #include "CharmmContext.h"
 #include "ForceManager.h"
 #include "gpu_utils.h"
+
 #include <chrono>
+#include <cmath>
 #include <iostream>
 #include <string>
 
@@ -974,14 +976,22 @@ std::vector<int> ForceManager::computeFFTGridSize(void) {
   return {fx, fy, fz};
 }
 
-void ForceManager::checkBoxDimensions(const std::vector<double> &size) {
-  for (auto dim : size) {
-    if (dim < 0) {
-      throw std::invalid_argument("Box dimensions: " + std::to_string(size[0]) +
-                                  " x " + std::to_string(size[1]) + " x " +
-                                  std::to_string(size[2]) + " are NOT valid");
+void ForceManager::checkBoxDimensions(
+    const std::vector<double> &boxDimensions) {
+  if (boxDimensions.size() != 3) {
+    throw std::invalid_argument(
+        "Box dimensions must contain exactly 3 elements");
+  }
+
+  for (const double dim : boxDimensions) {
+    if ((!std::isfinite(dim)) || (dim <= 0.0)) {
+      throw std::invalid_argument(
+          "Box dimensions: " + std::to_string(boxDimensions[0]) + " x " +
+          std::to_string(boxDimensions[1]) + " x " +
+          std::to_string(boxDimensions[2]) + " are NOT valid");
     }
   }
+
   return;
 }
 
