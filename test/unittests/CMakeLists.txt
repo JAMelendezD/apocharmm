@@ -5,7 +5,7 @@ set(SOURCES_UNITTESTS_TESTS
   unittest-cudaContainer.cpp
 
   # Manager tests
-  # unittest-charmmContext.cpp
+  unittest-charmmContext.cpp
   unittest-forceManager.cpp
 
   # Object tests
