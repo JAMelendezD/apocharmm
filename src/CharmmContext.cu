@@ -42,7 +42,6 @@ CharmmContext::CharmmContext(std::shared_ptr<ForceManager> fmIn)
 
   // linkBackForceManager();
 
-  hasLogger = false;
   std::random_device rd{};
   seed = rd();
 }
@@ -59,7 +58,6 @@ CharmmContext::CharmmContext(const CharmmContext &other)
   this->temperature = other.temperature;
   this->numDegreesOfFreedom = other.numDegreesOfFreedom;
   this->usingHolonomicConstraints = other.usingHolonomicConstraints;
-  this->hasLogger = other.hasLogger;
   this->seed = other.seed;
 }
 
@@ -1039,21 +1037,3 @@ void CharmmContext::readRestart(std::string fileName) {
 * */
 
 int CharmmContext::getNumDegreesOfFreedom() { return numDegreesOfFreedom; }
-
-void CharmmContext::setLogger() {
-  logger = std::make_shared<Logger>(shared_from_this());
-  hasLogger = true;
-}
-void CharmmContext::setLogger(std::string logFileName) {
-  logger = std::make_shared<Logger>(shared_from_this(), logFileName);
-  hasLogger = true;
-}
-
-std::shared_ptr<Logger> CharmmContext::getLogger() {
-  if (not hasLogger) {
-    throw std::invalid_argument("ERROR: Logger not set. \n");
-  }
-  return logger;
-}
-
-bool CharmmContext::hasLoggerSet() const { return hasLogger; }

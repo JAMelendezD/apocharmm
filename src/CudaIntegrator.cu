@@ -141,15 +141,6 @@ void CudaIntegrator::propagate(const int numSteps) {
         "ForceManager::initialize() before setting the integrator.\n");
   }
 
-  // Logging
-  if (false) {
-    if (not m_Context->hasLoggerSet())
-      m_Context->setLogger();
-    auto testptr = this->shared_from_this();
-    std::shared_ptr<Logger> currentLogger = m_Context->getLogger();
-    currentLogger->updateLog(this->shared_from_this(), numSteps);
-  }
-
   m_Context->resetNeighborList();
 
   std::chrono::steady_clock::time_point start =

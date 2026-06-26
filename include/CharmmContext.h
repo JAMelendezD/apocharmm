@@ -17,14 +17,13 @@
 #include "CudaContainer.h"
 #include "Force.h"
 #include "ForceManager.h"
-#include "Logger.h"
 #include "Subscriber.h"
 #include "cuda_utils.h"
+
 #include <memory>
 #include <vector>
 
 // Forward declaration
-class Logger;
 class Checkpoint;
 
 /**
@@ -400,11 +399,6 @@ public:
   //  */
   // void readRestart(std::string fileName);
 
-  void setLogger();
-  void setLogger(std::string loggerFileName);
-  std::shared_ptr<Logger> getLogger();
-  bool hasLoggerSet() const;
-
 private:
   // std::vector<std::vector<int>> groups;
   uint64_t seed;
@@ -460,10 +454,4 @@ private:
   float temperature;
 
   bool usingHolonomicConstraints;
-
-  /** @brief Logger attached to the context. Initialized upon first call to
-   * propagate by any integrator.
-   * @todo Should probably be a shared_ptr */
-  std::shared_ptr<Logger> logger;
-  bool hasLogger;
 };

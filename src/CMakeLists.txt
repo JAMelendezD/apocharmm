@@ -80,8 +80,6 @@ add_library(apoCHARMMlib
   # ${apoCHARMM_SOURCE_DIR}/src/TestSystem.cu
   ${apoCHARMM_SOURCE_DIR}/src/XYZSubscriber.cu
   # ${apoCHARMM_SOURCE_DIR}/src/Utilities.cu
-  ${apoCHARMM_SOURCE_DIR}/src/Logger.cu
-  ${apoCHARMM_SOURCE_DIR}/src/tinyxml2.cpp
 )
 
 target_compile_definitions(apoCHARMMlib PUBLIC USE_TEXTURE_OBJECTS)

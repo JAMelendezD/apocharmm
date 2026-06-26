@@ -21,13 +21,21 @@ methods," J. Chem. Phys. 162, 182501
 apoCHARMM is distributed under the
 [BSD-3-clause](https://opensource.org/licenses/BSD-3-Clause) open source
 license, as described in the LICENSE file in the top level of the repository.
-Some external dependencies are used that are licensed under different terms, as
-enumerated below.
+The repository also ships a single-header copy of
+[Catch2](https://github.com/catchorg/Catch2) for the C++ unit tests. Catch2 is
+distributed under the
+[Boost Software License 1.0](https://opensource.org/licenses/BSL-1.0).
 
 ## Dependencies
 
-* [Catch2](https://github.com/catchorg/Catch2) for unit testing
-  ([BSL license](https://opensource.org/licenses/BSL-1.0)).
+apoCHARMM does not require any git submodules.
+
+The C++ unit tests use the vendored single-header Catch2 file at
+`test/unittests/catch.hpp`. This file is shipped with the test sources and is
+not fetched as an external library during configuration or build.
+
+The source code was developed using the tool and compiler versions listed in the
+installation section below. Other versions may work.
 
 ## Authors
 
@@ -39,8 +47,9 @@ Bernard R. Brooks (NIH)
 
 ## Installation
 
-The source code was developed using the following tool and compiler versions,
-other versions may work.
+The source code was developed using the following tool and compiler versions.
+Other versions may work.
+
 * GCC [12.2.0]
 * CUDA [12.2.140]
 * CMake [3.25.1]
@@ -48,13 +57,9 @@ other versions may work.
 ### 0. Clone this repository
 
 ```
-git clone git@github.com:jeg7/apocharmm --recursive
+git clone git@github.com:jeg7/apocharmm
 cd apocharmm/
 ```
-
-(If you already cloned this repository without the `--recursive` flag, simply
-run `git submodule update --init --recursive` from within the `apocharmm/`
-directory).
 
 ### 1. Compile the source code
 

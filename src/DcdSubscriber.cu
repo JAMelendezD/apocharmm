@@ -11,6 +11,8 @@
 #include "DcdSubscriber.h"
 
 #include "CharmmContext.h"
+#include "CudaIntegrator.h"
+
 #include <array>
 #include <cstdio>
 #include <fstream>
