@@ -513,7 +513,7 @@ protected:
   /**
    * @brief CharmmContext object linked to this force manager
    */
-  std::shared_ptr<CharmmContext> m_Context;
+  std::weak_ptr<CharmmContext> m_Context;
 
   /**
    * @brief PSF file (CharmmPSF object)

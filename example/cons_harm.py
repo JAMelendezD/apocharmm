@@ -43,9 +43,9 @@ def main(argc, argv):
     integrator.setThermostatRngSeed(random_seed)
     integrator.setCharmmContext(ctx)
 
-    # DCD subscriber to visualize the effects of restraints
-    dcd = apo.DcdSubscriber("tmpHarmRestraint.dcd", 1)
-    integrator.subscribe(dcd)
+    # # DCD subscriber to visualize the effects of restraints
+    # dcd = apo.DcdSubscriber("tmpHarmRestraint.dcd", 1)
+    # integrator.subscribe(dcd)
 
     # Generate selection for restraints
     selector = apo.AtomSelector(psf)

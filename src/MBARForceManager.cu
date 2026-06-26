@@ -8,11 +8,14 @@
 //
 // ENDLICENSE
 
-#include "CharmmContext.h"
-#include "ForceManager.h"
 #include "MBARForceManager.h"
+
+#include "CharmmContext.h"
+// #include "ForceManager.h"
+
 #include <cassert>
 #include <numeric>
+#include <stdexcept>
 
 MBARForceManager::MBARForceManager() { nonZeroLambdaIndex = -1; }
 
@@ -74,9 +77,14 @@ void MBARForceManager::setSelectorVec(const std::vector<float> &lambdas) {
   int numThreads = 128;
   int numBlocks = (charges.size() + numThreads - 1) / numThreads;
 
-  float4 *xyzq = m_Context->getXYZQ().getDeviceArray().data();
-  double4 *coordsCharge =
-      m_Context->getCoordinatesCharges().getDeviceArray().data();
+  std::shared_ptr<CharmmContext> ctx = this->getContext();
+  if (ctx == nullptr) {
+    throw std::runtime_error(
+        "MBARForceManager::setSelectorVec: CharmmContext is not set");
+  }
+
+  float4 *xyzq = ctx->getXYZQ().getDeviceArray().data();
+  double4 *coordsCharge = ctx->getCoordinatesCharges().getDeviceArray().data();
 
   updateChargeInCharmmContext<<<numBlocks, numThreads>>>(
       charges.size(), d_charges, xyzq, coordsCharge);

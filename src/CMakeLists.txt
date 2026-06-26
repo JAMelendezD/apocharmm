@@ -8,8 +8,8 @@ add_library(apoCHARMMlib
   ${apoCHARMM_SOURCE_DIR}/src/SelectionTokenizer.cpp
   ${apoCHARMM_SOURCE_DIR}/src/BEDSSubscriber.cu
   ${apoCHARMM_SOURCE_DIR}/src/CharmmContext.cu
-  ${apoCHARMM_SOURCE_DIR}/src/Checkpoint.cu
-  ${apoCHARMM_SOURCE_DIR}/src/CheckpointSubscriber.cu
+  # ${apoCHARMM_SOURCE_DIR}/src/Checkpoint.cu
+  # ${apoCHARMM_SOURCE_DIR}/src/CheckpointSubscriber.cu
   ${apoCHARMM_SOURCE_DIR}/src/Coordinates.cu
   ${apoCHARMM_SOURCE_DIR}/src/CudaContainer.cu
   # ${apoCHARMM_SOURCE_DIR}/src/CudaBAOABIntegrator.cu

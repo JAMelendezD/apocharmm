@@ -18,7 +18,6 @@
 #include <string>
 
 ForceManager::ForceManager(void) {
-  m_Context = nullptr;
   m_Psf = nullptr;
   m_Prm = nullptr;
 
@@ -115,7 +114,13 @@ ForceManager::ForceManager(const ForceManager &other) : ForceManager() {
 ForceManager::~ForceManager(void) { this->dealloc(); }
 
 void ForceManager::setContext(std::shared_ptr<CharmmContext> ctx) {
+  if (ctx == nullptr) {
+    m_Context.reset();
+    return;
+  }
+
   m_Context = ctx;
+
   return;
 }
 
@@ -226,12 +231,10 @@ void ForceManager::addForceManager(std::shared_ptr<ForceManager> fm) {
 }
 
 std::shared_ptr<CharmmContext> ForceManager::getContext(void) {
-  return m_Context;
+  return m_Context.lock();
 }
 
-bool ForceManager::hasCharmmContext(void) const {
-  return (m_Context != nullptr);
-}
+bool ForceManager::hasCharmmContext(void) const { return !m_Context.expired(); }
 
 std::shared_ptr<CharmmPSF> ForceManager::getPsf(void) { return m_Psf; }
 

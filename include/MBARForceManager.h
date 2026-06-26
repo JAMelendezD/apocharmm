@@ -9,6 +9,7 @@
 // ENDLICENSE
 
 #pragma once
+
 #include "ForceManagerComposite.h"
 
 /* Question : how do I run standard FEP(via MBAR) computation ? One way would be
