@@ -181,6 +181,8 @@ public:
    */
   void setPsf(std::shared_ptr<CharmmPSF> psf);
 
+  void setPrm(std::shared_ptr<CharmmParameters> prm);
+
   /**
    * @brief Setup psf using a file name
    *

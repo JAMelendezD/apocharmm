@@ -762,6 +762,30 @@ void CharmmContext::useHolonomicConstraints(const bool useConstraints) {
 
 void CharmmContext::orient(void) { return; }
 
+void CharmmContext::setPsf(std::shared_ptr<CharmmPSF> psf) {
+  if (psf == nullptr)
+    throw std::invalid_argument("CharmmContext::setPsf: psf == nullptr");
+
+  m_Psf = psf;
+
+  if (m_ForceManager != nullptr)
+    m_ForceManager->setPsf(m_Psf);
+
+  return;
+}
+
+void CharmmContext::setPrm(std::shared_ptr<CharmmParameters> prm) {
+  if (prm == nullptr)
+    throw std::invalid_argument("CharmmContext::setPrm: prm == nullptr");
+
+  m_Prm = prm;
+
+  if (m_ForceManager != nullptr)
+    m_ForceManager->setPrm(m_Prm);
+
+  return;
+}
+
 void CharmmContext::setForceManager(
     std::shared_ptr<ForceManager> forceManager) {
   if (forceManager == nullptr) {

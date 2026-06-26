@@ -125,9 +125,24 @@ void ForceManager::setContext(std::shared_ptr<CharmmContext> ctx) {
 }
 
 void ForceManager::setPsf(std::shared_ptr<CharmmPSF> psf) {
+  if (psf == nullptr)
+    throw std::invalid_argument("ForceManager::setPsf: psf == nullptr");
+
   m_Psf = psf;
   // If changing the CharmmPSF, set "initialized" flag to FALSE
   m_IsInitialized = false;
+
+  return;
+}
+
+void ForceManager::setPrm(std::shared_ptr<CharmmParameters> prm) {
+  if (prm == nullptr)
+    throw std::invalid_argument("ForceManager::setPrm: prm == nullptr");
+
+  m_Prm = prm;
+  // If changing the CharmmPSF, set "initialized" flag to FALSE
+  m_IsInitialized = false;
+
   return;
 }
 

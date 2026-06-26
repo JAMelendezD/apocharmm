@@ -114,6 +114,8 @@ public:
 public:
   void imageCentering(void);
   void orient(void);
+  void setPsf(std::shared_ptr<CharmmPSF> psf);
+  void setPrm(std::shared_ptr<CharmmParameters> prm);
   void setForceManager(std::shared_ptr<ForceManager> forceManager);
   std::shared_ptr<ForceManager> getForceManager(void);
   std::shared_ptr<CharmmPSF> getPsf(void) const;
