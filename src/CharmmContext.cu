@@ -31,11 +31,19 @@
 #include <string>
 #include <vector>
 
+static bool hasValidBoxDimensions(const std::vector<double> &boxDimensions) {
+  if (boxDimensions.size() != 3)
+    return false;
+  return ((boxDimensions[0] > 0.0) && (boxDimensions[1] > 0.0) &&
+          (boxDimensions[2] > 0.0));
+}
+
 CharmmContext::CharmmContext(void)
     : m_RandomSeed(0), m_Psf(nullptr), m_Prm(nullptr),
       m_BoxDimensions({-9999.9999, -9999.9999, -9999.9999}),
-      m_ForceManager(nullptr), m_NumAtoms(-1), m_NumDegreesOfFreedom(-1),
-      m_Pbc(PBC::P1), m_CoordinatesChargesSP(), m_CoordinatesChargesDP(),
+      m_HasBoxDimensions(false), m_ForceManager(nullptr), m_NumAtoms(-1),
+      m_NumDegreesOfFreedom(-1), m_Pbc(PBC::P1), m_HasPbc(false),
+      m_CoordinatesChargesSP(), m_CoordinatesChargesDP(),
       m_VelocitiesInverseMasses(), m_KineticEnergy(1), m_Pressure(9),
       m_VirialKineticEnergyTensor(9), m_Temperature(0.0f),
       m_UsingHolonomicConstraints(false) {}
@@ -68,7 +76,9 @@ CharmmContext::CharmmContext(const CharmmContext &other)
   m_Psf = other.m_Psf;
   m_Prm = other.m_Prm;
   m_BoxDimensions = other.m_BoxDimensions;
+  m_HasBoxDimensions = other.m_HasBoxDimensions;
   m_Pbc = other.m_Pbc;
+  m_HasPbc = other.m_HasPbc;
 
   m_NumAtoms = other.m_NumAtoms;
   m_CoordinatesChargesSP = other.m_CoordinatesChargesSP;
@@ -576,12 +586,14 @@ float CharmmContext::computeTemperature(void) {
 }
 
 void CharmmContext::setPeriodicBoundaryCondition(const PBC pbc) {
-  this->requireForceManager("CharmmContext::setPeriodicBoundaryCondition");
+  m_Pbc = pbc;
+  m_HasPbc = true;
 
-  m_ForceManager->setPeriodicBoundaryCondition(pbc);
-  m_Pbc = m_ForceManager->getPeriodicBoundaryCondition();
-
-  this->resetNeighborList();
+  if (m_ForceManager != nullptr) {
+    m_ForceManager->setPeriodicBoundaryCondition(m_Pbc);
+    m_Pbc = m_ForceManager->getPeriodicBoundaryCondition();
+    this->resetNeighborList();
+  }
 
   return;
 }
@@ -597,10 +609,18 @@ std::vector<double> &CharmmContext::getBoxDimensions(void) {
 }
 
 void CharmmContext::setBoxDimensions(const std::vector<double> &boxDimensions) {
-  this->requireForceManager("CharmmContext::setBoxDimensions");
+  if (!hasValidBoxDimensions(boxDimensions)) {
+    throw std::invalid_argument("CharmmContext::setBoxDimensions: Box "
+                                "dimensions must be exactly 3 positive values");
+  }
 
-  m_ForceManager->setBoxDimensions(boxDimensions);
-  m_BoxDimensions = m_ForceManager->getBoxDimensions();
+  m_BoxDimensions = boxDimensions;
+  m_HasBoxDimensions = true;
+
+  if (m_ForceManager != nullptr) {
+    m_ForceManager->setBoxDimensions(m_BoxDimensions);
+    m_BoxDimensions = m_ForceManager->getBoxDimensions();
+  }
 
   return;
 }
@@ -789,12 +809,12 @@ void CharmmContext::setPrm(std::shared_ptr<CharmmParameters> prm) {
 void CharmmContext::setForceManager(
     std::shared_ptr<ForceManager> forceManager) {
   if (forceManager == nullptr) {
-    throw std::invalid_argument("CharmmContext::setForceManager(std::shared_"
-                                "ptr<ForceManager>): forceManager == nullptr");
+    throw std::invalid_argument(
+        "CharmmContext::setForceManager: forceManager == nullptr");
   }
 
   m_ForceManager = forceManager;
-  this->syncStateFromForceManager();
+  this->syncForceManagerFromState();
 
   return;
 }
@@ -861,8 +881,42 @@ void CharmmContext::syncStateFromForceManager(void) {
 
   m_Psf = m_ForceManager->getPsf();
   m_Prm = m_ForceManager->getPrm();
+
   m_BoxDimensions = m_ForceManager->getBoxDimensions();
+  m_HasBoxDimensions = hasValidBoxDimensions(m_BoxDimensions);
+
   m_Pbc = m_ForceManager->getPeriodicBoundaryCondition();
+  m_HasPbc = true;
+
+  return;
+}
+
+void CharmmContext::syncForceManagerFromState(void) {
+  this->requireForceManager("CharmmContext::syncForceManagerFromState");
+
+  if (m_Psf != nullptr)
+    m_ForceManager->setPsf(m_Psf);
+  else
+    m_Psf = m_ForceManager->getPsf();
+
+  if (m_Prm != nullptr)
+    m_ForceManager->setPrm(m_Prm);
+  else
+    m_Prm = m_ForceManager->getPrm();
+
+  if (m_HasBoxDimensions)
+    m_ForceManager->setBoxDimensions(m_BoxDimensions);
+  else {
+    m_BoxDimensions = m_ForceManager->getBoxDimensions();
+    m_HasBoxDimensions = hasValidBoxDimensions(m_BoxDimensions);
+  }
+
+  if (m_HasPbc)
+    m_ForceManager->setPeriodicBoundaryCondition(m_Pbc);
+  else {
+    m_Pbc = m_ForceManager->getPeriodicBoundaryCondition();
+    m_HasPbc = true;
+  }
 
   return;
 }

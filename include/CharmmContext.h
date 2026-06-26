@@ -125,6 +125,7 @@ public:
 
 protected:
   void syncStateFromForceManager(void);
+  void syncForceManagerFromState(void);
 
   void requirePsf(const std::string &functionName) const;
   void requireForceManager(const std::string &functionName) const;
@@ -135,6 +136,7 @@ protected:
   std::shared_ptr<CharmmPSF> m_Psf;
   std::shared_ptr<CharmmParameters> m_Prm;
   std::vector<double> m_BoxDimensions;
+  bool m_HasBoxDimensions;
 
   std::shared_ptr<ForceManager> m_ForceManager;
 
@@ -142,6 +144,7 @@ protected:
   int m_NumDegreesOfFreedom;
 
   PBC m_Pbc;
+  bool m_HasPbc;
 
   CudaContainer<float4> m_CoordinatesChargesSP;
   CudaContainer<double4> m_CoordinatesChargesDP;
