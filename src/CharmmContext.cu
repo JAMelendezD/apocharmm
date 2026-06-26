@@ -815,6 +815,7 @@ void CharmmContext::setForceManager(
 
   m_ForceManager = forceManager;
   this->syncForceManagerFromState();
+  this->initializeForceManagerIfReady();
 
   return;
 }
@@ -864,18 +865,6 @@ bool CharmmContext::isUsingHolonomicConstraints(void) const {
   return m_UsingHolonomicConstraints;
 }
 
-void CharmmContext::requirePsf(const std::string &functionName) const {
-  if (m_Psf == nullptr)
-    throw std::invalid_argument(functionName + ": CharmmPSF is not set");
-  return;
-}
-
-void CharmmContext::requireForceManager(const std::string &functionName) const {
-  if (m_ForceManager == nullptr)
-    throw std::invalid_argument(functionName + ": ForceManager is not set");
-  return;
-}
-
 void CharmmContext::syncStateFromForceManager(void) {
   this->requireForceManager("CharmmContext::syncStateFromForceManager");
 
@@ -918,5 +907,36 @@ void CharmmContext::syncForceManagerFromState(void) {
     m_HasPbc = true;
   }
 
+  return;
+}
+
+bool CharmmContext::hasCompleteForceManagerState(void) const {
+  return ((m_ForceManager != nullptr) && (m_Psf != nullptr) &&
+          (m_Prm != nullptr) && (m_HasBoxDimensions) &&
+          (hasValidBoxDimensions(m_BoxDimensions)));
+}
+
+void CharmmContext::initializeForceManagerIfReady(void) {
+  if (m_ForceManager == nullptr)
+    return;
+
+  if (m_ForceManager->isInitialized())
+    return;
+
+  m_ForceManager->initialize();
+  this->syncStateFromForceManager();
+
+  return;
+}
+
+void CharmmContext::requirePsf(const std::string &functionName) const {
+  if (m_Psf == nullptr)
+    throw std::invalid_argument(functionName + ": CharmmPSF is not set");
+  return;
+}
+
+void CharmmContext::requireForceManager(const std::string &functionName) const {
+  if (m_ForceManager == nullptr)
+    throw std::invalid_argument(functionName + ": ForceManager is not set");
   return;
 }

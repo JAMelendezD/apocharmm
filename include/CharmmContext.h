@@ -127,6 +127,9 @@ protected:
   void syncStateFromForceManager(void);
   void syncForceManagerFromState(void);
 
+  bool hasCompleteForceManagerState(void) const;
+  void initializeForceManagerIfReady(void);
+
   void requirePsf(const std::string &functionName) const;
   void requireForceManager(const std::string &functionName) const;
 
