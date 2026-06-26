@@ -143,6 +143,7 @@ void CharmmContext::setCoordinates(const std::vector<double4> &coordinates) {
   m_CoordinatesChargesDP.transferToDevice();
 
   this->resetNeighborList();
+
   return;
 }
 
@@ -171,6 +172,7 @@ void CharmmContext::setCoords(const std::vector<float> &coordinates) {
 
   m_CoordinatesChargesSP.transferToDevice();
   this->resetNeighborList();
+
   return;
 }
 
@@ -273,9 +275,7 @@ __global__ static void ImageCenteringKernel(
 }
 
 void CharmmContext::imageCentering(void) {
-  const double boxX = m_ForceManager->getBoxDimensions()[0];
-  const double boxY = m_ForceManager->getBoxDimensions()[1];
-  const double boxZ = m_ForceManager->getBoxDimensions()[2];
+  this->requireForceManager("CharmmContext::imageCentering");
 
   double *forces = this->getForces()->xyz();
   const int forceStride = this->getForceStride();
@@ -290,26 +290,32 @@ void CharmmContext::imageCentering(void) {
       m_CoordinatesChargesDP.getDeviceArray().data(),
       m_CoordinatesChargesSP.getDeviceArray().data(),
       m_VelocitiesInverseMasses.getDeviceArray().data(), forces, forceStride,
-      groups.getDeviceArray().data(), numGroups, boxX, boxY, boxZ,
-      m_ForceManager->getPeriodicBoundaryCondition());
+      groups.getDeviceArray().data(), numGroups, m_BoxDimensions[0],
+      m_BoxDimensions[1], m_BoxDimensions[2], m_Pbc);
 
   cudaCheck(cudaDeviceSynchronize());
+
   return;
 }
 
 void CharmmContext::resetNeighborList(void) {
   this->requireForceManager("CharmmContext::resetNeighborList");
+
   this->imageCentering();
+
   m_ForceManager->resetNeighborList(
       m_CoordinatesChargesSP.getDeviceArray().data());
+
   return;
 }
 
 void CharmmContext::calculateForces(bool reset, bool calcEnergy,
                                     bool calcVirial) {
   this->requireForceManager("CharmmContext::calculateForces");
+
   m_ForceManager->calcForce(m_CoordinatesChargesSP.getDeviceArray().data(),
                             reset, calcEnergy, calcVirial);
+
   return;
 }
 
@@ -340,9 +346,8 @@ void CharmmContext::assignVelocitiesAtTemperature(const float temperature) {
   if (m_NumAtoms == -1) {
     throw std::invalid_argument(
         "numAtoms = -1 in CharmmContext::assignVelocitiesAtTemperature -- This "
-        "Context object was not initialized properly (no Coordinate given "
-        "?).\n Make sure you used setCoordinates before trying to "
-        "assignVelocities.");
+        "Context object was not initialized properly (no Coordinate given?).\n "
+        "Make sure you used setCoordinates before trying to assignVelocities.");
   }
 
   this->setTemperature(temperature);
@@ -379,6 +384,7 @@ void CharmmContext::assignVelocitiesAtTemperature(const float temperature) {
   static_cast<void>(backTemp);
 
   m_VelocitiesInverseMasses.transferToDevice();
+
   return;
 }
 
@@ -392,7 +398,7 @@ static std::vector<std::string> split(std::string line) {
 }
 
 void CharmmContext::assignVelocitiesFromCHARMMVelocityFile(
-    const std::string fileName) {
+    const std::string &fileName) {
   std::ifstream fin(fileName);
 
   if (!fin.is_open()) {
@@ -461,7 +467,7 @@ void CharmmContext::assignVelocitiesFromCHARMMVelocityFile(
   return;
 }
 
-void CharmmContext::assignVelocities(const std::vector<double> velocities) {
+void CharmmContext::assignVelocities(const std::vector<double> &velocities) {
   assert(velocities.size() == static_cast<std::size_t>(m_NumAtoms * 3));
 
   for (int i = 0; i < m_NumAtoms; ++i) {
@@ -475,7 +481,7 @@ void CharmmContext::assignVelocities(const std::vector<double> velocities) {
 }
 
 void CharmmContext::assignVelocities(
-    const std::vector<std::vector<double>> velocities) {
+    const std::vector<std::vector<double>> &velocities) {
   assert(velocities.size() == static_cast<std::size_t>(m_NumAtoms));
 
   for (int i = 0; i < m_NumAtoms; ++i) {
@@ -575,16 +581,14 @@ void CharmmContext::setPeriodicBoundaryCondition(const PBC pbc) {
   return;
 }
 
-PBC CharmmContext::getPeriodicBoundaryCondition(void) const {
-  return m_ForceManager->getPeriodicBoundaryCondition();
-}
+PBC CharmmContext::getPeriodicBoundaryCondition(void) const { return m_Pbc; }
 
 const std::vector<double> &CharmmContext::getBoxDimensions(void) const {
-  return m_ForceManager->getBoxDimensions();
+  return m_BoxDimensions;
 }
 
 std::vector<double> &CharmmContext::getBoxDimensions(void) {
-  return m_ForceManager->getBoxDimensions();
+  return m_BoxDimensions;
 }
 
 void CharmmContext::setBoxDimensions(const std::vector<double> &boxDimensions) {
@@ -617,12 +621,7 @@ CudaContainer<double> &CharmmContext::getPotentialEnergy(void) {
 }
 
 double CharmmContext::getVolume(void) const {
-  auto boxSize = m_ForceManager->getBoxDimensions();
-  const double boxX = boxSize[0];
-  const double boxY = boxSize[1];
-  const double boxZ = boxSize[2];
-
-  return boxX * boxY * boxZ;
+  return (m_BoxDimensions[0] * m_BoxDimensions[1] * m_BoxDimensions[2]);
 }
 
 static __global__ void
@@ -729,13 +728,11 @@ CudaContainer<float4> CharmmContext::getShakeParams(void) {
 void CharmmContext::useHolonomicConstraints(const bool useConstraints) {
   m_UsingHolonomicConstraints = useConstraints;
   int ndegf = m_NumAtoms * 3;
-  auto pbc = m_ForceManager->getPeriodicBoundaryCondition();
-  if (pbc == PBC::P1) {
+
+  if (m_Pbc == PBC::P1)
     ndegf -= 3;
-  } else if (pbc == PBC::P21) {
+  else if (m_Pbc == PBC::P21)
     ndegf -= 1;
-  } else {
-  }
 
   if (m_UsingHolonomicConstraints) {
     ndegf -= this->getWaterMolecules().size() * 3;
@@ -752,6 +749,7 @@ void CharmmContext::useHolonomicConstraints(const bool useConstraints) {
   }
 
   m_NumDegreesOfFreedom = ndegf;
+
   return;
 }
 
@@ -788,9 +786,8 @@ void CharmmContext::linkBackForceManager(void) {
 void CharmmContext::writeCrd(std::string fileName) {
   std::ofstream fout(fileName);
 
-  if (!fout.is_open()) {
+  if (!fout.is_open())
     throw std::invalid_argument("ERROR! Can't open the crd file to write \n");
-  }
 
   return;
 }

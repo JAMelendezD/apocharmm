@@ -72,10 +72,10 @@ public:
 
 public:
   void assignVelocitiesAtTemperature(const float temperature);
-  void assignVelocitiesFromCHARMMVelocityFile(const std::string fileName);
-  void assignVelocities(const std::vector<double> velocities);
-  void assignVelocities(const std::vector<std::vector<double>> velocities);
-  void setRandomSeedForVelocities(const std::uint64_t seed);
+  void assignVelocitiesFromCHARMMVelocityFile(const std::string &fileName);
+  void assignVelocities(const std::vector<double> &velocities);
+  void assignVelocities(const std::vector<std::vector<double>> &velocities);
+  void setRandomSeedForVelocities(const std::uint64_t randomSeed);
   std::uint64_t getRandomSeedForVelocities(void) const;
   void removeCenterOfMassMotion(void);
   CudaContainer<double4> &getVelocityMass(void);
