@@ -359,6 +359,8 @@ std::vector<int> ForceManager::getFFTGrid(void) const {
   return {m_NfftX, m_NfftY, m_NfftZ};
 }
 
+int ForceManager::getPmeSplineOrder(void) const { return m_PmeSplineOrder; }
+
 PBC ForceManager::getPeriodicBoundaryCondition(void) const { return m_Pbc; }
 
 CudaContainer<double> &ForceManager::getPotentialEnergy(void) {
@@ -524,7 +526,12 @@ void ForceManager::initialize(void) {
   // TODO this seems to do the job twice ?
   // 1. "directForcePtr->setup(boxx, kappa, ctofnb, (...) );"
   // 2. "directForcePtr->setBoxDimensions({boxx...});"
-  m_DirectForcePtr->setup(m_BoxX, m_BoxY, m_BoxZ, m_Kappa, m_Ctofnb, m_Ctonnb,
+
+  // JEG260626: ctonnb and ctofnb were switched?
+  // m_DirectForcePtr->setup(m_BoxX, m_BoxY, m_BoxZ, m_Kappa, m_Ctofnb,
+  // m_Ctonnb,
+  //                         1.0, m_VdwType, EWALD, q_p21);
+  m_DirectForcePtr->setup(m_BoxX, m_BoxY, m_BoxZ, m_Kappa, m_Ctonnb, m_Ctofnb,
                           1.0, m_VdwType, EWALD, q_p21);
   m_DirectForcePtr->setBoxDimensions(m_BoxDimensions);
   m_DirectForcePtr->setStream(m_DirectStream);

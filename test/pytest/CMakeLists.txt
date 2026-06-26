@@ -2,7 +2,7 @@
 set(PYTHON_API_TESTS
   # Manager tests
   # python_api_charmm_context.py
-  # python_api_force_manager.py
+  python_api_force_manager.py
 
   # Object tests
   python_api_charmm_parameters.py

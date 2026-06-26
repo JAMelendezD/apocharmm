@@ -9,7 +9,7 @@
 
 from .error import ApoCharmmError
 
-from .enums import CrystalType, PeriodicBoundaryCondition
+from .enums import CrystalType, PeriodicBoundaryCondition, VdwType
 
 from .atom_selection import AtomSelection
 from .atom_selector import AtomSelector
@@ -39,6 +39,7 @@ __all__: list[str] = [
     # Enums
     "CrystalType",
     "PeriodicBoundaryCondition",
+    "VdwType",
     # Atom selection
     "AtomSelection",
     "AtomSelector",

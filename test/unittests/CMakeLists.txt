@@ -6,7 +6,7 @@ set(SOURCES_UNITTESTS_TESTS
 
   # Manager tests
   # unittest-charmmContext.cpp
-  # unittest-forceManager.cpp
+  unittest-forceManager.cpp
 
   # Object tests
   unittest-charmmParameters.cpp

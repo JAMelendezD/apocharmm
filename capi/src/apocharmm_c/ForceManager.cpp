@@ -15,6 +15,7 @@
 #include "apocharmm_c/detail/ForceManagerHandle.h"
 #include "apocharmm_c/detail/Validation.h"
 
+#include <cmath>
 #include <memory>
 #include <vector>
 
@@ -65,7 +66,7 @@ apo_force_manager_set_box_dimensions(apo_force_manager *force_manager,
       [&](void) -> apo_status {
         APOCHARMM_C_RETURN_IF_ERROR(
             apocharmm_c::require_handle_object<apo_force_manager>(
-                force_manager, function_name, "ForceManager handle"));
+                force_manager, function_name, "ForceManager"));
 
         APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<double>(
             box_dimensions, function_name, "box_dimensions"));
@@ -91,7 +92,20 @@ apo_force_manager_set_kappa(apo_force_manager *force_manager,
   const char *function_name = "apo_force_manager_set_kappa";
 
   return apocharmm_c::guard(
-      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_force_manager>(
+                force_manager, function_name, "ForceManager"));
+
+        if (!std::isfinite(kappa) || kappa < 0.0) {
+          return apocharmm_c::invalid_argument(
+              function_name, "kappa must be finite and nonnegative");
+        }
+
+        force_manager->object->setKappa(static_cast<float>(kappa));
+
+        return APO_STATUS_OK;
+      },
       function_name);
 }
 
@@ -101,7 +115,20 @@ apo_force_manager_set_cutoff(apo_force_manager *force_manager,
   const char *function_name = "apo_force_manager_set_cutoff";
 
   return apocharmm_c::guard(
-      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_force_manager>(
+                force_manager, function_name, "ForceManager"));
+
+        if (!std::isfinite(cutoff) || cutoff <= 0.0) {
+          return apocharmm_c::invalid_argument(
+              function_name, "cutoff must be finite and positive");
+        }
+
+        force_manager->object->setCutoff(static_cast<float>(cutoff));
+
+        return APO_STATUS_OK;
+      },
       function_name);
 }
 
@@ -111,7 +138,20 @@ apo_force_manager_set_ctonnb(apo_force_manager *force_manager,
   const char *function_name = "apo_force_manager_set_ctonnb";
 
   return apocharmm_c::guard(
-      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_force_manager>(
+                force_manager, function_name, "ForceManager"));
+
+        if (!std::isfinite(ctonnb) || ctonnb <= 0.0) {
+          return apocharmm_c::invalid_argument(
+              function_name, "ctonnb must be finite and positive");
+        }
+
+        force_manager->object->setCtonnb(static_cast<float>(ctonnb));
+
+        return APO_STATUS_OK;
+      },
       function_name);
 }
 
@@ -121,7 +161,20 @@ apo_force_manager_set_ctofnb(apo_force_manager *force_manager,
   const char *function_name = "apo_force_manager_set_ctofnb";
 
   return apocharmm_c::guard(
-      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_force_manager>(
+                force_manager, function_name, "ForceManager"));
+
+        if (!std::isfinite(ctofnb) || ctofnb <= 0.0) {
+          return apocharmm_c::invalid_argument(
+              function_name, "ctofnb must be finite and positive");
+        }
+
+        force_manager->object->setCtofnb(static_cast<float>(ctofnb));
+
+        return APO_STATUS_OK;
+      },
       function_name);
 }
 
@@ -131,7 +184,23 @@ apo_force_manager_set_fft_grid(apo_force_manager *force_manager,
   const char *function_name = "apo_force_manager_set_fft_grid";
 
   return apocharmm_c::guard(
-      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_force_manager>(
+                force_manager, function_name, "ForceManager"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_pointer<int>(grid, function_name, "grid"));
+
+        if (grid_len != 3) {
+          return apocharmm_c::invalid_argument(
+              function_name, "grid must contain exactly 3 elements");
+        }
+
+        force_manager->object->setFFTGrid(grid[0], grid[1], grid[2]);
+
+        return APO_STATUS_OK;
+      },
       function_name);
 }
 
@@ -141,7 +210,20 @@ apo_force_manager_set_pme_spline_order(apo_force_manager *force_manager,
   const char *function_name = "apo_force_manager_set_pme_spline_order";
 
   return apocharmm_c::guard(
-      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_force_manager>(
+                force_manager, function_name, "ForceManager"));
+
+        if (order <= 0) {
+          return apocharmm_c::invalid_argument(function_name,
+                                               "order must be positive");
+        }
+
+        force_manager->object->setPmeSplineOrder(order);
+
+        return APO_STATUS_OK;
+      },
       function_name);
 }
 
@@ -169,11 +251,24 @@ extern "C" apo_status apo_force_manager_set_periodic_boundary_condition(
 
 extern "C" apo_status
 apo_force_manager_set_vdw_type(apo_force_manager *force_manager,
-                               const int vdwType) {
+                               const int vdw_type) {
   const char *function_name = "apo_force_manager_set_vdw_type";
 
   return apocharmm_c::guard(
-      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_force_manager>(
+                force_manager, function_name, "ForceManager"));
+
+        if ((vdw_type < 1) || (vdw_type > 6)) {
+          return apocharmm_c::invalid_argument(function_name,
+                                               "vdw_type must be [1, 6]");
+        }
+
+        force_manager->object->setVdwType(vdw_type);
+
+        return APO_STATUS_OK;
+      },
       function_name);
 }
 
@@ -183,7 +278,102 @@ extern "C" apo_status apo_force_manager_set_print_energy_decomposition(
       "apo_force_manager_set_print_energy_decomposition";
 
   return apocharmm_c::guard(
-      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_force_manager>(
+                force_manager, function_name, "ForceManager"));
+
+        force_manager->object->setPrintEnergyDecomposition(flag);
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status
+apo_force_manager_get_num_atoms(size_t *num_atoms,
+                                const apo_force_manager *force_manager) {
+  const char *function_name = "apo_force_manager_get_num_atoms";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<size_t>(
+            num_atoms, function_name, "num_atoms"));
+
+        *num_atoms = 0;
+
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_force_manager>(
+                force_manager, function_name, "ForceManager"));
+
+        const int n = force_manager->object->getNumAtoms();
+
+        if (n < 0) {
+          return apocharmm_c::set_last_error(
+              APO_STATUS_RUNTIME_ERROR,
+              "apo_force_manager_get_num_atoms: ForceManager returned a "
+              "negative atom count");
+        }
+
+        *num_atoms = static_cast<size_t>(n);
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status
+apo_force_manager_is_initialized(bool *flag,
+                                 const apo_force_manager *force_manager) {
+  const char *function_name = "apo_force_manager_is_initialized";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_force_manager>(
+                force_manager, function_name, "ForceManager"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_pointer<bool>(flag, function_name, "flag"));
+
+        *flag = force_manager->object->isInitialized();
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status
+apo_force_manager_get_box_dimensions(double *box_dimensions,
+                                     const size_t box_dimensions_len,
+                                     const apo_force_manager *force_manager) {
+  const char *function_name = "apo_force_manager_get_box_dimensions";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_force_manager>(
+                force_manager, function_name, "ForceManager"));
+
+        std::vector<double> box_dims =
+            force_manager->object->getBoxDimensions();
+
+        if (box_dims.size() != 3) {
+          return apocharmm_c::set_last_error(
+              APO_STATUS_RUNTIME_ERROR,
+              "apo_force_manager_get_box_dimensions: ForceManager did not "
+              "return exactly 3 box dimensions");
+        }
+
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_output_buffer<double>(
+            box_dimensions, box_dimensions_len, 3, function_name,
+            "Box dimension buffer"));
+
+        for (size_t i = 0; i < 3; i++)
+          box_dimensions[i] = box_dims[i];
+
+        return APO_STATUS_OK;
+      },
       function_name);
 }
 
@@ -193,7 +383,18 @@ apo_force_manager_get_kappa(double *kappa,
   const char *function_name = "apo_force_manager_get_kappa";
 
   return apocharmm_c::guard(
-      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_force_manager>(
+                force_manager, function_name, "ForceManager"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<double>(
+            kappa, function_name, "kappa"));
+
+        *kappa = static_cast<double>(force_manager->object->getKappa());
+
+        return APO_STATUS_OK;
+      },
       function_name);
 }
 
@@ -203,7 +404,18 @@ apo_force_manager_get_cutoff(double *cutoff,
   const char *function_name = "apo_force_manager_get_cutoff";
 
   return apocharmm_c::guard(
-      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_force_manager>(
+                force_manager, function_name, "ForceManager"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<double>(
+            cutoff, function_name, "cutoff"));
+
+        *cutoff = static_cast<double>(force_manager->object->getCutoff());
+
+        return APO_STATUS_OK;
+      },
       function_name);
 }
 
@@ -213,7 +425,18 @@ apo_force_manager_get_ctonnb(double *ctonnb,
   const char *function_name = "apo_force_manager_get_ctonnb";
 
   return apocharmm_c::guard(
-      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_force_manager>(
+                force_manager, function_name, "ForceManager"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<double>(
+            ctonnb, function_name, "ctonnb"));
+
+        *ctonnb = static_cast<double>(force_manager->object->getCtonnb());
+
+        return APO_STATUS_OK;
+      },
       function_name);
 }
 
@@ -223,7 +446,18 @@ apo_force_manager_get_ctofnb(double *ctofnb,
   const char *function_name = "apo_force_manager_get_ctofnb";
 
   return apocharmm_c::guard(
-      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_force_manager>(
+                force_manager, function_name, "ForceManager"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<double>(
+            ctofnb, function_name, "ctofnb"));
+
+        *ctofnb = static_cast<double>(force_manager->object->getCtofnb());
+
+        return APO_STATUS_OK;
+      },
       function_name);
 }
 
@@ -233,7 +467,28 @@ apo_force_manager_get_fft_grid(int *grid, const size_t grid_len,
   const char *function_name = "apo_force_manager_get_fft_grid";
 
   return apocharmm_c::guard(
-      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_force_manager>(
+                force_manager, function_name, "ForceManager"));
+
+        std::vector<int> fft_grid = force_manager->object->getFFTGrid();
+
+        if (fft_grid.size() != 3) {
+          return apocharmm_c::set_last_error(
+              APO_STATUS_RUNTIME_ERROR,
+              "apo_force_manager_get_fft_grid: ForceManager did not return "
+              "exactly 3 FFT grid dimensions");
+        }
+
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_output_buffer<int>(
+            grid, grid_len, 3, function_name, "FFT grid buffer"));
+
+        for (size_t i = 0; i < 3; i++)
+          grid[i] = fft_grid[i];
+
+        return APO_STATUS_OK;
+      },
       function_name);
 }
 
@@ -264,6 +519,38 @@ apo_force_manager_get_vdw_type(int *vdw_type,
   const char *function_name = "apo_force_manager_get_vdw_type";
 
   return apocharmm_c::guard(
-      [&](void) -> apo_status { return APO_STATUS_NOT_IMPLEMENTED; },
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_force_manager>(
+                force_manager, function_name, "ForceManager"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<int>(
+            vdw_type, function_name, "vdw_type"));
+
+        *vdw_type = force_manager->object->getVdwType();
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status
+apo_force_manager_is_composite(bool *flag,
+                               const apo_force_manager *force_manager) {
+  const char *function_name = "apo_force_manager_is_composite";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_force_manager>(
+                force_manager, function_name, "ForceManager"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_pointer<bool>(flag, function_name, "flag"));
+
+        *flag = force_manager->object->isComposite();
+
+        return APO_STATUS_OK;
+      },
       function_name);
 }

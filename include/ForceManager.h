@@ -336,6 +336,8 @@ public:
   /** @brief FFT grid size getter */
   std::vector<int> getFFTGrid(void) const;
 
+  int getPmeSplineOrder(void) const;
+
   /**
    * @brief Returns current periodic boundary conditions (PBC)
    */

@@ -16,6 +16,7 @@
 #include "apocharmm_c/Export.h"
 #include "apocharmm_c/Status.h"
 
+#include <stdbool.h>
 #include <stddef.h>
 
 #ifdef __cplusplus
@@ -62,6 +63,16 @@ APOCHARMM_C_API apo_status apo_force_manager_set_vdw_type(
 APOCHARMM_C_API apo_status apo_force_manager_set_print_energy_decomposition(
     apo_force_manager *force_manager, const bool flag);
 
+APOCHARMM_C_API apo_status apo_force_manager_get_num_atoms(
+    size_t *num_atoms, const apo_force_manager *force_manager);
+
+APOCHARMM_C_API apo_status apo_force_manager_is_initialized(
+    bool *flag, const apo_force_manager *force_manager);
+
+APOCHARMM_C_API apo_status apo_force_manager_get_box_dimensions(
+    double *box_dimensions, const size_t box_dimensions_len,
+    const apo_force_manager *force_manager);
+
 APOCHARMM_C_API apo_status apo_force_manager_get_kappa(
     double *kappa, const apo_force_manager *force_manager);
 
@@ -82,6 +93,9 @@ APOCHARMM_C_API apo_status apo_force_manager_get_periodic_boundary_condition(
 
 APOCHARMM_C_API apo_status apo_force_manager_get_vdw_type(
     int *vdw_type, const apo_force_manager *force_manager);
+
+APOCHARMM_C_API apo_status apo_force_manager_is_composite(
+    bool *flag, const apo_force_manager *force_manager);
 
 #ifdef __cplusplus
 }
