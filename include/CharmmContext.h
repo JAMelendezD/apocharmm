@@ -123,6 +123,8 @@ public:
 
 protected:
   void syncStateFromForceManager(void);
+
+  void requirePsf(const std::string &functionName) const;
   void requireForceManager(const std::string &functionName) const;
 
 protected:

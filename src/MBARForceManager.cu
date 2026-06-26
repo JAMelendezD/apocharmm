@@ -11,7 +11,6 @@
 #include "MBARForceManager.h"
 
 #include "CharmmContext.h"
-// #include "ForceManager.h"
 
 #include <cassert>
 #include <numeric>

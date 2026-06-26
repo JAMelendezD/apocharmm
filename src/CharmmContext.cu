@@ -50,6 +50,8 @@ CharmmContext::CharmmContext(std::shared_ptr<ForceManager> forceManager)
   this->requireForceManager(
       "CharmmContext::CharmmContext(std::shared_ptr<ForceManager>)");
 
+  this->syncStateFromForceManager();
+
   this->useHolonomicConstraints(true);
 
   if (!m_ForceManager->isInitialized())
@@ -114,6 +116,8 @@ void CharmmContext::setCoordinates(const std::shared_ptr<Coordinates> crd) {
 }
 
 void CharmmContext::setCoordinates(const std::vector<double4> &coordinates) {
+  this->requirePsf("CharmmContext::setCoordinates");
+
   if (!m_ForceManager->isComposite())
     assert(coordinates.size() == m_ForceManager->getNumAtoms());
 
@@ -123,10 +127,10 @@ void CharmmContext::setCoordinates(const std::vector<double4> &coordinates) {
   this->setNumAtoms(coordinates.size());
 
   m_VelocitiesInverseMasses.resize(m_NumAtoms);
-  this->setMasses(m_ForceManager->getPsf()->getMasses());
+  this->setMasses(m_Psf->getMasses());
 
   this->useHolonomicConstraints(m_UsingHolonomicConstraints);
-  std::vector<double> charges = m_ForceManager->getPsf()->getCharges();
+  std::vector<double> charges = m_Psf->getCharges();
 
   m_CoordinatesChargesSP.resize(m_NumAtoms);
   m_CoordinatesChargesDP.resize(m_NumAtoms);
@@ -276,11 +280,12 @@ __global__ static void ImageCenteringKernel(
 
 void CharmmContext::imageCentering(void) {
   this->requireForceManager("CharmmContext::imageCentering");
+  this->requirePsf("CharmmContext::imageCentering");
 
   double *forces = this->getForces()->xyz();
   const int forceStride = this->getForceStride();
 
-  const CudaContainer<int2> &groups = m_ForceManager->getPsf()->getGroups();
+  const CudaContainer<int2> &groups = m_Psf->getGroups();
   const int numGroups = groups.size();
 
   constexpr int numThreads = 128;
@@ -601,7 +606,8 @@ void CharmmContext::setBoxDimensions(const std::vector<double> &boxDimensions) {
 }
 
 std::vector<Bond> CharmmContext::getBonds(void) {
-  return m_ForceManager->getPsf()->getBonds();
+  this->requirePsf("CharmmContext::getBonds");
+  return m_Psf->getBonds();
 }
 
 int CharmmContext::getDegreesOfFreedom(void) const {
@@ -714,7 +720,8 @@ CudaContainer<double> &CharmmContext::getVirial(void) {
 }
 
 CudaContainer<int4> CharmmContext::getWaterMolecules(void) {
-  return m_ForceManager->getPsf()->getWaterMolecules();
+  this->requirePsf("CharmmContext::getWaterMolecules");
+  return m_Psf->getWaterMolecules();
 }
 
 CudaContainer<int4> CharmmContext::getShakeAtoms(void) {
@@ -811,6 +818,12 @@ CudaContainer<double> CharmmContext::getPressure(void) const {
 
 bool CharmmContext::isUsingHolonomicConstraints(void) const {
   return m_UsingHolonomicConstraints;
+}
+
+void CharmmContext::requirePsf(const std::string &functionName) const {
+  if (m_Psf == nullptr)
+    throw std::invalid_argument(functionName + ": CharmmPSF is not set");
+  return;
 }
 
 void CharmmContext::requireForceManager(const std::string &functionName) const {
