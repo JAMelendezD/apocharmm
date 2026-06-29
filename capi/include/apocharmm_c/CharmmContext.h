@@ -11,6 +11,8 @@
 #define __APOCHARMM_C_CHARMM_CONTEXT_H__
 
 #include "apocharmm_c/CharmmCrd.h"
+#include "apocharmm_c/CharmmParameters.h"
+#include "apocharmm_c/CharmmPsf.h"
 #include "apocharmm_c/Export.h"
 #include "apocharmm_c/ForceManager.h"
 #include "apocharmm_c/Status.h"
@@ -31,7 +33,15 @@ typedef struct apo_charmm_context apo_charmm_context;
 APOCHARMM_C_API apo_status apo_charmm_context_create(
     apo_charmm_context **out, const apo_force_manager *force_manager);
 
+APOCHARMM_C_API apo_status apo_charmm_context_create_from_psf_parameters(
+    apo_charmm_context **out, const apo_charmm_psf *psf,
+    const apo_charmm_parameters *parameters);
+
 APOCHARMM_C_API void apo_charmm_context_destroy(apo_charmm_context *context);
+
+APOCHARMM_C_API apo_status apo_charmm_context_set_box_dimensions(
+    apo_charmm_context *context, const double *box_dimensions,
+    const size_t box_dimensions_len);
 
 APOCHARMM_C_API apo_status apo_charmm_context_set_coordinates(
     apo_charmm_context *context, const apo_charmm_crd *crd);

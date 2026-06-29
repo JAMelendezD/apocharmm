@@ -23,8 +23,6 @@
 #include <string>
 #include <vector>
 
-// class Checkpoint;
-
 class CharmmContext : public std::enable_shared_from_this<CharmmContext> {
 public:
   CharmmContext(void);
@@ -34,9 +32,6 @@ public:
   ~CharmmContext(void) = default;
 
   CharmmContext(const CharmmContext &other);
-
-public:
-  // void setupFromCheckpoint(std::shared_ptr<Checkpoint> checkpoint);
 
 public:
   void setCoordinates(const std::shared_ptr<Coordinates> crd);

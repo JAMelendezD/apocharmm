@@ -13,11 +13,15 @@
 #include "apocharmm_c/CharmmContext.h"
 
 #include "CharmmContext.h"
+#include "CharmmPSF.h"
+#include "CharmmParameters.h"
 #include "ForceManager.h"
 
 #include <memory>
 
 struct apo_charmm_context {
+  std::shared_ptr<CharmmPSF> psf = nullptr;
+  std::shared_ptr<CharmmParameters> parameters = nullptr;
   std::shared_ptr<ForceManager> force_manager = nullptr;
   std::shared_ptr<CharmmContext> object = nullptr;
 };

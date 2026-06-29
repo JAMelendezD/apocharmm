@@ -11,10 +11,27 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 import math
+import os
 from pathlib import Path
 from typing import TypeVar
 
 T = TypeVar("T")
+
+
+def get_repo_root() -> Path:
+    repo_root: str | None = os.environ("APOCHARMM_REPO_ROOT")
+    if repo_root is not None:
+        return Path(repo_root)
+
+    return Path(__file__).resolve().parents[2]
+
+
+def get_data_path() -> Path:
+    data_path: str | None = os.environ.get("APOCHARMM_TEST_DATA_PATH")
+    if data_path is not None:
+        return Path(data_path)
+
+    return get_repo_root() / "test/data"
 
 
 def write_text_file(path: Path, contents: str) -> None:

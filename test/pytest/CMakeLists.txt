@@ -1,7 +1,7 @@
 # Add any new tests to this list!
 set(PYTHON_API_TESTS
   # Manager tests
-  # python_api_charmm_context.py
+  python_api_charmm_context.py
   python_api_force_manager.py
 
   # Object tests
@@ -77,13 +77,13 @@ foreach(test_file ${PYTHON_API_TESTS})
   get_filename_component(test_name "${test_file}" NAME_WE)
 
   add_test(NAME ${test_name}
-    COMMAND ${Python3_EXECUTABLE} ${PYTHON_API_TEST_DIR}/${test_file} ${PROJECT_SOURCE_DIR}
+    COMMAND ${Python3_EXECUTABLE} ${PYTHON_API_TEST_DIR}/${test_file}
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
   )
 
   set_tests_properties(${test_name} PROPERTIES
     LABELS "python_api"
-    ENVIRONMENT "APOCHARMM_LIBRARY_PATH=$<TARGET_FILE:apocharmm_c>;PYTHONPATH=${PROJECT_SOURCE_DIR}/python:$ENV{PYTHONPATH};LD_LIBRARY_PATH=$<TARGET_FILE_DIR:apocharmm_c>:$ENV{LD_LIBRARY_PATH}"
+    ENVIRONMENT "APOCHARMM_REPO_ROOT=${PROJECT_SOURCE_DIR};APOCHARMM_TEST_DATA_PATH=${PROJECT_SOURCE_DIR}/test/data;APOCHARMM_LIBRARY_PATH=$<TARGET_FILE:apocharmm_c>;PYTHONPATH=${PROJECT_SOURCE_DIR}/python:$ENV{PYTHONPATH};LD_LIBRARY_PATH=$<TARGET_FILE_DIR:apocharmm_c>:$ENV{LD_LIBRARY_PATH}"
   )
 endforeach()
 

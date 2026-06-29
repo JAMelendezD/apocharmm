@@ -208,7 +208,7 @@ def check_validation(psf: apo.CharmmPsf, selector: apo.AtomSelector) -> None:
 def main(argc: int, argv: list[str]) -> int:
     repo_root: Path = Path(argv[1]) if argc > 1 else Path(".")
     output_dir: Path = repo_root / "test/pytest"
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True,exist_ok=True)
 
     psf_path: Path = output_dir / "tmp_python_api_atom_selector.psf"
     remove_if_exists(psf_path)

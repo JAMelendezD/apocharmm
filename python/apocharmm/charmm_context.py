@@ -7,6 +7,7 @@
 #
 # ENDLICENSE
 
+from collections.abc import Sequence
 import ctypes
 
 from ._base import _ApoObject
@@ -15,6 +16,8 @@ from .enums import PeriodicBoundaryCondition
 from .error import check_status
 
 from .charmm_crd import CharmmCrd
+from .charmm_parameters import CharmmParameters
+from .charmm_psf import CharmmPsf
 from .force_manager import ForceManager
 
 _prototypes_initialized: bool = False
@@ -32,8 +35,22 @@ def _initialize_prototypes() -> None:
     ]
     lib().apo_charmm_context_create.restype = ctypes.c_int
 
+    lib().apo_charmm_context_create_from_psf_parameters.argtypes = [
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+    ]
+    lib().apo_charmm_context_create_from_psf_parameters.restype = ctypes.c_int
+
     lib().apo_charmm_context_destroy.argtypes = [ctypes.c_void_p]
     lib().apo_charmm_context_destroy.restype = None
+
+    lib().apo_charmm_context_set_box_dimensions.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_double),
+        ctypes.c_size_t,
+    ]
+    lib().apo_charmm_context_set_box_dimensions.restype = ctypes.c_int
 
     lib().apo_charmm_context_set_coordinates.argtypes = [
         ctypes.c_void_p,
@@ -112,28 +129,68 @@ def _initialize_prototypes() -> None:
 class CharmmContext(_ApoObject):
     _destroy_function_name = "apo_charmm_context_destroy"
 
-    def __init__(self, force_manager: ForceManager) -> None:
+    def __init__(
+        self,
+        force_manager_or_psf: ForceManager | CharmmPsf,
+        parameters: CharmmParameters | None = None,
+    ) -> None:
         _initialize_prototypes()
         super().__init__()
 
-        if not isinstance(force_manager, ForceManager):
-            raise TypeError("CharmmContext expects a ForceManager")
-
         handle: ctypes.c_void_p = ctypes.c_void_p()
 
-        status = lib().apo_charmm_context_create(
-            ctypes.byref(handle), force_manager.handle
-        )
+        if isinstance(force_manager_or_psf, ForceManager) and parameters is None:
+            status = lib().apo_charmm_context_create(
+                ctypes.byref(handle), force_manager_or_psf.handle
+            )
+            error_context = "CharmmContext construction from ForceManager failed"
+            self._force_manager: ForceManager | None = force_manager_or_psf
+            self._psf: CharmmPsf | None = None
+            self._parameters: CharmmParameters | None = None
 
-        check_status(status, "CharmmContext construction failed")
+        elif isinstance(force_manager_or_psf, CharmmPsf) and isinstance(
+            parameters, CharmmParameters
+        ):
+            status = lib().apo_charmm_context_create_from_psf_parameters(
+                ctypes.byref(handle), force_manager_or_psf.handle, parameters.handle
+            )
+            error_context = (
+                "CharmmContext construction from CharmmPsf/CharmmParameters failed"
+            )
+            self._force_manager = None
+            self._psf = force_manager_or_psf
+            self._parameters = parameters
+
+        else:
+            raise TypeError(
+                "CharmmContext expects either ForceManager or (CharmmPsf, CharmmParameters)"
+            )
+
+        check_status(status, error_context)
 
         if handle.value is None:
             raise RuntimeError(
-                "apo_charmm_context_create returned success but produced a NULL handle"
+                "CharmmContext construction returned success but produced a NULL handle"
             )
 
         self._handle = handle
-        self._force_manager: ForceManager = force_manager
+
+        return
+
+    def setBoxDimensions(self, box_dimensions: Sequence[float]) -> None:
+        _initialize_prototypes()
+
+        box_values: list[float] = [float(value) for value in box_dimensions]
+
+        c_buffer_type = ctypes.c_double * len(box_values)
+        c_buffer = c_buffer_type(*box_values)
+        c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(len(box_values))
+
+        status = lib().apo_charmm_context_set_box_dimensions(
+            self.handle, c_buffer, c_buffer_len
+        )
+
+        check_status(status, "CharmmContext.setBoxDimensions(box_dimensions) failed")
 
         return
 

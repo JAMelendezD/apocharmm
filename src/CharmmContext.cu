@@ -11,7 +11,6 @@
 #include "CharmmContext.h"
 
 #include "CharmmCrd.h"
-// #include "Checkpoint.h"
 #include "Constants.h"
 #include "PBC.h"
 #include "cuda_utils.h"
@@ -115,12 +114,6 @@ CharmmContext::CharmmContext(const CharmmContext &other)
   m_UsingHolonomicConstraints = other.m_UsingHolonomicConstraints;
   m_RandomSeed = other.m_RandomSeed;
 }
-
-// void CharmmContext::setupFromCheckpoint(
-//     std::shared_ptr<Checkpoint> checkpoint) {
-//   m_NumAtoms = checkpoint->get<int>("numAtoms");
-//   return;
-// }
 
 void CharmmContext::setMasses(const std::vector<double> &masses) {
   if (masses.size() != static_cast<std::size_t>(m_NumAtoms)) {

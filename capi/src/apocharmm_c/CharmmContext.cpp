@@ -10,6 +10,8 @@
 #include "apocharmm_c/CharmmContext.h"
 #include "apocharmm_c/detail/CharmmContextHandle.h"
 #include "apocharmm_c/detail/CharmmCrdHandle.h"
+#include "apocharmm_c/detail/CharmmParametersHandle.h"
+#include "apocharmm_c/detail/CharmmPsfHandle.h"
 #include "apocharmm_c/detail/EnumConversion.h"
 #include "apocharmm_c/detail/ErrorInternal.h"
 #include "apocharmm_c/detail/ForceManagerHandle.h"
@@ -43,9 +45,72 @@ apo_charmm_context_create(apo_charmm_context **out,
       function_name);
 }
 
+extern "C" apo_status apo_charmm_context_create_from_psf_parameters(
+    apo_charmm_context **out, const apo_charmm_psf *psf,
+    const apo_charmm_parameters *parameters) {
+  const char *function_name = "apo_charmm_context_create_from_psf_parameters";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::prepare_output_pointer<apo_charmm_context>(
+                out, function_name, "out"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_psf>(
+                psf, function_name, "CharmmPsf"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_parameters>(
+                parameters, function_name, "CharmmParameters"));
+
+        std::unique_ptr<apo_charmm_context> handle(new apo_charmm_context());
+        handle->psf = psf->object;
+        handle->parameters = parameters->object;
+        handle->object =
+            std::make_shared<CharmmContext>(handle->psf, handle->parameters);
+        handle->force_manager = handle->object->getForceManager();
+
+        *out = handle.release();
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
 extern "C" void apo_charmm_context_destroy(apo_charmm_context *context) {
   delete context;
   return;
+}
+
+extern "C" apo_status
+apo_charmm_context_set_box_dimensions(apo_charmm_context *context,
+                                      const double *box_dimensions,
+                                      const size_t box_dimensions_len) {
+  const char *function_name = "apo_charmm_context_set_box_dimensions";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<double>(
+            box_dimensions, function_name, "box_dimensions"));
+
+        if (box_dimensions_len != 3) {
+          return apocharmm_c::invalid_argument(
+              function_name, "box_dimensions must contain exactly 3 elements");
+        }
+
+        const std::vector<double> cpp_box_dimensions = {
+            box_dimensions[0], box_dimensions[1], box_dimensions[2]};
+
+        context->object->setBoxDimensions(cpp_box_dimensions);
+
+        return APO_STATUS_OK;
+      },
+      function_name);
 }
 
 extern "C" apo_status
