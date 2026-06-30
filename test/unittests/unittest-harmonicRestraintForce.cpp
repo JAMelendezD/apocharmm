@@ -274,10 +274,8 @@ TEST_CASE("HarmonicRestraintForceCanBeSubscribedToForceManager") {
   auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
   auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
 
-  auto fm = std::make_shared<ForceManager>(psf, prm);
-  fm->setBoxDimensions(BOX_DIMENSIONS);
-
-  auto ctx = std::make_shared<CharmmContext>(fm);
+  auto ctx = std::make_shared<CharmmContext>(psf, prm);
+  ctx->setBoxDimensions(BOX_DIMENSIONS);
   ctx->setCoordinates(crd);
   ctx->useHolonomicConstraints(false);
   ctx->setRandomSeedForVelocities(RANDOM_SEED);
@@ -291,6 +289,7 @@ TEST_CASE("HarmonicRestraintForceCanBeSubscribedToForceManager") {
   restraint->setSelection(MakeSelection(ctx->getNumAtoms(), {0, 1}));
   restraint->setForceConstant(10.0);
 
+  auto fm = ctx->getForceManager();
   CHECK_NOTHROW(fm->subscribe(restraint, "harm", restraint->getStream(),
                               restraint->getForce(),
                               restraint->getEnergyVirial()));

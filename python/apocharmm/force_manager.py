@@ -202,11 +202,28 @@ class ForceManager(_ApoObject):
 
         self._handle = handle
 
-        self._psf: CharmmPsf = psf
-        self._parameters: CharmmParameters = parameters
+        self._psf: CharmmPsf | None = psf
+        self._parameters: CharmmParameters | None = parameters
         self._subscribed_forces: list[_SubscribableForce] = []
 
         return
+
+    @classmethod
+    def _from_handle(cls, handle: ctypes.c_void_p) -> "ForceManager":
+        _initialize_prototypes()
+
+        if handle.value is None:
+            raise RuntimeError("ForceManager._from_handle received a NULL handle")
+
+        obj = cls.__new__(cls)
+        _ApoObject.__init__(obj)
+
+        obj._handle = handle
+        obj._psf = None
+        obj._parameters = None
+        obj._subscribed_forces = []
+
+        return obj
 
     def close(self) -> None:
         super().close()

@@ -30,8 +30,6 @@ def main(argc: int, argv: list[str]) -> int:
     crd = apo.CharmmCrd(data_path / "nacl_pair.cor")
 
     ctx = apo.CharmmContext(psf, prm)
-    ctx.setBoxDimensions(BOX_DIMENSIONS)
-
     ctx.setKappa(0.45)
     ctx.setCutoff(9.0)
     ctx.setCtonnb(7.5)
@@ -39,6 +37,8 @@ def main(argc: int, argv: list[str]) -> int:
     ctx.setFFTGrid([32, 34, 36])
     ctx.setPmeSplineOrder(6)
     ctx.setVdwType(apo.VdwType.DBEXP)
+
+    ctx.setBoxDimensions(BOX_DIMENSIONS)
 
     assert_close("context kappa", ctx.getKappa(), 0.45, TOLERANCE)
     assert_close("context cutoff", ctx.getCutoff(), 9.0, TOLERANCE)
@@ -50,6 +50,19 @@ def main(argc: int, argv: list[str]) -> int:
 
     assert_sequence_close(
         "context-first box dimensions", ctx.getBoxDimensions(), BOX_DIMENSIONS, 0.0
+    )
+
+    fm = ctx.getForceManager()
+
+    assert_sequence_close(
+        "context backend force manager box dimensions",
+        fm.getBoxDimensions(),
+        BOX_DIMENSIONS,
+        TOLERANCE,
+    )
+
+    assert_equal(
+        "getForceManager returns cached wrapper", ctx.getForceManager() is fm, True
     )
 
     ctx.setCoordinates(crd)

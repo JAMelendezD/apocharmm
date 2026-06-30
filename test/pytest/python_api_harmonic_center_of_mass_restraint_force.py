@@ -15,6 +15,7 @@ import sys
 import apocharmm as apo
 
 from python_api_test_helpers import (
+    get_data_path,
     require_file,
     assert_equal,
     assert_finite_temperature,
@@ -27,31 +28,29 @@ TEMPERATURE: float = 300.0
 TIME_STEP: float = 0.001
 
 
-def create_system(
-    repo_root: Path,
-) -> tuple[
+def create_system() -> tuple[
     apo.CharmmParameters,
     apo.CharmmPsf,
     apo.CharmmCrd,
     apo.ForceManager,
     apo.CharmmContext,
 ]:
-    prm_path: str = require_file(repo_root / "test/data/toppar_water_ions.str")
-    psf_path: str = require_file(repo_root / "test/data/nacl_pair.psf")
-    crd_path: str = require_file(repo_root / "test/data/nacl_pair.cor")
+    prm_path: str = require_file(get_data_path() / "toppar_water_ions.str")
+    psf_path: str = require_file(get_data_path() / "nacl_pair.psf")
+    crd_path: str = require_file(get_data_path() / "nacl_pair.cor")
 
     prm = apo.CharmmParameters(prm_path)
     psf = apo.CharmmPsf(psf_path)
     crd = apo.CharmmCrd(crd_path)
 
-    fm = apo.ForceManager(psf, prm)
-    fm.setBoxDimensions(BOX_DIMENSIONS)
-
-    ctx = apo.CharmmContext(fm)
+    ctx = apo.CharmmContext(psf, prm)
+    ctx.setBoxDimensions(BOX_DIMENSIONS)
     ctx.setCoordinates(crd)
     ctx.useHolonomicConstraints(False)
     ctx.setRandomSeedForVelocities(RANDOM_SEED)
     ctx.assignVelocitiesAtTemperature(TEMPERATURE)
+
+    fm = ctx.getForceManager()
 
     return prm, psf, crd, fm, ctx
 
@@ -74,10 +73,10 @@ def create_configured_restraint(
     return restraint
 
 
-def check_construction_and_setters(repo_root: Path) -> None:
+def check_construction_and_setters() -> None:
     print("Checking HarmonicCenterOfMassRestraintForce construction and setters...")
 
-    _, psf, _, _, _ = create_system(repo_root)
+    _, psf, _, _, _ = create_system()
 
     restraint = create_configured_restraint(psf)
 
@@ -92,10 +91,10 @@ def check_construction_and_setters(repo_root: Path) -> None:
     return
 
 
-def check_subscription_and_short_propagation(repo_root: Path) -> None:
+def check_subscription_and_short_propagation() -> None:
     print("Checking HarmonicCenterOfMassRestraintForce ForceManager subscription...")
 
-    _, psf, crd, fm, ctx = create_system(repo_root)
+    _, psf, crd, fm, ctx = create_system()
 
     restraint = create_configured_restraint(psf)
 
@@ -129,10 +128,10 @@ def check_subscription_and_short_propagation(repo_root: Path) -> None:
     return
 
 
-def check_validation(repo_root: Path) -> None:
+def check_validation() -> None:
     print("Checking HarmonicCenterOfMassRestraintForce validation...")
 
-    _, psf, _, fm, _ = create_system(repo_root)
+    _, psf, _, fm, _ = create_system()
     restraint = apo.HarmonicCenterOfMassRestraintForce(psf.getNumAtoms())
     selector = apo.AtomSelector(psf)
     selection = selector.select("all")
@@ -234,11 +233,9 @@ def check_close_invalidates_handle() -> None:
 
 
 def main(argc: int, argv: list[str]) -> int:
-    repo_root: Path = Path(argv[1]) if argc > 1 else Path(".")
-
-    check_construction_and_setters(repo_root)
-    check_subscription_and_short_propagation(repo_root)
-    check_validation(repo_root)
+    check_construction_and_setters()
+    check_subscription_and_short_propagation()
+    check_validation()
     check_close_invalidates_handle()
 
     print(

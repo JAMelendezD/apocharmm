@@ -510,10 +510,8 @@ TEST_CASE("HarmonicCenterOfMassRestraintForceCanBeSubscribedToForceManager") {
   auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
   auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
 
-  auto fm = std::make_shared<ForceManager>(psf, prm);
-  fm->setBoxDimensions(BOX_DIMENSIONS);
-
-  auto ctx = std::make_shared<CharmmContext>(fm);
+  auto ctx = std::make_shared<CharmmContext>(psf, prm);
+  ctx->setBoxDimensions(BOX_DIMENSIONS);
   ctx->setCoordinates(crd);
   ctx->useHolonomicConstraints(false);
   ctx->setRandomSeedForVelocities(RANDOM_SEED);
@@ -524,6 +522,7 @@ TEST_CASE("HarmonicCenterOfMassRestraintForceCanBeSubscribedToForceManager") {
   restraint->setReferencePosition({1.41, 1.41, 1.41});
   restraint->setForceConstant(1.0);
 
+  auto fm = ctx->getForceManager();
   CHECK_NOTHROW(fm->subscribe(restraint, "hmcm", restraint->getStream(),
                               restraint->getForce(),
                               restraint->getEnergyVirial()));

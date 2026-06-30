@@ -161,10 +161,8 @@ std::shared_ptr<CharmmContext> CreateContext(void) {
   auto psf = std::make_shared<CharmmPSF>(getDataPath() + "nacl_pair.psf");
   auto crd = std::make_shared<CharmmCrd>(getDataPath() + "nacl_pair.cor");
 
-  auto fm = std::make_shared<ForceManager>(psf, prm);
-  fm->setBoxDimensions(BOX_DIMENSIONS);
-
-  auto ctx = std::make_shared<CharmmContext>(fm);
+  auto ctx = std::make_shared<CharmmContext>(psf, prm);
+  ctx->setBoxDimensions(BOX_DIMENSIONS);
   ctx->setCoordinates(crd);
   ctx->useHolonomicConstraints(false);
 

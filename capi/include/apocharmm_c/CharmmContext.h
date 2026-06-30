@@ -114,6 +114,9 @@ APOCHARMM_C_API apo_status apo_charmm_context_get_periodic_boundary_condition(
 APOCHARMM_C_API apo_status apo_charmm_context_get_vdw_type(
     int *vdw_type, const apo_charmm_context *context);
 
+APOCHARMM_C_API apo_status apo_charmm_context_get_force_manager(
+    apo_force_manager **out, const apo_charmm_context *context);
+
 APOCHARMM_C_API apo_status apo_charmm_context_assign_velocities_at_temperature(
     apo_charmm_context *context, const double temperature);
 

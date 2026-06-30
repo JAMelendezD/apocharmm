@@ -54,10 +54,8 @@ std::shared_ptr<CharmmContext> CreateContext(const bool assignVelocities) {
   auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
   auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
 
-  auto fm = std::make_shared<ForceManager>(psf, prm);
-  fm->setBoxDimensions(BOX_DIMENSIONS);
-
-  auto ctx = std::make_shared<CharmmContext>(fm);
+  auto ctx = std::make_shared<CharmmContext>(psf, prm);
+  ctx->setBoxDimensions(BOX_DIMENSIONS);
   ctx->setCoordinates(crd);
   ctx->useHolonomicConstraints(false);
 

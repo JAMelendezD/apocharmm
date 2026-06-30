@@ -16,6 +16,7 @@ import sys
 import apocharmm as apo
 
 from python_api_test_helpers import (
+    get_data_path,
     require_file,
     assert_equal,
     assert_close,
@@ -45,9 +46,9 @@ class TestForce:
         return
 
 
-def create_force_manager(repo_root: Path) -> apo.ForceManager:
-    prm_path: str = require_file(repo_root / "test/data/toppar_water_ions.str")
-    psf_path: str = require_file(repo_root / "test/data/nacl_pair.psf")
+def create_force_manager() -> apo.ForceManager:
+    prm_path: str = require_file(get_data_path() / "toppar_water_ions.str")
+    psf_path: str = require_file(get_data_path() / "nacl_pair.psf")
 
     prm = apo.CharmmParameters(prm_path)
     psf = apo.CharmmPsf(psf_path)
@@ -55,10 +56,10 @@ def create_force_manager(repo_root: Path) -> apo.ForceManager:
     return apo.ForceManager(psf, prm)
 
 
-def check_default_state(repo_root: Path) -> None:
+def check_default_state() -> None:
     print("Checking ForceManager default state...")
 
-    fm = create_force_manager(repo_root)
+    fm = create_force_manager()
 
     assert_equal("ForceManager.getNumAtoms", fm.getNumAtoms(), 2)
     assert_equal("ForceManager.isInitialized", fm.isInitialized(), False)
@@ -87,10 +88,10 @@ def check_default_state(repo_root: Path) -> None:
     return
 
 
-def check_setters_and_getters(repo_root: Path) -> None:
+def check_setters_and_getters() -> None:
     print("Checking ForceManager setter/getter round trips...")
 
-    fm = create_force_manager(repo_root)
+    fm = create_force_manager()
 
     fm.setBoxDimensions(BOX_DIMENSIONS)
     fm.setKappa(0.45)
@@ -137,11 +138,11 @@ def check_setters_and_getters(repo_root: Path) -> None:
     return
 
 
-def check_validation(repo_root: Path) -> None:
+def check_validation() -> None:
     print("Checking ForceManager validation...")
 
-    prm_path: str = require_file(repo_root / "test/data/toppar_water_ions.str")
-    psf_path: str = require_file(repo_root / "test/data/nacl_pair.psf")
+    prm_path: str = require_file(get_data_path() / "toppar_water_ions.str")
+    psf_path: str = require_file(get_data_path() / "nacl_pair.psf")
 
     prm = apo.CharmmParameters(prm_path)
     psf = apo.CharmmPsf(psf_path)
@@ -238,10 +239,10 @@ def check_validation(repo_root: Path) -> None:
     return
 
 
-def check_subscription_wrapper(repo_root: Path) -> None:
+def check_subscription_wrapper() -> None:
     print("Checking ForceManager Python subscription bookkeeping...")
 
-    fm = create_force_manager(repo_root)
+    fm = create_force_manager()
 
     force = TestForce()
     fm.subscribe(force)
@@ -311,12 +312,10 @@ def check_subscription_wrapper(repo_root: Path) -> None:
 
 
 def main(argc: int, argv: list[str]) -> int:
-    repo_root: Path = Path(argv[1]) if argc > 1 else Path(".")
-
-    check_default_state(repo_root)
-    check_setters_and_getters(repo_root)
-    check_validation(repo_root)
-    check_subscription_wrapper(repo_root)
+    check_default_state()
+    check_setters_and_getters()
+    check_validation()
+    check_subscription_wrapper()
 
     print("\033[32m" + "PASS: ForceManager Python API tests completed." + "\033[0m")
 

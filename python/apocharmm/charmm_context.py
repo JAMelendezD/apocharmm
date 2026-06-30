@@ -180,6 +180,12 @@ def _initialize_prototypes() -> None:
     ]
     lib().apo_charmm_context_get_vdw_type.restype = ctypes.c_int
 
+    lib().apo_charmm_context_get_force_manager.argtypes = [
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.c_void_p,
+    ]
+    lib().apo_charmm_context_get_force_manager.restype = ctypes.c_int
+
     lib().apo_charmm_context_assign_velocities_at_temperature.argtypes = [
         ctypes.c_void_p,
         ctypes.c_double,
@@ -599,6 +605,24 @@ class CharmmContext(_ApoObject):
         check_status(status, "CharmmContext.getVdwType() failed")
 
         return VdwType(c_vdw_type.value)
+
+    def getForceManager(self) -> ForceManager:
+        _initialize_prototypes()
+
+        if self._force_manager is not None:
+            return self._force_manager
+
+        fm_handle: ctypes.c_void_p = ctypes.c_void_p()
+
+        status = lib().apo_charmm_context_get_force_manager(
+            ctypes.byref(fm_handle), self.handle
+        )
+
+        check_status(status, "CharmmContext.getForceManager() failed")
+
+        self._force_manager = ForceManager._from_handle(fm_handle)
+
+        return self._force_manager
 
     def assignVelocitiesAtTemperature(self, temperature: float) -> None:
         _initialize_prototypes()

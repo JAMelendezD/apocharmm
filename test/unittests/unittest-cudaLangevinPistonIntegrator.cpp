@@ -322,10 +322,8 @@ TEST_CASE("CudaLangevinPistonIntegratorRequireCrystalTypeBeforeContext") {
   auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
   auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
 
-  auto fm = std::make_shared<ForceManager>(psf, prm);
-  fm->setBoxDimensions(BOX_DIMENSIONS);
-
-  auto ctx = std::make_shared<CharmmContext>(fm);
+  auto ctx = std::make_shared<CharmmContext>(psf, prm);
+  ctx->setBoxDimensions(BOX_DIMENSIONS);
   ctx->setCoordinates(crd);
   ctx->useHolonomicConstraints(false);
   ctx->setRandomSeedForVelocities(RANDOM_SEED);
@@ -344,10 +342,8 @@ TEST_CASE("CudaLangevinPistonIntegratorContextInitialization") {
   auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
   auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
 
-  auto fm = std::make_shared<ForceManager>(psf, prm);
-  fm->setBoxDimensions(BOX_DIMENSIONS);
-
-  auto ctx = std::make_shared<CharmmContext>(fm);
+  auto ctx = std::make_shared<CharmmContext>(psf, prm);
+  ctx->setBoxDimensions(BOX_DIMENSIONS);
   ctx->setCoordinates(crd);
   ctx->useHolonomicConstraints(false);
   ctx->setRandomSeedForVelocities(RANDOM_SEED);
@@ -378,10 +374,8 @@ TEST_CASE("CudaLangevinPistonIntegratorAutoPistonMass") {
   auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
   auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
 
-  auto fm = std::make_shared<ForceManager>(psf, prm);
-  fm->setBoxDimensions(BOX_DIMENSIONS);
-
-  auto ctx = std::make_shared<CharmmContext>(fm);
+  auto ctx = std::make_shared<CharmmContext>(psf, prm);
+  ctx->setBoxDimensions(BOX_DIMENSIONS);
   ctx->setCoordinates(crd);
   ctx->useHolonomicConstraints(false);
   ctx->setRandomSeedForVelocities(RANDOM_SEED);
@@ -409,10 +403,8 @@ TEST_CASE("CudaLangevinPistonIntegratorShortPropagation") {
   auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
   auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
 
-  auto fm = std::make_shared<ForceManager>(psf, prm);
-  fm->setBoxDimensions(BOX_DIMENSIONS);
-
-  auto ctx = std::make_shared<CharmmContext>(fm);
+  auto ctx = std::make_shared<CharmmContext>(psf, prm);
+  ctx->setBoxDimensions(BOX_DIMENSIONS);
   ctx->setCoordinates(crd);
   ctx->useHolonomicConstraints(false);
   ctx->setRandomSeedForVelocities(RANDOM_SEED);
@@ -483,19 +475,15 @@ TEST_CASE("CudaLangevinPistonIntegratorDeterministicTrajectory") {
   auto crd1 = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
   auto crd2 = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
 
-  auto fm1 = std::make_shared<ForceManager>(psf1, prm1);
-  fm1->setBoxDimensions(BOX_DIMENSIONS);
-
-  auto fm2 = std::make_shared<ForceManager>(psf2, prm2);
-  fm2->setBoxDimensions(BOX_DIMENSIONS);
-
-  auto ctx1 = std::make_shared<CharmmContext>(fm1);
+  auto ctx1 = std::make_shared<CharmmContext>(psf1, prm1);
+  ctx1->setBoxDimensions(BOX_DIMENSIONS);
   ctx1->setCoordinates(crd1);
   ctx1->useHolonomicConstraints(false);
   ctx1->setRandomSeedForVelocities(RANDOM_SEED);
   ctx1->assignVelocitiesAtTemperature(TEMPERATURE);
 
-  auto ctx2 = std::make_shared<CharmmContext>(fm2);
+  auto ctx2 = std::make_shared<CharmmContext>(psf2, prm2);
+  ctx2->setBoxDimensions(BOX_DIMENSIONS);
   ctx2->setCoordinates(crd2);
   ctx2->useHolonomicConstraints(false);
   ctx2->setRandomSeedForVelocities(RANDOM_SEED);
@@ -575,10 +563,8 @@ TEST_CASE("CudaLangevinPistonIntegratorRestartValidation") {
   auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
   auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
 
-  auto fm = std::make_shared<ForceManager>(psf, prm);
-  fm->setBoxDimensions(BOX_DIMENSIONS);
-
-  auto ctx = std::make_shared<CharmmContext>(fm);
+  auto ctx = std::make_shared<CharmmContext>(psf, prm);
+  ctx->setBoxDimensions(BOX_DIMENSIONS);
   ctx->setCoordinates(crd);
   ctx->useHolonomicConstraints(false);
   ctx->setRandomSeedForVelocities(RANDOM_SEED);

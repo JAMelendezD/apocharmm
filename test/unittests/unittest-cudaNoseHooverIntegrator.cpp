@@ -162,10 +162,8 @@ TEST_CASE("CudaNoseHooverIntegratorContextInitialization") {
   auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
   auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
 
-  auto fm = std::make_shared<ForceManager>(psf, prm);
-  fm->setBoxDimensions(BOX_DIMENSIONS);
-
-  auto ctx = std::make_shared<CharmmContext>(fm);
+  auto ctx = std::make_shared<CharmmContext>(psf, prm);
+  ctx->setBoxDimensions(BOX_DIMENSIONS);
   ctx->setCoordinates(crd);
   ctx->useHolonomicConstraints(false);
   ctx->setRandomSeedForVelocities(RANDOM_SEED);
@@ -200,10 +198,8 @@ TEST_CASE("CudaNoseHooverIntegratorAutoPistonMass") {
   auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
   auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
 
-  auto fm = std::make_shared<ForceManager>(psf, prm);
-  fm->setBoxDimensions(BOX_DIMENSIONS);
-
-  auto ctx = std::make_shared<CharmmContext>(fm);
+  auto ctx = std::make_shared<CharmmContext>(psf, prm);
+  ctx->setBoxDimensions(BOX_DIMENSIONS);
   ctx->setCoordinates(crd);
   ctx->useHolonomicConstraints(false);
   ctx->setRandomSeedForVelocities(RANDOM_SEED);
@@ -227,10 +223,8 @@ TEST_CASE("CudaNoseHooverIntegratorShortPropagation") {
   auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
   auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
 
-  auto fm = std::make_shared<ForceManager>(psf, prm);
-  fm->setBoxDimensions(BOX_DIMENSIONS);
-
-  auto ctx = std::make_shared<CharmmContext>(fm);
+  auto ctx = std::make_shared<CharmmContext>(psf, prm);
+  ctx->setBoxDimensions(BOX_DIMENSIONS);
   ctx->setCoordinates(crd);
   ctx->useHolonomicConstraints(false);
   ctx->setRandomSeedForVelocities(RANDOM_SEED);
@@ -287,10 +281,8 @@ TEST_CASE("CudaNoseHooverIntegratorDeterministicTrajectory") {
   auto psf1 = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
   auto crd1 = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
 
-  auto fm1 = std::make_shared<ForceManager>(psf1, prm1);
-  fm1->setBoxDimensions(BOX_DIMENSIONS);
-
-  auto ctx1 = std::make_shared<CharmmContext>(fm1);
+  auto ctx1 = std::make_shared<CharmmContext>(psf1, prm1);
+  ctx1->setBoxDimensions(BOX_DIMENSIONS);
   ctx1->setCoordinates(crd1);
   ctx1->useHolonomicConstraints(false);
   ctx1->setRandomSeedForVelocities(RANDOM_SEED);
@@ -301,10 +293,8 @@ TEST_CASE("CudaNoseHooverIntegratorDeterministicTrajectory") {
   auto psf2 = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
   auto crd2 = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
 
-  auto fm2 = std::make_shared<ForceManager>(psf2, prm2);
-  fm2->setBoxDimensions(BOX_DIMENSIONS);
-
-  auto ctx2 = std::make_shared<CharmmContext>(fm2);
+  auto ctx2 = std::make_shared<CharmmContext>(psf2, prm2);
+  ctx2->setBoxDimensions(BOX_DIMENSIONS);
   ctx2->setCoordinates(crd2);
   ctx2->useHolonomicConstraints(false);
   ctx2->setRandomSeedForVelocities(RANDOM_SEED);
@@ -381,7 +371,6 @@ TEST_CASE("CudaNoseHooverIntegratorRestartValidation") {
   CHECK_THROWS_AS(integrator.initializeFromRestartFile("missing.rst"),
                   std::runtime_error);
 
-  // auto ctx = CreateNaclContext();
   const std::string dataPath = getDataPath();
 
   auto prm =
@@ -389,10 +378,8 @@ TEST_CASE("CudaNoseHooverIntegratorRestartValidation") {
   auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
   auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
 
-  auto fm = std::make_shared<ForceManager>(psf, prm);
-  fm->setBoxDimensions(BOX_DIMENSIONS);
-
-  auto ctx = std::make_shared<CharmmContext>(fm);
+  auto ctx = std::make_shared<CharmmContext>(psf, prm);
+  ctx->setBoxDimensions(BOX_DIMENSIONS);
   ctx->setCoordinates(crd);
   ctx->useHolonomicConstraints(false);
   ctx->setRandomSeedForVelocities(RANDOM_SEED);

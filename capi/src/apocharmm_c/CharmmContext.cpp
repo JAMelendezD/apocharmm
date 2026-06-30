@@ -665,6 +665,40 @@ apo_charmm_context_get_vdw_type(int *vdw_type,
 }
 
 extern "C" apo_status
+apo_charmm_context_get_force_manager(apo_force_manager **out,
+                                     const apo_charmm_context *context) {
+  const char *function_name = "apo_charmm_context_get_force_manager";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::prepare_output_pointer<apo_force_manager>(
+                out, function_name, "out"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        std::shared_ptr<ForceManager> fm = context->object->getForceManager();
+
+        if (fm == nullptr) {
+          return apocharmm_c::invalid_argument(
+              function_name, "CharmmContext has no ForceManager");
+        }
+
+        std::unique_ptr<apo_force_manager> handle(new apo_force_manager());
+        handle->object = fm;
+        handle->psf = fm->getPsf();
+        handle->parameters = fm->getPrm();
+
+        *out = handle.release();
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status
 apo_charmm_context_assign_velocities_at_temperature(apo_charmm_context *context,
                                                     const double temperature) {
   const char *function_name =

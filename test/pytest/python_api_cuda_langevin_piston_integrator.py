@@ -15,6 +15,7 @@ import sys
 import apocharmm as apo
 
 from python_api_test_helpers import (
+    get_data_path,
     require_file,
     assert_equal,
     assert_close,
@@ -46,19 +47,17 @@ TOLERANCE: float = 1.0e-10
 DETERMINISTIC_TOLERANCE: float = 1.0e-14
 
 
-def create_context(repo_root: Path) -> apo.CharmmContext:
-    prm_path: str = require_file(repo_root / "test/data/toppar_water_ions.str")
-    psf_path: str = require_file(repo_root / "test/data/nacl_pair.psf")
-    crd_path: str = require_file(repo_root / "test/data/nacl_pair.cor")
+def create_context() -> apo.CharmmContext:
+    prm_path: str = require_file(get_data_path() / "toppar_water_ions.str")
+    psf_path: str = require_file(get_data_path() / "nacl_pair.psf")
+    crd_path: str = require_file(get_data_path() / "nacl_pair.cor")
 
     prm = apo.CharmmParameters(prm_path)
     psf = apo.CharmmPsf(psf_path)
     crd = apo.CharmmCrd(crd_path)
 
-    fm = apo.ForceManager(psf, prm)
-    fm.setBoxDimensions(BOX_DIMENSIONS)
-
-    ctx = apo.CharmmContext(fm)
+    ctx = apo.CharmmContext(psf, prm)
+    ctx.setBoxDimensions(BOX_DIMENSIONS)
     ctx.setCoordinates(crd)
     ctx.useHolonomicConstraints(False)
     ctx.setRandomSeedForVelocities(RANDOM_SEED)
@@ -146,7 +145,7 @@ def check_setters_and_getters() -> None:
     return
 
 
-def check_validation(repo_root: Path) -> None:
+def check_validation() -> None:
     print("Checking CudaLagnevinPistonIntegrator validation...")
 
     integrator = apo.CudaLangevinPistonIntegrator(TIME_STEP)
@@ -205,7 +204,7 @@ def check_validation(repo_root: Path) -> None:
     )
 
     missing_crystal_integrator = apo.CudaLangevinPistonIntegrator(TIME_STEP)
-    ctx = create_context(repo_root)
+    ctx = create_context()
     expect_exception(
         "setCharmmContext rejects missing crystal type",
         apo.ApoCharmmError,
@@ -218,10 +217,10 @@ def check_validation(repo_root: Path) -> None:
     return
 
 
-def check_short_propagation(repo_root: Path) -> None:
+def check_short_propagation() -> None:
     print("Checking CudaLangevinPistonIntegrator short propagation...")
 
-    ctx = create_context(repo_root)
+    ctx = create_context()
     integrator = create_integrator()
 
     integrator.setCharmmContext(ctx)
@@ -270,11 +269,11 @@ def check_short_propagation(repo_root: Path) -> None:
     return
 
 
-def check_deterministic_trajectories(repo_root: Path) -> None:
+def check_deterministic_trajectories() -> None:
     print("Checking deterministic Langevin piston trajectories...")
 
-    ctx1 = create_context(repo_root)
-    ctx2 = create_context(repo_root)
+    ctx1 = create_context()
+    ctx2 = create_context()
 
     assert_nested_sequence_close(
         "initial coordinates/charges",
@@ -377,12 +376,10 @@ def check_deterministic_trajectories(repo_root: Path) -> None:
 
 
 def main(argc: int, argv: list[str]) -> int:
-    repo_root: Path = Path(argv[1]) if argc > 1 else Path(".")
-
     check_setters_and_getters()
-    check_validation(repo_root)
-    check_short_propagation(repo_root)
-    check_deterministic_trajectories(repo_root)
+    check_validation()
+    check_short_propagation()
+    check_deterministic_trajectories()
 
     print(
         "\033[32m"

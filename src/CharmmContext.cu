@@ -270,7 +270,7 @@ std::vector<std::vector<double>> CharmmContext::getCoordinates(void) {
   return coordinates;
 }
 
-void CharmmContext::setCoords(const std::vector<float> &coordinates) {
+void CharmmContext::setCoordinates(const std::vector<float> &coordinates) {
   assert(coordinates.size() == static_cast<std::size_t>(m_NumAtoms * 3));
 
   for (int i = 0; i < m_NumAtoms; i++) {

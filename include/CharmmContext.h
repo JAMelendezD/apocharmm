@@ -33,21 +33,29 @@ public:
 
   CharmmContext(const CharmmContext &other);
 
-public:
+public: // Setters
   void setCoordinates(const std::shared_ptr<Coordinates> crd);
   void setCoordinates(const std::vector<double4> &coordinates);
-  void setCoords(const std::vector<float> &coordinates);
-  void setCoordsCharges(const std::vector<float4> &coordinatesCharges);
-  void
-  setCoordsCharges(const std::vector<std::vector<float>> &coordinatesCharges);
+  void setCoordinates(const std::vector<float> &coordinates);
+  void setCoordinatesCharges(const std::vector<float4> &coordinatesCharges);
+  void setCoordinatesCharges(
+      const std::vector<std::vector<float>> &coordinatesCharges);
   void setCharges(std::vector<float> &charges);
 
-public:
-  std::vector<std::vector<double>> getCoordinates(void);
+public: // Getters
   int getNumAtoms(void) const;
+  const CudaContainer<float4> &getCoordinatesChargesSP(void) const;
+  const CudaContainer<double4> &getCoordinatesChargesDP(void) const;
+
+  CudaContainer<float4> &getCoordinatesChargesSP(void);
+  CudaContainer<double4> &getCoordinatesChargesDP(void);
+  std::vector<std::vector<double>> getCoordinates(void);
+
+public: // Specialized function
+public:
+  CudaContainer<double4> &getCoordinatesCharges(void);
   const CudaContainer<float4> &getXYZQ(void) const;
   CudaContainer<float4> &getXYZQ(void);
-  CudaContainer<double4> &getCoordinatesCharges(void);
 
 public:
   void setTemperature(const float temperature);

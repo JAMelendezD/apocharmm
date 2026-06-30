@@ -16,6 +16,8 @@ import sys
 import apocharmm as apo
 
 from python_api_test_helpers import (
+    get_repo_root,
+    get_data_path,
     require_file,
     assert_file_created,
     remove_if_exists,
@@ -139,17 +141,17 @@ def read_dcd_file(path: Path) -> DcdFile:
     return DcdFile(path.read_bytes())
 
 
-def create_context(repo_root: Path) -> apo.CharmmContext:
-    prm = apo.CharmmParameters(
-        require_file(repo_root / "test/data/toppar_water_ions.str")
-    )
-    psf = apo.CharmmPsf(require_file(repo_root / "test/data/nacl_pair.psf"))
-    crd = apo.CharmmCrd(require_file(repo_root / "test/data/nacl_pair.cor"))
+def create_context() -> apo.CharmmContext:
+    prm_path: str = require_file(get_data_path() / "toppar_water_ions.str")
+    psf_path: str = require_file(get_data_path() / "nacl_pair.psf")
+    crd_path: str = require_file(get_data_path() / "nacl_pair.cor")
 
-    fm = apo.ForceManager(psf, prm)
-    fm.setBoxDimensions(BOX_DIMENSIONS)
+    prm = apo.CharmmParameters(prm_path)
+    psf = apo.CharmmPsf(psf_path)
+    crd = apo.CharmmCrd(crd_path)
 
-    ctx = apo.CharmmContext(fm)
+    ctx = apo.CharmmContext(psf, prm)
+    ctx.setBoxDimensions(BOX_DIMENSIONS)
     ctx.setCoordinates(crd)
     ctx.useHolonomicConstraints(False)
     ctx.setRandomSeedForVelocities(RANDOM_SEED)
@@ -217,12 +219,12 @@ def check_constructor_validation(output_dir: Path) -> None:
     return
 
 
-def check_dcd_output(repo_root: Path, dcd_path: Path) -> None:
+def check_dcd_output(dcd_path: Path) -> None:
     print("Checking DcdSubscriber DCD output...")
 
     remove_if_exists(dcd_path)
 
-    ctx = create_context(repo_root)
+    ctx = create_context()
     integrator = create_integrator(ctx)
 
     dcd = apo.DcdSubscriber(dcd_path, REPORT_FREQUENCY)
@@ -293,15 +295,14 @@ def check_close_invalidates_handle(output_dir: Path) -> None:
 
 
 def main(argc: int, argv: list[str]) -> int:
-    repo_root: Path = Path(argv[1]) if argc > 1 else Path(".")
-    output_dir: Path = repo_root / "test/pytest"
+    output_dir: Path = get_repo_root() / "test/pytest"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     dcd_path: Path = output_dir / "tmp_python_api_dcd_subscriber.dcd"
 
     try:
         check_constructor_validation(output_dir)
-        check_dcd_output(repo_root, dcd_path)
+        check_dcd_output(dcd_path)
         check_close_invalidates_handle(output_dir)
     finally:
         print("Cleaning up DcdSubscriber Python API test files...")

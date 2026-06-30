@@ -16,6 +16,8 @@ import sys
 import apocharmm as apo
 
 from python_api_test_helpers import (
+    get_repo_root,
+    get_data_path,
     require_file,
     assert_file_created,
     remove_if_exists,
@@ -66,19 +68,17 @@ def assert_restart_file_has_required_section(path: Path) -> None:
     return
 
 
-def create_context(repo_root: Path, assign_velocities: bool) -> apo.CharmmContext:
-    prm_path: str = require_file(repo_root / "test/data/toppar_water_ions.str")
-    psf_path: str = require_file(repo_root / "test/data/nacl_pair.psf")
-    crd_path: str = require_file(repo_root / "test/data/nacl_pair.cor")
+def create_context(assign_velocities: bool) -> apo.CharmmContext:
+    prm_path: str = require_file(get_data_path() / "toppar_water_ions.str")
+    psf_path: str = require_file(get_data_path() / "nacl_pair.psf")
+    crd_path: str = require_file(get_data_path() / "nacl_pair.cor")
 
     prm = apo.CharmmParameters(prm_path)
     psf = apo.CharmmPsf(psf_path)
     crd = apo.CharmmCrd(crd_path)
 
-    fm = apo.ForceManager(psf, prm)
-    fm.setBoxDimensions(BOX_DIMENSIONS)
-
-    ctx = apo.CharmmContext(fm)
+    ctx = apo.CharmmContext(psf, prm)
+    ctx.setBoxDimensions(BOX_DIMENSIONS)
     ctx.setCoordinates(crd)
     ctx.useHolonomicConstraints(False)
 
@@ -130,13 +130,13 @@ def create_langevin_piston_integrator(
 
 
 def check_restart_equivalence(
-    label: str, repo_root: Path, rst_path: Path, create_integrator: IntegratorFactory
+    label: str, rst_path: Path, create_integrator: IntegratorFactory
 ) -> None:
     print(f"Checking {label} restart trajectory equivalence...")
 
-    ctx1 = create_context(repo_root, assign_velocities=True)
-    ctx2 = create_context(repo_root, assign_velocities=True)
-    ctx3 = create_context(repo_root, assign_velocities=False)
+    ctx1 = create_context(assign_velocities=True)
+    ctx2 = create_context(assign_velocities=True)
+    ctx3 = create_context(assign_velocities=False)
 
     integrator1 = create_integrator(ctx1)
     integrator2 = create_integrator(ctx2)
@@ -275,8 +275,7 @@ def check_close_invalidates_handle(output_dir: Path) -> None:
 
 
 def main(argc: int, argv: list[str]) -> int:
-    repo_root: Path = Path(argv[1]) if argc > 1 else Path(".")
-    output_dir: Path = repo_root / "test/pytest"
+    output_dir: Path = get_repo_root() / "test/pytest"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     rst_files: tuple[Path, ...] = (
@@ -290,19 +289,13 @@ def main(argc: int, argv: list[str]) -> int:
         check_close_invalidates_handle(output_dir)
 
         check_restart_equivalence(
-            "Nose-Hoover", repo_root, rst_files[0], create_nose_hoover_integrator
+            "Nose-Hoover", rst_files[0], create_nose_hoover_integrator
         )
         check_restart_equivalence(
-            "Langevin thermostat",
-            repo_root,
-            rst_files[1],
-            create_langevin_thermostat_integrator,
+            "Langevin thermostat", rst_files[1], create_langevin_thermostat_integrator
         )
         check_restart_equivalence(
-            "Langevin piston",
-            repo_root,
-            rst_files[2],
-            create_langevin_piston_integrator,
+            "Langevin piston", rst_files[2], create_langevin_piston_integrator
         )
     finally:
         print("Cleaning up RestartSubscriber Python API test files...")
