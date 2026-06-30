@@ -115,6 +115,84 @@ CharmmContext::CharmmContext(const CharmmContext &other)
   m_RandomSeed = other.m_RandomSeed;
 }
 
+void CharmmContext::setKappa(const float kappa) {
+  this->requireForceManager("CharmmContext::setKappa");
+  m_ForceManager->setKappa(kappa);
+  return;
+}
+
+void CharmmContext::setCutoff(const float cutoff) {
+  this->requireForceManager("CharmmContext::setCutoff");
+  m_ForceManager->setCutoff(cutoff);
+  return;
+}
+
+void CharmmContext::setCtonnb(const float ctonnb) {
+  this->requireForceManager("CharmmContext::setCtonnb");
+  m_ForceManager->setCtonnb(ctonnb);
+  return;
+}
+
+void CharmmContext::setCtofnb(const float ctofnb) {
+  this->requireForceManager("CharmmContext::setCtofnb");
+  m_ForceManager->setCtofnb(ctofnb);
+  return;
+}
+
+void CharmmContext::setFFTGrid(const int nfftx, const int nffty,
+                               const int nfftz) {
+  this->requireForceManager("CharmmContext::setFFTGrid");
+  m_ForceManager->setFFTGrid(nfftx, nffty, nfftz);
+  return;
+}
+
+void CharmmContext::setPmeSplineOrder(const int pmeSplineOrder) {
+  this->requireForceManager("CharmmContext::setPmeSplineOrder");
+  m_ForceManager->setPmeSplineOrder(pmeSplineOrder);
+  return;
+}
+
+void CharmmContext::setVdwType(const int vdwType) {
+  this->requireForceManager("CharmmContext::setVdwType");
+  m_ForceManager->setVdwType(vdwType);
+  return;
+}
+
+float CharmmContext::getKappa(void) const {
+  this->requireForceManager("CharmmContext::getKappa");
+  return m_ForceManager->getKappa();
+}
+
+float CharmmContext::getCutoff(void) const {
+  this->requireForceManager("CharmmContext::getCutoff");
+  return m_ForceManager->getCutoff();
+}
+
+float CharmmContext::getCtonnb(void) const {
+  this->requireForceManager("CharmmContext::getCtonnb");
+  return m_ForceManager->getCtonnb();
+}
+
+float CharmmContext::getCtofnb(void) const {
+  this->requireForceManager("CharmmContext::getCtofnb");
+  return m_ForceManager->getCtofnb();
+}
+
+std::vector<int> CharmmContext::getFFTGrid(void) const {
+  this->requireForceManager("CharmmContext::getFFTGrid");
+  return m_ForceManager->getFFTGrid();
+}
+
+int CharmmContext::getPmeSplineOrder(void) const {
+  this->requireForceManager("CharmmContext::getPmeSplineOrder");
+  return m_ForceManager->getPmeSplineOrder();
+}
+
+int CharmmContext::getVdwType(void) const {
+  this->requireForceManager("CharmmContext::getVdwType");
+  return m_ForceManager->getVdwType();
+}
+
 void CharmmContext::setMasses(const std::vector<double> &masses) {
   if (masses.size() != static_cast<std::size_t>(m_NumAtoms)) {
     std::stringstream tmpexc;

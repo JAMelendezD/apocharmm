@@ -11,9 +11,15 @@ import sys
 
 import apocharmm as apo
 
-from python_api_test_helpers import get_data_path, assert_equal, assert_sequence_close
+from python_api_test_helpers import (
+    get_data_path,
+    assert_equal,
+    assert_close,
+    assert_sequence_close,
+)
 
 BOX_DIMENSIONS: tuple[float] = (40.0, 41.0, 42.0)
+TOLERANCE: float = 1.0e-7
 
 
 def main(argc: int, argv: list[str]) -> int:
@@ -25,6 +31,22 @@ def main(argc: int, argv: list[str]) -> int:
 
     ctx = apo.CharmmContext(psf, prm)
     ctx.setBoxDimensions(BOX_DIMENSIONS)
+
+    ctx.setKappa(0.45)
+    ctx.setCutoff(9.0)
+    ctx.setCtonnb(7.5)
+    ctx.setCtofnb(8.5)
+    ctx.setFFTGrid([32, 34, 36])
+    ctx.setPmeSplineOrder(6)
+    ctx.setVdwType(apo.VdwType.DBEXP)
+
+    assert_close("context kappa", ctx.getKappa(), 0.45, TOLERANCE)
+    assert_close("context cutoff", ctx.getCutoff(), 9.0, TOLERANCE)
+    assert_close("context ctonnb", ctx.getCtonnb(), 7.5, TOLERANCE)
+    assert_close("context ctofnb", ctx.getCtofnb(), 8.5, TOLERANCE)
+    assert_equal("context FFT grid", ctx.getFFTGrid(), (32, 34, 36))
+    assert_equal("context PME spline order", ctx.getPmeSplineOrder(), 6)
+    assert_equal("context VdW type", ctx.getVdwType(), apo.VdwType.DBEXP)
 
     assert_sequence_close(
         "context-first box dimensions", ctx.getBoxDimensions(), BOX_DIMENSIONS, 0.0

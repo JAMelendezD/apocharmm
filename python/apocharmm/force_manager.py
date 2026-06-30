@@ -145,17 +145,17 @@ def _initialize_prototypes() -> None:
     ]
     lib().apo_force_manager_get_fft_grid.restype = ctypes.c_int
 
-    lib().apo_force_manager_get_periodic_boundary_condition.argtypes = [
-        ctypes.POINTER(ctypes.c_int),
-        ctypes.c_void_p,
-    ]
-    lib().apo_force_manager_get_periodic_boundary_condition.restype = ctypes.c_int
-
     lib().apo_force_manager_get_pme_spline_order.argtypes = [
         ctypes.POINTER(ctypes.c_int),
         ctypes.c_void_p,
     ]
     lib().apo_force_manager_get_pme_spline_order.restype = ctypes.c_int
+
+    lib().apo_force_manager_get_periodic_boundary_condition.argtypes = [
+        ctypes.POINTER(ctypes.c_int),
+        ctypes.c_void_p,
+    ]
+    lib().apo_force_manager_get_periodic_boundary_condition.restype = ctypes.c_int
 
     lib().apo_force_manager_get_vdw_type.argtypes = [
         ctypes.POINTER(ctypes.c_int),

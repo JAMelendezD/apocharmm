@@ -62,6 +62,23 @@ public:
   void setBoxDimensions(const std::vector<double> &boxDimensions);
   double getVolume(void) const;
 
+public: // ForceManager setters and getters
+  void setKappa(const float kappa);
+  void setCutoff(const float cutoff);
+  void setCtonnb(const float ctonnb);
+  void setCtofnb(const float ctofnb);
+  void setFFTGrid(const int nfftx, const int nffty, const int nfftz);
+  void setPmeSplineOrder(const int pmeSplineOrder);
+  void setVdwType(const int vdwType);
+
+  float getKappa(void) const;
+  float getCutoff(void) const;
+  float getCtonnb(void) const;
+  float getCtofnb(void) const;
+  std::vector<int> getFFTGrid(void) const;
+  int getPmeSplineOrder(void) const;
+  int getVdwType(void) const;
+
 public:
   void setMasses(const char *fileName);
   void setMasses(const std::vector<double> &masses);

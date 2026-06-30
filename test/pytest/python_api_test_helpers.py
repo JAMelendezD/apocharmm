@@ -19,7 +19,7 @@ T = TypeVar("T")
 
 
 def get_repo_root() -> Path:
-    repo_root: str | None = os.environ("APOCHARMM_REPO_ROOT")
+    repo_root: str | None = os.environ.get("APOCHARMM_REPO_ROOT")
     if repo_root is not None:
         return Path(repo_root)
 

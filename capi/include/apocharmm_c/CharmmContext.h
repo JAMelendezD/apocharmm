@@ -43,11 +43,32 @@ APOCHARMM_C_API apo_status apo_charmm_context_set_box_dimensions(
     apo_charmm_context *context, const double *box_dimensions,
     const size_t box_dimensions_len);
 
-APOCHARMM_C_API apo_status apo_charmm_context_set_coordinates(
-    apo_charmm_context *context, const apo_charmm_crd *crd);
+APOCHARMM_C_API apo_status
+apo_charmm_context_set_kappa(apo_charmm_context *context, const double kappa);
+
+APOCHARMM_C_API apo_status
+apo_charmm_context_set_cutoff(apo_charmm_context *context, const double cutoff);
+
+APOCHARMM_C_API apo_status
+apo_charmm_context_set_ctonnb(apo_charmm_context *context, const double ctonnb);
+
+APOCHARMM_C_API apo_status
+apo_charmm_context_set_ctofnb(apo_charmm_context *context, const double ctofnb);
+
+APOCHARMM_C_API apo_status apo_charmm_context_set_fft_grid(
+    apo_charmm_context *context, const int *grid, const size_t grid_len);
+
+APOCHARMM_C_API apo_status apo_charmm_context_set_pme_spline_order(
+    apo_charmm_context *context, const int order);
 
 APOCHARMM_C_API apo_status apo_charmm_context_set_periodic_boundary_condition(
     apo_charmm_context *context, const apo_pbc pbc);
+
+APOCHARMM_C_API apo_status apo_charmm_context_set_vdw_type(
+    apo_charmm_context *context, const int vdw_type);
+
+APOCHARMM_C_API apo_status apo_charmm_context_set_coordinates(
+    apo_charmm_context *context, const apo_charmm_crd *crd);
 
 APOCHARMM_C_API apo_status apo_charmm_context_set_random_seed_for_velocities(
     apo_charmm_context *context, const uint64_t seed);
@@ -69,8 +90,29 @@ APOCHARMM_C_API apo_status apo_charmm_context_get_box_dimensions(
     double *box_dimensions, const size_t box_dimensions_len,
     const apo_charmm_context *context);
 
+APOCHARMM_C_API apo_status
+apo_charmm_context_get_kappa(double *kappa, const apo_charmm_context *context);
+
+APOCHARMM_C_API apo_status apo_charmm_context_get_cutoff(
+    double *cutoff, const apo_charmm_context *context);
+
+APOCHARMM_C_API apo_status apo_charmm_context_get_ctonnb(
+    double *ctonnb, const apo_charmm_context *context);
+
+APOCHARMM_C_API apo_status apo_charmm_context_get_ctofnb(
+    double *ctofnb, const apo_charmm_context *context);
+
+APOCHARMM_C_API apo_status apo_charmm_context_get_fft_grid(
+    int *grid, const size_t grid_len, const apo_charmm_context *context);
+
+APOCHARMM_C_API apo_status apo_charmm_context_get_pme_spline_order(
+    int *order, const apo_charmm_context *context);
+
 APOCHARMM_C_API apo_status apo_charmm_context_get_periodic_boundary_condition(
     apo_pbc *pbc, const apo_charmm_context *context);
+
+APOCHARMM_C_API apo_status apo_charmm_context_get_vdw_type(
+    int *vdw_type, const apo_charmm_context *context);
 
 APOCHARMM_C_API apo_status apo_charmm_context_assign_velocities_at_temperature(
     apo_charmm_context *context, const double temperature);

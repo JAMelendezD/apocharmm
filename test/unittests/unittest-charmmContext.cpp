@@ -238,3 +238,38 @@ TEST_CASE("CharmmContextConstructsFromPsfAndParameters") {
   CHECK(ctx->getVelocityMass().size() ==
         static_cast<std::size_t>(psf->getNumAtoms()));
 }
+
+TEST_CASE("CharmmContextForwardsForceManagerConfiguration") {
+  auto prm = std::make_shared<CharmmParameters>(getDataPath() +
+                                                "toppar_water_ions.str");
+  auto psf = std::make_shared<CharmmPSF>(getDataPath() + "nacl_pair.psf");
+
+  auto ctx = std::make_shared<CharmmContext>(psf, prm);
+  auto fm = ctx->getForceManager();
+
+  ctx->setKappa(0.45f);
+  ctx->setCutoff(9.0f);
+  ctx->setCtonnb(7.5f);
+  ctx->setCtofnb(8.5f);
+  ctx->setFFTGrid(32, 34, 36);
+  ctx->setPmeSplineOrder(6);
+  ctx->setVdwType(VDW_DBEXP);
+
+  CHECK(ctx->getKappa() == Approx(0.45f));
+  CHECK(ctx->getCutoff() == Approx(9.0f));
+  CHECK(ctx->getCtonnb() == Approx(7.5f));
+  CHECK(ctx->getCtofnb() == Approx(8.5f));
+  apo_test::CheckVectorsEqual<int>("context FFT grid", ctx->getFFTGrid(),
+                                   std::vector<int>{32, 34, 36});
+  CHECK(ctx->getPmeSplineOrder() == 6);
+  CHECK(ctx->getVdwType() == VDW_DBEXP);
+
+  CHECK(fm->getKappa() == Approx(0.45f));
+  CHECK(fm->getCutoff() == Approx(9.0f));
+  CHECK(fm->getCtonnb() == Approx(7.5f));
+  CHECK(fm->getCtofnb() == Approx(8.5f));
+  apo_test::CheckVectorsEqual<int>("context FFT grid", fm->getFFTGrid(),
+                                   std::vector<int>{32, 34, 36});
+  CHECK(fm->getPmeSplineOrder() == 6);
+  CHECK(fm->getVdwType() == VDW_DBEXP);
+}
