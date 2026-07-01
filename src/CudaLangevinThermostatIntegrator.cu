@@ -12,10 +12,17 @@
 
 #include "Constants.h"
 #include "CurandStateString.h"
+#include "cuda_utils.h"
 #include "gpu_utils.h"
+#include "str_utils.h"
 
+#include <cmath>
+#include <cstddef>
+#include <fstream>
 #include <random>
 #include <stdexcept>
+#include <vector>
+#include <vector_functions.h>
 
 CudaLangevinThermostatIntegrator::CudaLangevinThermostatIntegrator(
     const double timeStep)

@@ -9,15 +9,20 @@
 // ENDLICENSE
 
 #include "CudaIntegrator.h"
+
 #include "Subscriber.h"
+#include "cuda_utils.h"
+
+#include <algorithm>
+#include <cassert>
 #include <chrono>
-#include <climits>
-#include <cpp_utils.h>
-#include <iomanip>
+#include <cmath>
+#include <cstdlib>
+#include <exception>
 #include <iostream>
+#include <iterator>
 #include <limits>
-#include <source_location> // C++20
-#include <sstream>
+#include <stdexcept>
 
 CudaIntegrator::CudaIntegrator(void)
     : m_TimeStep(0.0), m_Timfac(0.0488882129), m_DebugPrintFrequency(0),

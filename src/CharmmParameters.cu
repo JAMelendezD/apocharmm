@@ -11,12 +11,15 @@
 #include "CharmmParameters.h"
 
 #include "str_utils.h"
+
 #include <algorithm>
-#include <cctype>
 #include <cmath>
+#include <cstddef>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 
 CharmmParameters::CharmmParameters(const std::string &fileName) {
   prmFileNames.push_back(fileName);
@@ -29,30 +32,6 @@ CharmmParameters::CharmmParameters(const std::vector<std::string> &fileNames) {
     readCharmmParameterFile(fileName);
   }
 }
-/*
-std::string ltrim(const std::string &str) {
-  size_t start = str.find_first_not_of(" \n\t");
-  return (start == std::string::npos) ? "" : str.substr(start);
-}
-
-static std::string removeComments(std::string line) {
-  line = trim(line);
-  auto npos = line.find_first_of('!');
-  return trim(line.substr(0, npos));
-}
-
-std::vector<std::string> split(const std::string &str) {
-  std::vector<std::string> tokens;
-  std::string token;
-  std::istringstream tokenStream(str);
-  tokenStream >> token;
-  while (token.size() && tokenStream) {
-    tokens.push_back(token);
-    tokenStream >> token;
-  }
-  return tokens;
-}
-*/
 
 void CharmmParameters::readCharmmParameterFile(std::string fileName) {
   enum class State {

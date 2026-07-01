@@ -10,8 +10,13 @@
 
 #pragma once
 
-#include "CharmmContext.h"
 #include "CudaIntegrator.h"
+
+#include "CharmmContext.h"
+#include "CudaContainer.h"
+
+#include <string>
+#include <vector_types.h>
 
 class CudaNoseHooverIntegrator : public CudaIntegrator {
 public:

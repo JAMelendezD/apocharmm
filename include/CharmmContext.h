@@ -18,10 +18,12 @@
 #include "ForceManager.h"
 #include "PBC.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
+#include <vector_types.h>
 
 class CharmmContext : public std::enable_shared_from_this<CharmmContext> {
 public:
@@ -37,6 +39,7 @@ public: // Setters
   void setCoordinates(const std::shared_ptr<Coordinates> crd);
   void setCoordinates(const std::vector<double4> &coordinates);
   void setCoordinates(const std::vector<float> &coordinates);
+
   void setCoordinatesCharges(const std::vector<float4> &coordinatesCharges);
   void setCoordinatesCharges(
       const std::vector<std::vector<float>> &coordinatesCharges);

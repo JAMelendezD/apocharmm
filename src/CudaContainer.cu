@@ -11,7 +11,8 @@
 #include "CudaContainer.h"
 
 #include "cuda_utils.h"
-#include <stdexcept>
+
+#include <cstdio>
 
 template <typename T>
 CudaContainer<T>::CudaContainer(void) : m_HostArray(), m_DeviceArray() {}
@@ -221,145 +222,153 @@ template <typename T> void CudaContainer<T>::transferFromHost(void) {
   return;
 }
 
-__global__ void printKernel(const int *data, const size_t size) {
-  unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void printKernel(const int *data, const std::size_t size) {
+  const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index < size)
     printf("%u: %d\n", index, data[index]);
   return;
 }
 
-__global__ void printKernel(const int2 *data, const size_t size) {
-  unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void printKernel(const int2 *data, const std::size_t size) {
+  const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index < size)
     printf("%u: %d, %d\n", index, data[index].x, data[index].y);
   return;
 }
 
-__global__ void printKernel(const int3 *data, const size_t size) {
-  unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-  if (index < size)
+__global__ void printKernel(const int3 *data, const std::size_t size) {
+  const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+  if (index < size) {
     printf("%u: %d, %d, %d\n", index, data[index].x, data[index].y,
            data[index].z);
+  }
   return;
 }
 
-__global__ void printKernel(const int4 *data, const size_t size) {
-  unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-  if (index < size)
+__global__ void printKernel(const int4 *data, const std::size_t size) {
+  const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+  if (index < size) {
     printf("%u: %d, %d, %d, %d\n", index, data[index].x, data[index].y,
            data[index].z, data[index].w);
+  }
   return;
 }
 
-__global__ void printKernel(const unsigned int *data, const size_t size) {
-  unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void printKernel(const unsigned int *data, const std::size_t size) {
+  const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index < size)
     printf("%u: %u\n", index, data[index]);
   return;
 }
 
-__global__ void printKernel(const float *data, const size_t size) {
-  unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void printKernel(const float *data, const std::size_t size) {
+  const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index < size)
     printf("%u: %e\n", index, data[index]);
   return;
 }
 
-__global__ void printKernel(const float2 *data, const size_t size) {
-  unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void printKernel(const float2 *data, const std::size_t size) {
+  const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index < size)
     printf("%u: %e, %e\n", index, data[index].x, data[index].y);
   return;
 }
 
-__global__ void printKernel(const float3 *data, const size_t size) {
-  unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-  if (index < size)
+__global__ void printKernel(const float3 *data, const std::size_t size) {
+  const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+  if (index < size) {
     printf("%u: %e, %e, %e\n", index, data[index].x, data[index].y,
            data[index].z);
+  }
   return;
 }
 
-__global__ void printKernel(const float4 *data, const size_t size) {
-  unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-  if (index < size)
+__global__ void printKernel(const float4 *data, const std::size_t size) {
+  const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+  if (index < size) {
     printf("%u: %e, %e, %e, %e\n", index, data[index].x, data[index].y,
            data[index].z, data[index].w);
+  }
   return;
 }
 
-__global__ void printKernel(const long long int *data, const size_t size) {
-  unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void printKernel(const long long int *data, const std::size_t size) {
+  const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index < size)
     printf("%u: %lld\n", index, data[index]);
   return;
 }
 
-__global__ void printKernel(const longlong2 *data, const size_t size) {
-  unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void printKernel(const longlong2 *data, const std::size_t size) {
+  const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index < size)
     printf("%u: %lld, %lld\n", index, data[index].x, data[index].y);
   return;
 }
 
-__global__ void printKernel(const longlong3 *data, const size_t size) {
-  unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-  if (index < size)
+__global__ void printKernel(const longlong3 *data, const std::size_t size) {
+  const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+  if (index < size) {
     printf("%u: %lld, %lld, %lld\n", index, data[index].x, data[index].y,
            data[index].z);
+  }
   return;
 }
 
-__global__ void printKernel(const longlong4 *data, const size_t size) {
-  unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-  if (index < size)
+__global__ void printKernel(const longlong4 *data, const std::size_t size) {
+  const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+  if (index < size) {
     printf("%u: %lld, %lld, %lld, %lld\n", index, data[index].x, data[index].y,
            data[index].z, data[index].w);
+  }
   return;
 }
 
 __global__ void printKernel(const unsigned long long int *data,
-                            const size_t size) {
-  unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+                            const std::size_t size) {
+  const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index < size)
     printf("%u: %llu\n", index, data[index]);
   return;
 }
 
-__global__ void printKernel(const std::size_t *data, const size_t size) {
-  unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void printKernel(const std::size_t *data, const std::size_t size) {
+  const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index < size)
     printf("%u: %llu\n", index, data[index]);
   return;
 }
 
-__global__ void printKernel(const double *data, const size_t size) {
-  unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void printKernel(const double *data, const std::size_t size) {
+  const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index < size)
     printf("%u: %e\n", index, data[index]);
   return;
 }
 
-__global__ void printKernel(const double2 *data, const size_t size) {
-  unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void printKernel(const double2 *data, const std::size_t size) {
+  const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index < size)
     printf("%u: %e, %e\n", index, data[index].x, data[index].y);
   return;
 }
 
-__global__ void printKernel(const double3 *data, const size_t size) {
-  unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-  if (index < size)
+__global__ void printKernel(const double3 *data, const std::size_t size) {
+  const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+  if (index < size) {
     printf("%u: %e, %e, %e\n", index, data[index].x, data[index].y,
            data[index].z);
+  }
   return;
 }
 
-__global__ void printKernel(const double4 *data, const size_t size) {
-  unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-  if (index < size)
+__global__ void printKernel(const double4 *data, const std::size_t size) {
+  const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+  if (index < size) {
     printf("%u: %e, %e, %e, %e\n", index, data[index].x, data[index].y,
            data[index].z, data[index].w);
+  }
   return;
 }
 

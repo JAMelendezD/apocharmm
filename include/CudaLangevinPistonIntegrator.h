@@ -11,8 +11,15 @@
 #pragma once
 
 #include "CudaIntegrator.h"
+
+#include "CudaContainer.h"
+#include "PBC.h"
+
 #include <cstdint>
 #include <curand_kernel.h>
+#include <string>
+#include <vector>
+#include <vector_types.h>
 
 class CudaLangevinPistonIntegrator : public CudaIntegrator {
 public:

@@ -8,11 +8,19 @@
 //
 // ENDLICENSE
 
-#include "Constants.h"
 #include "CudaNoseHooverIntegrator.h"
+
+#include "Constants.h"
+#include "cuda_utils.h"
 #include "gpu_utils.h"
+#include "str_utils.h"
+
+#include <cstddef>
+#include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <vector>
+#include <vector_functions.h>
 
 CudaNoseHooverIntegrator::CudaNoseHooverIntegrator(const double timeStep)
     : CudaIntegrator(timeStep) {

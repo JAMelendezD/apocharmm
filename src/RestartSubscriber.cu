@@ -16,11 +16,14 @@
 #include "CudaNoseHooverIntegrator.h"
 #include "PBC.h"
 #include "str_utils.h"
+
+#include <cstdint>
 #include <iomanip>
-#include <iostream>
+#include <ios>
 #include <memory>
-#include <sstream>
+#include <stdexcept>
 #include <string>
+#include <vector>
 
 RestartSubscriber::RestartSubscriber(void) : Subscriber() {}
 

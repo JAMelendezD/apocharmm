@@ -11,7 +11,10 @@
 #pragma once
 
 #include "DeviceVector.h"
+
+#include <cstddef>
 #include <vector>
+#include <vector_types.h>
 
 /**
  * @brief Templated container for host/device vectors

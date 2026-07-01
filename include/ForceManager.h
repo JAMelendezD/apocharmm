@@ -17,20 +17,22 @@
 
 #pragma once
 
-#include <algorithm>
-#include <memory>
-#include <string>
-#include <vector>
-
 #include "CharmmPSF.h"
 #include "CharmmParameters.h"
 #include "CudaBondedForce.h"
-#include "CudaNeighborList.h"
-#include "CudaNeighborListBuild.h"
+#include "CudaContainer.h"
+#include "CudaEnergyVirial.h"
 #include "CudaPMEDirectForce.h"
 #include "CudaPMEReciprocalForce.h"
-#include "CudaTopExcl.h"
+#include "Force.h"
 #include "PBC.h"
+
+#include <cstddef>
+#include <cuda_runtime.h>
+#include <map>
+#include <memory>
+#include <string>
+#include <vector>
 
 // Forward declaration
 class CharmmContext;

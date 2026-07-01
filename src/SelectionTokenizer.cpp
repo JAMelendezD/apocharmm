@@ -11,8 +11,11 @@
 #include "SelectionTokenizer.h"
 
 #include "str_utils.h"
+
 #include <cctype>
+#include <cstddef>
 #include <stdexcept>
+#include <string>
 
 std::vector<SelectionToken>
 SelectionTokenizer::tokenize(const std::string_view selectionString) {

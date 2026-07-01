@@ -11,10 +11,12 @@
 #include "SelectionParser.h"
 
 #include "str_utils.h"
+
+#include <algorithm>
+#include <cctype>
+#include <stdexcept>
 #include <string>
 #include <utility>
-
-#include <iostream>
 
 AtomSelection SelectionParser::parse(std::shared_ptr<const CharmmPSF> psf,
                                      std::vector<SelectionToken> tokens) {

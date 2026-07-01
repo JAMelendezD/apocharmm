@@ -10,6 +10,8 @@
 
 #include "Coordinates.h"
 
+#include <vector_functions.h>
+
 Coordinates::Coordinates(void)
     : m_NumAtoms(-1), m_CoordinatesD(), m_CoordinatesF() {}
 

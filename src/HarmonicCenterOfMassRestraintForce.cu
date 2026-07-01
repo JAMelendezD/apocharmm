@@ -12,7 +12,9 @@
 
 #include "cuda_utils.h"
 #include "gpu_utils.h"
+
 #include <cmath>
+#include <cstddef>
 #include <stdexcept>
 #include <string>
 

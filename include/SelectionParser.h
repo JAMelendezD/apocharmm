@@ -13,8 +13,9 @@
 #include "AtomSelection.h"
 #include "CharmmPSF.h"
 #include "SelectionToken.h"
+
+#include <cstddef>
 #include <memory>
-#include <stdexcept>
 #include <string_view>
 #include <vector>
 

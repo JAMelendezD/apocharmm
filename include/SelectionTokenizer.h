@@ -11,6 +11,7 @@
 #pragma once
 
 #include "SelectionToken.h"
+
 #include <string_view>
 #include <vector>
 

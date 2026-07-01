@@ -11,9 +11,11 @@
 #pragma once
 
 #include "CudaContainer.h"
+
 #include <set>
 #include <string>
 #include <vector>
+#include <vector_types.h>
 
 struct Bond {
   int iatom, jatom;

@@ -11,7 +11,10 @@
 #include "CharmmPSF.h"
 
 #include "str_utils.h"
+
+#include <cstddef>
 #include <stdexcept>
+#include <vector_functions.h>
 
 CharmmPSF::CharmmPSF(void)
     : m_NumAtoms(-1), m_SegmentIdentifiers(), m_ResidueIdentifiers(),

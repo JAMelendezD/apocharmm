@@ -9,13 +9,17 @@
 // ENDLICENSE
 
 #pragma once
+
 #include "CharmmContext.h"
+#include "CudaContainer.h"
 #include "CudaHolonomicConstraint.h"
 #include "Subscriber.h"
-#include "str_utils.h"
-#include <fstream>
+
+#include <cuda_runtime.h>
 #include <map>
 #include <memory>
+#include <string>
+#include <vector>
 
 /**
  * @brief Base class for integrators

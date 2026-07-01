@@ -12,6 +12,8 @@
 
 #include "Subscriber.h"
 
+#include <string>
+
 /**
  * @brief CHARMM DCD output Subscriber
  *

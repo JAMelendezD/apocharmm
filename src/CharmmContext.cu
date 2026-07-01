@@ -10,7 +10,6 @@
 
 #include "CharmmContext.h"
 
-#include "CharmmCrd.h"
 #include "Constants.h"
 #include "PBC.h"
 #include "cuda_utils.h"
@@ -22,7 +21,6 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <fstream>
-#include <iomanip>
 #include <iostream>
 #include <random>
 #include <sstream>

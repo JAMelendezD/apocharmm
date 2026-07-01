@@ -14,9 +14,9 @@
 #include "CudaIntegrator.h"
 
 #include <array>
-#include <cstdio>
+#include <cstddef>
 #include <fstream>
-#include <iostream>
+#include <vector>
 
 DcdSubscriber::DcdSubscriber(const std::string &fileName)
     : Subscriber(fileName) {

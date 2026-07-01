@@ -8,13 +8,15 @@
 //
 // ENDLICENSE
 
-#include "CharmmContext.h"
 #include "ForceManager.h"
+
+#include "CharmmContext.h"
+#include "cuda_utils.h"
 #include "gpu_utils.h"
 
-#include <chrono>
 #include <cmath>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 
 ForceManager::ForceManager(void) {

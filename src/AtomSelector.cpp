@@ -12,9 +12,10 @@
 
 #include "SelectionParser.h"
 #include "SelectionTokenizer.h"
-#include "str_utils.h"
+
 #include <stdexcept>
 #include <utility>
+#include <vector>
 
 AtomSelector::AtomSelector(std::shared_ptr<const CharmmPSF> psf) : m_Psf(psf) {}
 

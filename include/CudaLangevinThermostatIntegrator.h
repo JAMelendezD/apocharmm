@@ -10,10 +10,14 @@
 
 #pragma once
 
-#include "CharmmContext.h"
 #include "CudaIntegrator.h"
+
+#include "CharmmContext.h"
+#include "CudaContainer.h"
+
 #include <cstdint>
 #include <curand_kernel.h>
+#include <string>
 
 class CudaLangevinThermostatIntegrator : public CudaIntegrator {
 public:

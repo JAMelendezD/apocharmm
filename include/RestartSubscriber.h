@@ -11,7 +11,8 @@
 #pragma once
 
 #include "Subscriber.h"
-#include <CudaContainer.h>
+
+#include <string>
 
 /** @brief Reports positions and velocities necessary to resume simulation. The
  * coordinates saved
