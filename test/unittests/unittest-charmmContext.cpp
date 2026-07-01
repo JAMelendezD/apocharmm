@@ -273,3 +273,14 @@ TEST_CASE("CharmmContextForwardsForceManagerConfiguration") {
   CHECK(fm->getPmeSplineOrder() == 6);
   CHECK(fm->getVdwType() == VDW_DBEXP);
 }
+
+TEST_CASE("CharmmContextRejectsCoordinatesBeforeBackendInitialization") {
+  auto prm = std::make_shared<CharmmParameters>(getDataPath() +
+                                                "toppar_water_ions.str");
+  auto psf = std::make_shared<CharmmPSF>(getDataPath() + "nacl_pair.psf");
+  auto crd = std::make_shared<CharmmCrd>(getDataPath() + "nacl_pair.cor");
+
+  auto ctx = std::make_shared<CharmmContext>(psf, prm);
+
+  CHECK_THROWS_AS(ctx->setCoordinates(crd), std::runtime_error);
+}

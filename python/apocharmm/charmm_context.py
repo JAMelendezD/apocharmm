@@ -578,7 +578,7 @@ class CharmmContext(_ApoObject):
 
         check_status(status, "CharmmContext.getPmeSplineOrder() failed")
 
-        return float(c_order.value)
+        return int(c_order.value)
 
     def getPeriodicBoundaryCondition(self) -> PeriodicBoundaryCondition:
         _initialize_prototypes()

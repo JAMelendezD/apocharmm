@@ -17,7 +17,9 @@
 #include "apocharmm_c/detail/ForceManagerHandle.h"
 #include "apocharmm_c/detail/Validation.h"
 
+#include <cmath>
 #include <memory>
+#include <vector>
 
 extern "C" apo_status
 apo_charmm_context_create(apo_charmm_context **out,

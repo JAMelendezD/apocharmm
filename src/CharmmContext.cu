@@ -50,13 +50,11 @@ CharmmContext::CharmmContext(void)
 CharmmContext::CharmmContext(std::shared_ptr<CharmmPSF> psf,
                              std::shared_ptr<CharmmParameters> prm)
     : CharmmContext() {
-  if (psf == nullptr) {
-    throw std::invalid_argument("CharmmContext::CharmmContest: psf == nullptr");
-  }
+  if (psf == nullptr)
+    throw std::invalid_argument("CharmmContext::CharmmContext: psf == nullptr");
 
-  if (prm == nullptr) {
-    throw std::invalid_argument("CharmmContext::CharmmContest: prm == nullptr");
-  }
+  if (prm == nullptr)
+    throw std::invalid_argument("CharmmContext::CharmmContext: prm == nullptr");
 
   std::vector<int> devices = {0, 1, 2, 3};
   start_gpu(1, 1, 0, devices);
@@ -215,7 +213,7 @@ void CharmmContext::setNumAtoms(const int numAtoms) {
 }
 
 void CharmmContext::setCoordinates(const std::shared_ptr<Coordinates> crd) {
-  this->requireForceManager("CharmmContext::setCoordinates");
+  this->requireInitializedForceManager("CharmmContext::setCoordinates");
   this->setCoordinates(crd->getCoordinatesD());
   return;
 }
@@ -250,6 +248,14 @@ void CharmmContext::setCoordinates(const std::vector<double4> &coordinates) {
 
   m_CoordinatesChargesSP.transferToDevice();
   m_CoordinatesChargesDP.transferToDevice();
+
+  this->initializeForceManagerIfReady();
+
+  if (!m_ForceManager->isInitialized()) {
+    throw std::runtime_error(
+        "CharmmContext::setCoordinates: ForceManager is not initialized. Set "
+        "box dimensions before setting coordinates.");
+  }
 
   this->resetNeighborList();
 
@@ -384,7 +390,7 @@ __global__ static void ImageCenteringKernel(
 }
 
 void CharmmContext::imageCentering(void) {
-  this->requireForceManager("CharmmContext::imageCentering");
+  this->requireInitializedForceManager("CharmmContext::imageCentering");
   this->requirePsf("CharmmContext::imageCentering");
 
   double *forces = this->getForces()->xyz();
@@ -409,7 +415,7 @@ void CharmmContext::imageCentering(void) {
 }
 
 void CharmmContext::resetNeighborList(void) {
-  this->requireForceManager("CharmmContext::resetNeighborList");
+  this->requireInitializedForceManager("CharmmContext::resetNeighborList");
 
   this->imageCentering();
 
@@ -421,7 +427,7 @@ void CharmmContext::resetNeighborList(void) {
 
 void CharmmContext::calculateForces(bool reset, bool calcEnergy,
                                     bool calcVirial) {
-  this->requireForceManager("CharmmContext::calculateForces");
+  this->requireInitializedForceManager("CharmmContext::calculateForces");
 
   m_ForceManager->calcForce(m_CoordinatesChargesSP.getDeviceArray().data(),
                             reset, calcEnergy, calcVirial);
@@ -434,7 +440,7 @@ float CharmmContext::getPotentialEnergies(void) {
 }
 
 std::shared_ptr<Force<double>> CharmmContext::getForces(void) {
-  this->requireForceManager("CharmmContext::getForces");
+  this->requireInitializedForceManager("CharmmContext::getForces");
   return m_ForceManager->getForces();
 }
 
@@ -622,6 +628,7 @@ CudaContainer<float4> &CharmmContext::getXYZQ(void) {
 }
 
 int CharmmContext::getForceStride(void) const {
+  this->requireInitializedForceManager("CharmmContext::getForceStride");
   return m_ForceManager->getForceStride();
 }
 
@@ -687,7 +694,11 @@ void CharmmContext::setPeriodicBoundaryCondition(const PBC pbc) {
   if (m_ForceManager != nullptr) {
     m_ForceManager->setPeriodicBoundaryCondition(m_Pbc);
     m_Pbc = m_ForceManager->getPeriodicBoundaryCondition();
-    this->resetNeighborList();
+
+    if ((m_ForceManager->isInitialized()) && (m_NumAtoms > 0) &&
+        (m_CoordinatesChargesSP.size() > 0)) {
+      this->resetNeighborList();
+    }
   }
 
   return;
@@ -731,15 +742,22 @@ int CharmmContext::getDegreesOfFreedom(void) const {
   return m_NumDegreesOfFreedom;
 }
 
-void CharmmContext::calculatePotentialEnergy(bool reset, bool print) {
+void CharmmContext::calculatePotentialEnergy(const bool reset,
+                                             const bool print) {
+  this->requireInitializedForceManager(
+      "CharmmContext::calculatePotentialEnergy");
+
   m_ForceManager->calcForce(m_CoordinatesChargesSP.getDeviceArray().data(),
                             reset, true, true);
+
   if (print == true)
     std::cout << "Implement some nice printing" << std::endl;
+
   return;
 }
 
 CudaContainer<double> &CharmmContext::getPotentialEnergy(void) {
+  this->requireInitializedForceManager("CharmmContext::getPotentialEnergy");
   return m_ForceManager->getPotentialEnergy();
 }
 
@@ -833,6 +851,7 @@ void CharmmContext::computePressure(void) {
 }
 
 CudaContainer<double> &CharmmContext::getVirial(void) {
+  this->requireInitializedForceManager("CharmmContext::getVirial");
   return m_ForceManager->getVirial();
 }
 
@@ -850,7 +869,11 @@ CudaContainer<float4> CharmmContext::getShakeParams(void) {
 }
 
 void CharmmContext::useHolonomicConstraints(const bool useConstraints) {
+  this->requireForceManager("CharmmContext::useHolonomicConstraints");
+  this->requirePsf("CharmmContext::useHolonomicConstraints");
+
   m_UsingHolonomicConstraints = useConstraints;
+
   int ndegf = m_NumAtoms * 3;
 
   if (m_Pbc == PBC::P1)
@@ -862,12 +885,12 @@ void CharmmContext::useHolonomicConstraints(const bool useConstraints) {
     ndegf -= this->getWaterMolecules().size() * 3;
     int numShakeConstraints = 0;
     auto shakeAtoms = m_ForceManager->getShakeAtoms().getHostArray();
-    for (std::size_t i = 0; i < shakeAtoms.size(); ++i) {
-      ++numShakeConstraints;
+    for (std::size_t i = 0; i < shakeAtoms.size(); i++) {
+      numShakeConstraints++;
       if (shakeAtoms[i].z != -1)
-        ++numShakeConstraints;
+        numShakeConstraints++;
       if (shakeAtoms[i].w != -1)
-        ++numShakeConstraints;
+        numShakeConstraints++;
     }
     ndegf -= numShakeConstraints;
   }
@@ -1042,5 +1065,17 @@ void CharmmContext::requirePsf(const std::string &functionName) const {
 void CharmmContext::requireForceManager(const std::string &functionName) const {
   if (m_ForceManager == nullptr)
     throw std::invalid_argument(functionName + ": ForceManager is not set");
+  return;
+}
+
+void CharmmContext::requireInitializedForceManager(
+    const std::string &functionName) const {
+  this->requireForceManager(functionName);
+
+  if (!m_ForceManager->isInitialized()) {
+    throw std::runtime_error(functionName +
+                             ": ForceManager is not initialized");
+  }
+
   return;
 }

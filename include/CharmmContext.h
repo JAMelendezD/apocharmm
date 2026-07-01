@@ -109,7 +109,8 @@ public:
 
 public:
   void resetNeighborList(void);
-  void calculatePotentialEnergy(bool reset = false, bool print = false);
+  void calculatePotentialEnergy(const bool reset = false,
+                                const bool print = false);
   void calculateForces(bool reset = false, bool calcEnergy = false,
                        bool calcVirial = false);
   float getPotentialEnergies(void);
@@ -154,6 +155,7 @@ protected:
 
   void requirePsf(const std::string &functionName) const;
   void requireForceManager(const std::string &functionName) const;
+  void requireInitializedForceManager(const std::string &functionName) const;
 
 protected:
   std::uint64_t m_RandomSeed;
