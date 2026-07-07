@@ -244,7 +244,7 @@ void RestartSubscriber::update(void) {
   // velocities being written to the DCD file.
   const int NSAVV = 0;
   const int JHSTRT = 0;
-  const int NDEGF = m_CharmmContext->getDegreesOfFreedom();
+  const int NDEGF = m_CharmmContext->getNumDegreesOfFreedom();
   std::uint64_t SEED = 0;
   std::string RNGSTATE = "";
   if (lp != nullptr) {
@@ -356,36 +356,19 @@ void RestartSubscriber::update(void) {
 
   // Write XOLD, YOLD, ZOLD section
   m_FileStream << " !XOLD, YOLD, ZOLD\n";
-  // m_Integrator->getCoordsDeltaPrevious().transferToHost();
-  // for (int i = 0; i < NATOM; i++) {
-  //   m_FileStream
-  //       << std::setw(rstDoubleWidth)
-  //       <<
-  //       apo::cDoubleToFortSciStr(m_Integrator->getCoordsDeltaPrevious()[i].x,
-  //                                   rstDoublePrecision)
-  //       << std::setw(rstDoubleWidth)
-  //       <<
-  //       apo::cDoubleToFortSciStr(m_Integrator->getCoordsDeltaPrevious()[i].y,
-  //                                   rstDoublePrecision)
-  //       << std::setw(rstDoubleWidth)
-  //       <<
-  //       apo::cDoubleToFortSciStr(m_Integrator->getCoordsDeltaPrevious()[i].z,
-  //                                   rstDoublePrecision)
-  //       << '\n';
-  // }
-  m_CharmmContext->getCoordinatesCharges().transferToHost();
+  m_CharmmContext->getCoordinatesChargesDP().transferToHost();
   for (int i = 0; i < NATOM; i++) {
     m_FileStream << std::setw(rstDoubleWidth)
                  << apo::cDoubleToFortSciStr(
-                        m_CharmmContext->getCoordinatesCharges()[i].x,
+                        m_CharmmContext->getCoordinatesChargesDP()[i].x,
                         rstDoublePrecision)
                  << std::setw(rstDoubleWidth)
                  << apo::cDoubleToFortSciStr(
-                        m_CharmmContext->getCoordinatesCharges()[i].y,
+                        m_CharmmContext->getCoordinatesChargesDP()[i].y,
                         rstDoublePrecision)
                  << std::setw(rstDoubleWidth)
                  << apo::cDoubleToFortSciStr(
-                        m_CharmmContext->getCoordinatesCharges()[i].z,
+                        m_CharmmContext->getCoordinatesChargesDP()[i].z,
                         rstDoublePrecision)
                  << '\n';
   }
@@ -393,40 +376,26 @@ void RestartSubscriber::update(void) {
 
   // Write VX, VY, VZ section
   m_FileStream << " !VX, VY, VZ\n";
-  m_CharmmContext->getVelocityMass().transferToHost();
+  m_CharmmContext->getVelocitiesInverseMasses().transferToHost();
   for (int i = 0; i < NATOM; i++) {
-    m_FileStream
-        << std::setw(rstDoubleWidth)
-        << apo::cDoubleToFortSciStr(m_CharmmContext->getVelocityMass()[i].x,
-                                    rstDoublePrecision)
-        << std::setw(rstDoubleWidth)
-        << apo::cDoubleToFortSciStr(m_CharmmContext->getVelocityMass()[i].y,
-                                    rstDoublePrecision)
-        << std::setw(rstDoubleWidth)
-        << apo::cDoubleToFortSciStr(m_CharmmContext->getVelocityMass()[i].z,
-                                    rstDoublePrecision)
-        << '\n';
+    m_FileStream << std::setw(rstDoubleWidth)
+                 << apo::cDoubleToFortSciStr(
+                        m_CharmmContext->getVelocitiesInverseMasses()[i].x,
+                        rstDoublePrecision)
+                 << std::setw(rstDoubleWidth)
+                 << apo::cDoubleToFortSciStr(
+                        m_CharmmContext->getVelocitiesInverseMasses()[i].y,
+                        rstDoublePrecision)
+                 << std::setw(rstDoubleWidth)
+                 << apo::cDoubleToFortSciStr(
+                        m_CharmmContext->getVelocitiesInverseMasses()[i].z,
+                        rstDoublePrecision)
+                 << '\n';
   }
   m_FileStream << '\n';
 
   // Write X, Y, Z section
   m_FileStream << " !X, Y, Z\n";
-  // m_CharmmContext->getCoordinatesCharges().transferToHost();
-  // for (int i = 0; i < NATOM; i++) {
-  //   m_FileStream << std::setw(rstDoubleWidth)
-  //                << apo::cDoubleToFortSciStr(
-  //                       m_CharmmContext->getCoordinatesCharges()[i].x,
-  //                       rstDoublePrecision)
-  //                << std::setw(rstDoubleWidth)
-  //                << apo::cDoubleToFortSciStr(
-  //                       m_CharmmContext->getCoordinatesCharges()[i].y,
-  //                       rstDoublePrecision)
-  //                << std::setw(rstDoubleWidth)
-  //                << apo::cDoubleToFortSciStr(
-  //                       m_CharmmContext->getCoordinatesCharges()[i].z,
-  //                       rstDoublePrecision)
-  //                << '\n';
-  // }
   m_Integrator->getCoordsDeltaPrevious().transferToHost();
   for (int i = 0; i < NATOM; i++) {
     m_FileStream

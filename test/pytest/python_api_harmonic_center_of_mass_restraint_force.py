@@ -47,7 +47,7 @@ def create_system() -> tuple[
     ctx.setBoxDimensions(BOX_DIMENSIONS)
     ctx.setCoordinates(crd)
     ctx.useHolonomicConstraints(False)
-    ctx.setRandomSeedForVelocities(RANDOM_SEED)
+    ctx.setRandomSeed(RANDOM_SEED)
     ctx.assignVelocitiesAtTemperature(TEMPERATURE)
 
     fm = ctx.getForceManager()

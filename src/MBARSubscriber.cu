@@ -37,9 +37,10 @@ void MBARSubscriber::update(void) {
   // float4 *xyzqPointer = xyzq->xyzq;
   // tempfm->ForceManagerComposite::calcForce(xyzqPointer, false, true, false);
   // // fm->ForceManagerComposite::calc_force(xyzqPointer, false, true, false);
-  m_CharmmContext->getXYZQ().transferToHost();
+  m_CharmmContext->getCoordinatesChargesSP().transferToHost();
   tempfm->ForceManagerComposite::calcForce(
-      m_CharmmContext->getXYZQ().getDeviceArray().data(), false, true, false);
+      m_CharmmContext->getCoordinatesChargesSP().getDeviceArray().data(), false,
+      true, false);
   auto peCC = tempfm->getPotentialEnergy();
   peCC.transferFromDevice();
 

@@ -62,14 +62,14 @@ public:
    */
   int getNumAtoms(void) const;
 
-  const std::vector<double4> &getCoordinatesD(void) const;
-  std::vector<double4> &getCoordinatesD(void);
+  const std::vector<double3> &getCoordinatesDP(void) const;
+  std::vector<double3> &getCoordinatesDP(void);
 
-  const std::vector<float4> &getCoordinatesF(void) const;
-  std::vector<float4> &getCoordinatesF(void);
+  const std::vector<float3> &getCoordinatesSP(void) const;
+  std::vector<float3> &getCoordinatesSP(void);
 
 protected:
   int m_NumAtoms;
-  std::vector<double4> m_CoordinatesD;
-  std::vector<float4> m_CoordinatesF;
+  std::vector<double3> m_CoordinatesDP;
+  std::vector<float3> m_CoordinatesSP;
 };

@@ -514,7 +514,7 @@ TEST_CASE("HarmonicCenterOfMassRestraintForceCanBeSubscribedToForceManager") {
   ctx->setBoxDimensions(BOX_DIMENSIONS);
   ctx->setCoordinates(crd);
   ctx->useHolonomicConstraints(false);
-  ctx->setRandomSeedForVelocities(RANDOM_SEED);
+  ctx->setRandomSeed(RANDOM_SEED);
   ctx->assignVelocitiesAtTemperature(TEMPERATURE);
 
   auto restraint = std::make_shared<HmcmForce>(ctx->getNumAtoms());

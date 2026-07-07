@@ -35,7 +35,7 @@ def main(argc, argv):
     # Setup the CharmmContext
     ctx = apo.CharmmContext(fm)
     ctx.setCoordinates(crd)
-    ctx.setRandomSeedForVelocities(random_seed)
+    ctx.setRandomSeed(random_seed)
     ctx.useHolonomicConstraints(use_holonomic_constraints)
 
     # NPT Heating & Equilibration

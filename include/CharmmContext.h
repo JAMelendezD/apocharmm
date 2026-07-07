@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <vector_types.h>
 
@@ -30,50 +31,46 @@ public:
   CharmmContext(void);
   CharmmContext(std::shared_ptr<CharmmPSF> psf,
                 std::shared_ptr<CharmmParameters> prm);
-  CharmmContext(std::shared_ptr<ForceManager> forceManager);
+  CharmmContext(std::shared_ptr<ForceManager> fm);
   ~CharmmContext(void) = default;
 
   CharmmContext(const CharmmContext &other);
 
 public: // Setters
-  void setCoordinates(const std::shared_ptr<Coordinates> crd);
-  void setCoordinates(const std::vector<double4> &coordinates);
-  void setCoordinates(const std::vector<float> &coordinates);
+  void setPrm(std::shared_ptr<CharmmParameters> prm);
+  void setPsf(std::shared_ptr<CharmmPSF> psf);
+  void setForceManager(std::shared_ptr<ForceManager> fm);
 
-  void setCoordinatesCharges(const std::vector<float4> &coordinatesCharges);
+  void setNumAtoms(const int numAtoms);
+
+  void setCoordinatesCharges(const std::vector<double4> &coordinatesCharges);
   void setCoordinatesCharges(
-      const std::vector<std::vector<float>> &coordinatesCharges);
-  void setCharges(std::vector<float> &charges);
+      const std::vector<std::vector<double>> &coordinatesCharges);
+  void setCoordinatesCharges(const std::vector<double> &coordinatesCharges);
+  void setCoordinates(const std::vector<double3> &coordinates);
+  void setCoordinates(const std::vector<std::vector<double>> &coordinates);
+  void setCoordinates(const std::vector<double> &coordinates);
+  void setCoordinates(const std::shared_ptr<Coordinates> crd);
+  void setCharges(const std::vector<double> &charges);
 
-public: // Getters
-  int getNumAtoms(void) const;
-  const CudaContainer<float4> &getCoordinatesChargesSP(void) const;
-  const CudaContainer<double4> &getCoordinatesChargesDP(void) const;
+  void setVelocitiesInverseMasses(
+      const std::vector<double4> &velocitiesInverseMasses);
+  void setVelocitiesInverseMasses(
+      const std::vector<std::vector<double>> &velocitiesInverseMasses);
+  void setVelocitiesInverseMasses(
+      const std::vector<double> &velocitiesInverseMasses);
+  void setVelocities(const std::vector<double3> &velocities);
+  void setVelocities(const std::vector<std::vector<double>> &velocities);
+  void setVelocities(const std::vector<double> &velocities);
+  void setVelocitiesFromCHARMMVelocityFile(const std::string &fileName);
+  void setMasses(const std::vector<double> &masses);
 
-  CudaContainer<float4> &getCoordinatesChargesSP(void);
-  CudaContainer<double4> &getCoordinatesChargesDP(void);
-  std::vector<std::vector<double>> getCoordinates(void);
-
-public: // Specialized function
-public:
-  CudaContainer<double4> &getCoordinatesCharges(void);
-  const CudaContainer<float4> &getXYZQ(void) const;
-  CudaContainer<float4> &getXYZQ(void);
-
-public:
-  void setTemperature(const float temperature);
-  float getTemperature(void) const;
-  float computeTemperature(void);
-
-public:
+  void setTemperature(const double temperature);
   void setPeriodicBoundaryCondition(const PBC pbc);
-  PBC getPeriodicBoundaryCondition(void) const;
-  const std::vector<double> &getBoxDimensions(void) const;
-  std::vector<double> &getBoxDimensions(void);
   void setBoxDimensions(const std::vector<double> &boxDimensions);
-  double getVolume(void) const;
+  void setRandomSeed(const std::uint64_t randomSeed);
+  void useHolonomicConstraints(const bool usingHolonomicConstraints);
 
-public: // ForceManager setters and getters
   void setKappa(const float kappa);
   void setCutoff(const float cutoff);
   void setCtonnb(const float ctonnb);
@@ -82,6 +79,25 @@ public: // ForceManager setters and getters
   void setPmeSplineOrder(const int pmeSplineOrder);
   void setVdwType(const int vdwType);
 
+public: // Getters
+  int getNumAtoms(void) const;
+  int getNumDegreesOfFreedom(void) const;
+  const CudaContainer<float4> &getCoordinatesChargesSP(void) const;
+  const CudaContainer<double4> &getCoordinatesChargesDP(void) const;
+  const CudaContainer<double4> &getVelocitiesInverseMasses(void) const;
+  double getTemperature(void) const;
+  PBC getPeriodicBoundaryCondition(void) const;
+  const std::vector<double> &getBoxDimensions(void) const;
+  std::uint64_t getRandomSeed(void) const;
+  bool usingHolonomicConstraints(void) const;
+  double getVolume(void) const;
+  const CudaContainer<double> &getPressure(void) const;
+
+  const std::vector<Bond> &getBonds(void) const;
+  const CudaContainer<int4> &getWaterMolecules(void) const;
+  const CudaContainer<int4> &getShakeAtoms(void) const;
+  const CudaContainer<float4> &getShakeParams(void) const;
+
   float getKappa(void) const;
   float getCutoff(void) const;
   float getCtonnb(void) const;
@@ -89,65 +105,45 @@ public: // ForceManager setters and getters
   std::vector<int> getFFTGrid(void) const;
   int getPmeSplineOrder(void) const;
   int getVdwType(void) const;
+  int getForceStride(void) const;
 
-public:
-  void setMasses(const char *fileName);
-  void setMasses(const std::vector<double> &masses);
-  void setNumAtoms(const int numAtoms);
-
-public:
-  void assignVelocitiesAtTemperature(const float temperature);
-  void assignVelocitiesFromCHARMMVelocityFile(const std::string &fileName);
-  void assignVelocities(const std::vector<double> &velocities);
-  void assignVelocities(const std::vector<std::vector<double>> &velocities);
-  void setRandomSeedForVelocities(const std::uint64_t randomSeed);
-  std::uint64_t getRandomSeedForVelocities(void) const;
-  void removeCenterOfMassMotion(void);
-  CudaContainer<double4> &getVelocityMass(void);
-
-public:
-  void calculateKineticEnergy(void);
+  CudaContainer<float4> &getCoordinatesChargesSP(void);
+  CudaContainer<double4> &getCoordinatesChargesDP(void);
+  CudaContainer<double4> &getVelocitiesInverseMasses(void);
+  std::vector<double> &getBoxDimensions(void);
   double getKineticEnergy(void);
-  CudaContainer<double> getKineticEnergy_(void);
+  CudaContainer<double> &getPressure(void);
 
-public:
+  std::shared_ptr<CharmmPSF> getPsf(void);
+  std::shared_ptr<CharmmParameters> getPrm(void);
+  std::shared_ptr<ForceManager> getForceManager(void);
+
+  CudaContainer<double> &getPotentialEnergy(void);
+  float getPotentialEnergies(void);
+  std::shared_ptr<Force<double>> getForces(void);
+  CudaContainer<double> &getVirial(void);
+
+  std::vector<Bond> &getBonds(void);
+  CudaContainer<int4> &getWaterMolecules(void);
+  CudaContainer<int4> &getShakeAtoms(void);
+  CudaContainer<float4> &getShakeParams(void);
+
+public: // Specialized functions
+  void assignVelocitiesAtTemperature(const double temperature);
+
+  double computeTemperature(void);
+  void computePressure(void);
+
+  void imageCentering(void);
   void resetNeighborList(void);
+
+  void calculateKineticEnergy(void);
   void calculatePotentialEnergy(const bool reset = false,
                                 const bool print = false);
   void calculateForces(bool reset = false, bool calcEnergy = false,
                        bool calcVirial = false);
-  float getPotentialEnergies(void);
-  CudaContainer<double> &getPotentialEnergy(void);
-  std::shared_ptr<Force<double>> getForces(void);
-  CudaContainer<double> &getVirial(void);
-  int getForceStride(void) const;
-  int *get_loc2glo(void) const;
 
-public:
-  void computePressure(void);
-  CudaContainer<double> getPressure(void) const;
-
-public:
-  std::vector<Bond> getBonds(void);
-  int getDegreesOfFreedom(void) const;
-  int getNumDegreesOfFreedom(void) const;
-  CudaContainer<int4> getWaterMolecules(void);
-  CudaContainer<int4> getShakeAtoms(void);
-  CudaContainer<float4> getShakeParams(void);
-  void useHolonomicConstraints(const bool useConstraints);
-  bool isUsingHolonomicConstraints(void) const;
-
-public:
-  void imageCentering(void);
-  void orient(void);
-  void setPsf(std::shared_ptr<CharmmPSF> psf);
-  void setPrm(std::shared_ptr<CharmmParameters> prm);
-  void setForceManager(std::shared_ptr<ForceManager> forceManager);
-  std::shared_ptr<ForceManager> getForceManager(void);
-  std::shared_ptr<CharmmPSF> getPsf(void) const;
-  std::shared_ptr<CharmmParameters> getPrm(void) const;
   void linkBackForceManager(void);
-  void writeCrd(std::string fileName);
 
 protected:
   void syncStateFromForceManager(void);
@@ -156,9 +152,12 @@ protected:
   bool hasCompleteForceManagerState(void) const;
   void initializeForceManagerIfReady(void);
 
-  void requirePsf(const std::string &functionName) const;
-  void requireForceManager(const std::string &functionName) const;
-  void requireInitializedForceManager(const std::string &functionName) const;
+  void requirePsf(const std::string_view functionName) const;
+  void requireForceManager(const std::string_view functionName) const;
+  void
+  requireInitializedForceManager(const std::string_view functionName) const;
+
+  void finalizeSetupIfReady(void);
 
 protected:
   std::uint64_t m_RandomSeed;
@@ -178,12 +177,14 @@ protected:
 
   CudaContainer<float4> m_CoordinatesChargesSP;
   CudaContainer<double4> m_CoordinatesChargesDP;
+  bool m_HasCoordinates;
+
   CudaContainer<double4> m_VelocitiesInverseMasses;
 
   CudaContainer<double> m_KineticEnergy;
   CudaContainer<double> m_Pressure;
   CudaContainer<double> m_VirialKineticEnergyTensor;
 
-  float m_Temperature;
+  double m_Temperature;
   bool m_UsingHolonomicConstraints;
 };

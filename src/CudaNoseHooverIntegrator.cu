@@ -192,7 +192,7 @@ CudaContainer<double> &CudaNoseHooverIntegrator::getAverageTemperature(void) {
 }
 
 double CudaNoseHooverIntegrator::getInstantaneousTemperature(void) {
-  const double ndegf = static_cast<double>(m_Context->getDegreesOfFreedom());
+  const double ndegf = static_cast<double>(m_Context->getNumDegreesOfFreedom());
   m_KineticEnergy.transferToHost();
   if (m_UsingOldTemperature)
     return (m_KineticEnergy[1] / (0.5 * ndegf * charmm::constants::kBoltz));
@@ -293,8 +293,8 @@ void CudaNoseHooverIntegrator::initialize(void) {
     m_NoseHooverPistonMass.setToValue(this->computeNoseHooverPistonMass());
 
   double4 *coordsCharges =
-      m_Context->getCoordinatesCharges().getDeviceArray().data();
-  float4 *xyzq = m_Context->getXYZQ().getDeviceArray().data();
+      m_Context->getCoordinatesChargesDP().getDeviceArray().data();
+  float4 *xyzq = m_Context->getCoordinatesChargesSP().getDeviceArray().data();
 
   if (m_UsingHolonomicConstraints) {
     copy_DtoD_async<double4>(coordsCharges, m_CoordsRef.getDeviceArray().data(),
@@ -316,7 +316,8 @@ void CudaNoseHooverIntegrator::initialize(void) {
 
   m_Context->calculateForces();
 
-  double4 *velMass = m_Context->getVelocityMass().getDeviceArray().data();
+  double4 *velMass =
+      m_Context->getVelocitiesInverseMasses().getDeviceArray().data();
   double *forces = m_Context->getForces()->xyz();
   const int forceStride = m_Context->getForceStride();
 
@@ -522,11 +523,11 @@ void CudaNoseHooverIntegrator::initializeFromRestartFile(
   m_TotNumSteps = NPRIV;
   m_NumSteps = NSTEP;
   m_CurrentPropagatedStep = CudaIntegrator::wrapCurrentPropagatedStep(NPRIV);
-  if (NDEGF != m_Context->getDegreesOfFreedom()) {
+  if (NDEGF != m_Context->getNumDegreesOfFreedom()) {
     std::cout << "WARNING: NDEGF mismatch in restart file \"" << rstFileName
               << "\"\n";
     std::cout << "RST: " << NDEGF << '\n';
-    std::cout << "CTX: " << m_Context->getDegreesOfFreedom() << std::endl;
+    std::cout << "CTX: " << m_Context->getNumDegreesOfFreedom() << std::endl;
   }
 
   // Skip ENERGIES and STATISTICS section
@@ -601,18 +602,18 @@ void CudaNoseHooverIntegrator::initializeFromRestartFile(
   }
 
   for (int i = 0; i < NATOM; i++) {
-    m_Context->getCoordinatesCharges()[i].x = XOLD[i];
-    m_Context->getCoordinatesCharges()[i].y = YOLD[i];
-    m_Context->getCoordinatesCharges()[i].z = ZOLD[i];
-    m_Context->getVelocityMass()[i].x = VX[i];
-    m_Context->getVelocityMass()[i].y = VY[i];
-    m_Context->getVelocityMass()[i].z = VZ[i];
+    m_Context->getCoordinatesChargesDP()[i].x = XOLD[i];
+    m_Context->getCoordinatesChargesDP()[i].y = YOLD[i];
+    m_Context->getCoordinatesChargesDP()[i].z = ZOLD[i];
+    m_Context->getVelocitiesInverseMasses()[i].x = VX[i];
+    m_Context->getVelocitiesInverseMasses()[i].y = VY[i];
+    m_Context->getVelocitiesInverseMasses()[i].z = VZ[i];
     m_CoordsDeltaPrevious[i].x = X[i];
     m_CoordsDeltaPrevious[i].y = Y[i];
     m_CoordsDeltaPrevious[i].z = Z[i];
   }
-  m_Context->getCoordinatesCharges().transferToDevice();
-  m_Context->getVelocityMass().transferToDevice();
+  m_Context->getCoordinatesChargesDP().transferToDevice();
+  m_Context->getVelocitiesInverseMasses().transferToDevice();
   m_CoordsDeltaPrevious.transferToDevice();
 
   {
@@ -620,8 +621,8 @@ void CudaNoseHooverIntegrator::initializeFromRestartFile(
     const int numBlocks = (NATOM + numThreads - 1) / numThreads;
     UpdateSinglePrecisionCoordinatesKernel<<<numBlocks, numThreads, 0,
                                              *m_IntegratorStream>>>(
-        m_Context->getXYZQ().getDeviceArray().data(),
-        m_Context->getCoordinatesCharges().getDeviceArray().data(), NATOM);
+        m_Context->getCoordinatesChargesSP().getDeviceArray().data(),
+        m_Context->getCoordinatesChargesDP().getDeviceArray().data(), NATOM);
     cudaCheck(cudaGetLastError());
     cudaCheck(cudaStreamSynchronize(*m_IntegratorStream));
   }
@@ -863,16 +864,17 @@ UpdateAverageTemperatureKernel(double *__restrict__ averageTemperature,
 }
 
 void CudaNoseHooverIntegrator::propagateOneStep(void) {
-  const int numDegreesOfFreedom = m_Context->getDegreesOfFreedom();
+  const int numDegreesOfFreedom = m_Context->getNumDegreesOfFreedom();
   const double referenceKineticEnergy =
       0.5 * static_cast<double>(numDegreesOfFreedom) *
       charmm::constants::kBoltz * m_ReferenceTemperature;
 
   const int numAtoms = m_Context->getNumAtoms();
   double4 *coordsCharges =
-      m_Context->getCoordinatesCharges().getDeviceArray().data();
-  float4 *xyzq = m_Context->getXYZQ().getDeviceArray().data();
-  double4 *velMass = m_Context->getVelocityMass().getDeviceArray().data();
+      m_Context->getCoordinatesChargesDP().getDeviceArray().data();
+  float4 *xyzq = m_Context->getCoordinatesChargesSP().getDeviceArray().data();
+  double4 *velMass =
+      m_Context->getVelocitiesInverseMasses().getDeviceArray().data();
   const int forceStride = m_Context->getForceStride();
   double *forces = m_Context->getForces()->xyz();
 
@@ -1047,7 +1049,7 @@ double CudaNoseHooverIntegrator::computeNoseHooverPistonMass(void) {
   if (m_Context == nullptr)
     return -9999.9999;
 
-  CudaContainer<double4> velMass = m_Context->getVelocityMass();
+  CudaContainer<double4> velMass = m_Context->getVelocitiesInverseMasses();
   velMass.transferToHost();
 
   double totalMass = 0.0;
@@ -1062,7 +1064,7 @@ void CudaNoseHooverIntegrator::removeCenterOfMassMotion(void) {
 
   const PBC pbc = m_Context->getForceManager()->getPeriodicBoundaryCondition();
   const int numAtoms = m_Context->getNumAtoms();
-  CudaContainer<double4> &velMass = m_Context->getVelocityMass();
+  CudaContainer<double4> &velMass = m_Context->getVelocitiesInverseMasses();
 
   velMass.transferToHost();
   m_CoordsDeltaPrevious.transferToHost();

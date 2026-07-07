@@ -40,11 +40,12 @@ void XYZSubscriber::update(void) {
   //   m_FileStream << i << "\t" << xyzq[i].x << "\t" << xyzq[i].y << "\t"
   //                << xyzq[i].z << std::endl;
   // }
-  m_CharmmContext->getXYZQ().transferToHost();
+  m_CharmmContext->getCoordinatesChargesSP().transferToHost();
   for (int i = 0; i < m_CharmmContext->getNumAtoms(); i++) {
-    m_FileStream << i << "\t" << m_CharmmContext->getXYZQ()[i].x << "\t"
-                 << m_CharmmContext->getXYZQ()[i].y << "\t"
-                 << m_CharmmContext->getXYZQ()[i].z << std::endl;
+    m_FileStream << i << "\t" << m_CharmmContext->getCoordinatesChargesSP()[i].x
+                 << "\t" << m_CharmmContext->getCoordinatesChargesSP()[i].y
+                 << "\t" << m_CharmmContext->getCoordinatesChargesSP()[i].z
+                 << std::endl;
   }
 
   m_NumFramesWritten++;

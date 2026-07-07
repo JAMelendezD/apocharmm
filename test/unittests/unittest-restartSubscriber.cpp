@@ -60,7 +60,7 @@ std::shared_ptr<CharmmContext> CreateContext(const bool assignVelocities) {
   ctx->useHolonomicConstraints(false);
 
   if (assignVelocities == true) {
-    ctx->setRandomSeedForVelocities(RANDOM_SEED);
+    ctx->setRandomSeed(RANDOM_SEED);
     ctx->assignVelocitiesAtTemperature(REFERENCE_TEMPERATURE);
   }
 
@@ -143,12 +143,14 @@ void CheckCharmmContextStateMatches(
     const std::shared_ptr<CharmmContext> &ctx2) {
   apo_test::CheckVectorsClose<double4>(
       "Coordinates/charges",
-      apo_test::CopyToHost<double4>(ctx1->getCoordinatesCharges()),
-      apo_test::CopyToHost<double4>(ctx2->getCoordinatesCharges()), TOLERANCE);
+      apo_test::CopyToHost<double4>(ctx1->getCoordinatesChargesDP()),
+      apo_test::CopyToHost<double4>(ctx2->getCoordinatesChargesDP()),
+      TOLERANCE);
   apo_test::CheckVectorsClose<double4>(
       "Velocities/masses",
-      apo_test::CopyToHost<double4>(ctx1->getVelocityMass()),
-      apo_test::CopyToHost<double4>(ctx2->getVelocityMass()), TOLERANCE);
+      apo_test::CopyToHost<double4>(ctx1->getVelocitiesInverseMasses()),
+      apo_test::CopyToHost<double4>(ctx2->getVelocitiesInverseMasses()),
+      TOLERANCE);
   apo_test::CheckVectorsClose<double>("Box dimensions",
                                       ctx1->getBoxDimensions(),
                                       ctx2->getBoxDimensions(), TOLERANCE);

@@ -87,7 +87,7 @@ void CudaIntegrator::setCharmmContext(std::shared_ptr<CharmmContext> ctx) {
   m_CoordsRef.resize(m_Context->getNumAtoms());
   m_CoordsDelta.resize(m_Context->getNumAtoms());
   m_CoordsDeltaPrevious.resize(m_Context->getNumAtoms());
-  m_UsingHolonomicConstraints = m_Context->isUsingHolonomicConstraints();
+  m_UsingHolonomicConstraints = m_Context->usingHolonomicConstraints();
   if (m_UsingHolonomicConstraints) {
     m_HolonomicConstraint = std::make_shared<CudaHolonomicConstraint>();
     m_HolonomicConstraint->setCharmmContext(ctx);

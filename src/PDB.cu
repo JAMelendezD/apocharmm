@@ -70,7 +70,7 @@ void PDB::readPDBFile(const std::string &fileName) {
   }
 
   std::getline(pdbFile, line);
-  std::vector<float4> tmp;
+  std::vector<float3> tmp;
   while (line.size() != 0) {
     if (line.find("ATOM") == 0 || line.find("HETATM") == 0) {
       // std::cout << line << "\n";
@@ -78,17 +78,17 @@ void PDB::readPDBFile(const std::string &fileName) {
       const float x = std::stof(content[4]);
       const float y = std::stof(content[5]);
       const float z = std::stof(content[6]);
-      tmp.push_back(make_float4(x, y, z, 0.0f));
+      tmp.push_back(make_float3(x, y, z));
     }
     std::getline(pdbFile, line);
   }
 
   this->setNumAtoms(tmp.size());
   for (int i = 0; i < m_NumAtoms; i++) {
-    m_CoordinatesD[i] = make_double4(static_cast<double>(tmp[i].x),
-                                     static_cast<double>(tmp[i].y),
-                                     static_cast<double>(tmp[i].z), 0.0f);
-    m_CoordinatesF[i] = tmp[i];
+    m_CoordinatesDP[i] = make_double3(static_cast<double>(tmp[i].x),
+                                      static_cast<double>(tmp[i].y),
+                                      static_cast<double>(tmp[i].z));
+    m_CoordinatesSP[i] = tmp[i];
   }
 
   return;

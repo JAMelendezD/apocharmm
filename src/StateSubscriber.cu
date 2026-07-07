@@ -55,7 +55,8 @@ void StateSubscriber::update(void) {
   Convert it into cm^3
   Dive the converted values by each other m/v
   */
-  CudaContainer<double4> velmassCC = m_CharmmContext->getVelocityMass();
+  CudaContainer<double4> velmassCC =
+      m_CharmmContext->getVelocitiesInverseMasses();
   velmassCC.transferFromDevice();
   std::vector<double4> velmass = velmassCC.getHostArray();
   double densityMass = 0.0;

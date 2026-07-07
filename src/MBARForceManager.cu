@@ -82,8 +82,9 @@ void MBARForceManager::setSelectorVec(const std::vector<float> &lambdas) {
         "MBARForceManager::setSelectorVec: CharmmContext is not set");
   }
 
-  float4 *xyzq = ctx->getXYZQ().getDeviceArray().data();
-  double4 *coordsCharge = ctx->getCoordinatesCharges().getDeviceArray().data();
+  float4 *xyzq = ctx->getCoordinatesChargesSP().getDeviceArray().data();
+  double4 *coordsCharge =
+      ctx->getCoordinatesChargesDP().getDeviceArray().data();
 
   updateChargeInCharmmContext<<<numBlocks, numThreads>>>(
       charges.size(), d_charges, xyzq, coordsCharge);

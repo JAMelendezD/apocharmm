@@ -203,8 +203,9 @@ void DcdSubscriber::writeCoordData(void) {
   // const std::shared_ptr<std::vector<float4>> ptr =
   //     m_CharmmContext->getXYZQ()->getHostXYZQ();
   // const float4 *xyzq = (*ptr).data();
-  m_CharmmContext->getXYZQ().transferToHost();
-  const float4 *xyzq = m_CharmmContext->getXYZQ().getHostArray().data();
+  m_CharmmContext->getCoordinatesChargesSP().transferToHost();
+  const float4 *xyzq =
+      m_CharmmContext->getCoordinatesChargesSP().getHostArray().data();
   const int numAtoms = m_CharmmContext->getNumAtoms();
   const int blockSizeBytes = numAtoms * static_cast<int>(sizeof(float));
 

@@ -23,76 +23,72 @@ TEST_CASE("CoordinatesDefaultConstructor") {
   Coordinates coordinates;
 
   CHECK(coordinates.getNumAtoms() == -1);
-  CHECK(coordinates.getCoordinatesD().empty() == true);
-  CHECK(coordinates.getCoordinatesF().empty() == true);
+  CHECK(coordinates.getCoordinatesDP().empty() == true);
+  CHECK(coordinates.getCoordinatesSP().empty() == true);
 }
 
 TEST_CASE("CoordinatesFromDouble3Vector") {
   const std::vector<double3> input = {
       {1.25, -2.5, 3.75}, {0.0, 4.5, -6.25}, {-7.125, 8.0, 9.5}};
-  const std::vector<double4> expectedD = {
-      {1.25, -2.5, 3.75, 0.0}, {0.0, 4.5, -6.25, 0.0}, {-7.125, 8.0, 9.5, 0.0}};
-  const std::vector<float4> expectedF = {{1.25f, -2.5f, 3.75f, 0.0f},
-                                         {0.0f, 4.5f, -6.25f, 0.0f},
-                                         {-7.125f, 8.0f, 9.5f, 0.0f}};
+  const std::vector<double3> expectedDP = {
+      {1.25, -2.5, 3.75}, {0.0, 4.5, -6.25}, {-7.125, 8.0, 9.5}};
+  const std::vector<float3> expectedSP = {
+      {1.25f, -2.5f, 3.75f}, {0.0f, 4.5f, -6.25f}, {-7.125f, 8.0f, 9.5f}};
 
   Coordinates coordinates(input);
 
-  apo_test::CheckVectorsClose<double4>(coordinates.getCoordinatesD(),
-                                             expectedD, DOUBLE_TOLERANCE);
-  apo_test::CheckVectorsClose<float4>(coordinates.getCoordinatesF(),
-                                            expectedF, FLOAT_TOLERANCE);
+  apo_test::CheckVectorsClose<double3>(coordinates.getCoordinatesDP(),
+                                       expectedDP, DOUBLE_TOLERANCE);
+  apo_test::CheckVectorsClose<float3>(coordinates.getCoordinatesSP(),
+                                      expectedSP, FLOAT_TOLERANCE);
 }
 
 TEST_CASE("CoordinatesFromFloat3Vector") {
   const std::vector<float3> input = {
       {1.25f, -2.5f, 3.75f}, {0.0f, 4.5f, -6.25f}, {-7.125f, 8.0f, 9.5f}};
-  const std::vector<double4> expectedD = {
-      {1.25, -2.5, 3.75, 0.0}, {0.0, 4.5, -6.25, 0.0}, {-7.125, 8.0, 9.5, 0.0}};
-  const std::vector<float4> expectedF = {{1.25f, -2.5f, 3.75f, 0.0f},
-                                         {0.0f, 4.5f, -6.25f, 0.0f},
-                                         {-7.125f, 8.0f, 9.5f, 0.0f}};
+  const std::vector<double3> expectedDP = {
+      {1.25, -2.5, 3.75}, {0.0, 4.5, -6.25}, {-7.125, 8.0, 9.5}};
+  const std::vector<float3> expectedSP = {
+      {1.25f, -2.5f, 3.75f}, {0.0f, 4.5f, -6.25f}, {-7.125f, 8.0f, 9.5f}};
 
   Coordinates coordinates(input);
 
-  apo_test::CheckVectorsClose<double4>(coordinates.getCoordinatesD(),
-                                             expectedD, DOUBLE_TOLERANCE);
-  apo_test::CheckVectorsClose<float4>(coordinates.getCoordinatesF(),
-                                            expectedF, FLOAT_TOLERANCE);
+  apo_test::CheckVectorsClose<double3>(coordinates.getCoordinatesDP(),
+                                       expectedDP, DOUBLE_TOLERANCE);
+  apo_test::CheckVectorsClose<float3>(coordinates.getCoordinatesSP(),
+                                      expectedSP, FLOAT_TOLERANCE);
 }
 
 TEST_CASE("CoordinatesFromDoubleNestedVector") {
   const std::vector<std::vector<double>> input = {
       {1.25, -2.5, 3.75}, {0.0, 4.5, -6.25}, {-7.125, 8.0, 9.5}};
-  const std::vector<double4> expectedD = {
-      {1.25, -2.5, 3.75, 0.0}, {0.0, 4.5, -6.25, 0.0}, {-7.125, 8.0, 9.5, 0.0}};
-  const std::vector<float4> expectedF = {{1.25f, -2.5f, 3.75f, 0.0f},
-                                         {0.0f, 4.5f, -6.25f, 0.0f},
-                                         {-7.125f, 8.0f, 9.5f, 0.0f}};
+  const std::vector<double3> expectedDP = {
+      {1.25, -2.5, 3.75}, {0.0, 4.5, -6.25}, {-7.125, 8.0, 9.5}};
+  const std::vector<float3> expectedSP = {
+      {1.25f, -2.5f, 3.75f}, {0.0f, 4.5f, -6.25f}, {-7.125f, 8.0f, 9.5f}};
 
   Coordinates coordinates(input);
 
-  apo_test::CheckVectorsClose<double4>(coordinates.getCoordinatesD(),
-                                             expectedD, DOUBLE_TOLERANCE);
-  apo_test::CheckVectorsClose<float4>(coordinates.getCoordinatesF(),
-                                            expectedF, FLOAT_TOLERANCE);
+  apo_test::CheckVectorsClose<double3>(coordinates.getCoordinatesDP(),
+                                       expectedDP, DOUBLE_TOLERANCE);
+  apo_test::CheckVectorsClose<float3>(coordinates.getCoordinatesSP(),
+                                      expectedSP, FLOAT_TOLERANCE);
 }
 
 TEST_CASE("CoordinatesFromFloatNestedVector") {
   const std::vector<std::vector<float>> input = {
       {1.25f, -2.5f, 3.75f}, {0.0f, 4.5f, -6.25f}, {-7.125f, 8.0f, 9.5f}};
-  const std::vector<double4> expectedD = {
-      {1.25, -2.5, 3.75, 0.0}, {0.0, 4.5, -6.25, 0.0}, {-7.125, 8.0, 9.5, 0.0}};
-  const std::vector<float4> expectedF = {{1.25f, -2.5f, 3.75f, 0.0f},
-                                         {0.0f, 4.5f, -6.25f, 0.0f},
-                                         {-7.125f, 8.0f, 9.5f, 0.0f}};
+  const std::vector<double3> expectedDP = {
+      {1.25, -2.5, 3.75}, {0.0, 4.5, -6.25}, {-7.125, 8.0, 9.5}};
+  const std::vector<float3> expectedSP = {
+      {1.25f, -2.5f, 3.75f}, {0.0f, 4.5f, -6.25f}, {-7.125f, 8.0f, 9.5f}};
 
   Coordinates coordinates(input);
 
-  apo_test::CheckVectorsClose<double4>(coordinates.getCoordinatesD(),
-                                             expectedD, DOUBLE_TOLERANCE);
-  apo_test::CheckVectorsClose<float4>(coordinates.getCoordinatesF(),
-                                            expectedF, FLOAT_TOLERANCE);
+  apo_test::CheckVectorsClose<double3>(coordinates.getCoordinatesDP(),
+                                       expectedDP, DOUBLE_TOLERANCE);
+  apo_test::CheckVectorsClose<float3>(coordinates.getCoordinatesSP(),
+                                      expectedSP, FLOAT_TOLERANCE);
 }
 
 TEST_CASE("CoordinatesEmptyInputVectors") {
@@ -101,8 +97,8 @@ TEST_CASE("CoordinatesEmptyInputVectors") {
     Coordinates coordinates(input);
 
     CHECK(coordinates.getNumAtoms() == 0);
-    CHECK(coordinates.getCoordinatesD().empty() == true);
-    CHECK(coordinates.getCoordinatesF().empty() == true);
+    CHECK(coordinates.getCoordinatesDP().empty() == true);
+    CHECK(coordinates.getCoordinatesSP().empty() == true);
   }
 
   SECTION("EmptyFloat3Vector") {
@@ -110,8 +106,8 @@ TEST_CASE("CoordinatesEmptyInputVectors") {
     Coordinates coordinates(input);
 
     CHECK(coordinates.getNumAtoms() == 0);
-    CHECK(coordinates.getCoordinatesD().empty() == true);
-    CHECK(coordinates.getCoordinatesF().empty() == true);
+    CHECK(coordinates.getCoordinatesDP().empty() == true);
+    CHECK(coordinates.getCoordinatesSP().empty() == true);
   }
 
   SECTION("EmptyDoubleNestedVector") {
@@ -119,8 +115,8 @@ TEST_CASE("CoordinatesEmptyInputVectors") {
     Coordinates coordinates(input);
 
     CHECK(coordinates.getNumAtoms() == 0);
-    CHECK(coordinates.getCoordinatesD().empty() == true);
-    CHECK(coordinates.getCoordinatesF().empty() == true);
+    CHECK(coordinates.getCoordinatesDP().empty() == true);
+    CHECK(coordinates.getCoordinatesSP().empty() == true);
   }
 
   SECTION("EmptyFloatNestedVector") {
@@ -128,8 +124,8 @@ TEST_CASE("CoordinatesEmptyInputVectors") {
     Coordinates coordinates(input);
 
     CHECK(coordinates.getNumAtoms() == 0);
-    CHECK(coordinates.getCoordinatesD().empty() == true);
-    CHECK(coordinates.getCoordinatesF().empty() == true);
+    CHECK(coordinates.getCoordinatesDP().empty() == true);
+    CHECK(coordinates.getCoordinatesSP().empty() == true);
   }
 }
 
@@ -139,58 +135,54 @@ TEST_CASE("CoordinatesSetNumAtoms") {
   coordinates.setNumAtoms(3);
 
   CHECK(coordinates.getNumAtoms() == 3);
-  CHECK(coordinates.getCoordinatesD().size() == 3);
-  CHECK(coordinates.getCoordinatesF().size() == 3);
+  CHECK(coordinates.getCoordinatesDP().size() == 3);
+  CHECK(coordinates.getCoordinatesSP().size() == 3);
 
   coordinates.setNumAtoms(1);
 
   CHECK(coordinates.getNumAtoms() == 1);
-  CHECK(coordinates.getCoordinatesD().size() == 1);
-  CHECK(coordinates.getCoordinatesF().size() == 1);
+  CHECK(coordinates.getCoordinatesDP().size() == 1);
+  CHECK(coordinates.getCoordinatesSP().size() == 1);
 
   coordinates.setNumAtoms(0);
 
   CHECK(coordinates.getNumAtoms() == 0);
-  CHECK(coordinates.getCoordinatesD().empty() == true);
-  CHECK(coordinates.getCoordinatesF().empty() == true);
+  CHECK(coordinates.getCoordinatesDP().empty() == true);
+  CHECK(coordinates.getCoordinatesSP().empty() == true);
 }
 
 TEST_CASE("CoordinatesMutableGetters") {
   Coordinates coordinates;
   coordinates.setNumAtoms(2);
 
-  std::vector<double4> &coordinatesD = coordinates.getCoordinatesD();
-  std::vector<float4> &coordinatesF = coordinates.getCoordinatesF();
+  std::vector<double3> &coordinatesDP = coordinates.getCoordinatesDP();
+  std::vector<float3> &coordinatesSP = coordinates.getCoordinatesSP();
 
-  coordinatesD[0] = {1.0, 2.0, 3.0, 4.0};
-  coordinatesD[1] = {-1.0, -2.0, -3.0, -4.0};
-  coordinatesF[0] = {5.0f, 6.0f, 7.0f, 8.0f};
-  coordinatesF[1] = {-5.0f, -6.0f, -7.0f, -8.0f};
+  coordinatesDP[0] = {1.0, 2.0, 3.0};
+  coordinatesDP[1] = {-1.0, -2.0, -3.0};
+  coordinatesSP[0] = {5.0f, 6.0f, 7.0f};
+  coordinatesSP[1] = {-5.0f, -6.0f, -7.0f};
 
   const Coordinates &constCoordinates = coordinates;
-  const std::vector<double4> &constCoordinatesD =
-      constCoordinates.getCoordinatesD();
-  const std::vector<float4> &constCoordinatesF =
-      constCoordinates.getCoordinatesF();
+  const std::vector<double3> &constCoordinatesDP =
+      constCoordinates.getCoordinatesDP();
+  const std::vector<float3> &constCoordinatesSP =
+      constCoordinates.getCoordinatesSP();
 
-  REQUIRE(constCoordinatesD.size() == 2);
-  REQUIRE(constCoordinatesF.size() == 2);
+  REQUIRE(constCoordinatesDP.size() == 2);
+  REQUIRE(constCoordinatesSP.size() == 2);
 
-  CHECK(constCoordinatesD[0].x == Approx(1.0));
-  CHECK(constCoordinatesD[0].y == Approx(2.0));
-  CHECK(constCoordinatesD[0].z == Approx(3.0));
-  CHECK(constCoordinatesD[0].w == Approx(4.0));
-  CHECK(constCoordinatesD[1].x == Approx(-1.0));
-  CHECK(constCoordinatesD[1].y == Approx(-2.0));
-  CHECK(constCoordinatesD[1].z == Approx(-3.0));
-  CHECK(constCoordinatesD[1].w == Approx(-4.0));
+  CHECK(constCoordinatesDP[0].x == Approx(1.0));
+  CHECK(constCoordinatesDP[0].y == Approx(2.0));
+  CHECK(constCoordinatesDP[0].z == Approx(3.0));
+  CHECK(constCoordinatesDP[1].x == Approx(-1.0));
+  CHECK(constCoordinatesDP[1].y == Approx(-2.0));
+  CHECK(constCoordinatesDP[1].z == Approx(-3.0));
 
-  CHECK(constCoordinatesF[0].x == Approx(5.0f));
-  CHECK(constCoordinatesF[0].y == Approx(6.0f));
-  CHECK(constCoordinatesF[0].z == Approx(7.0f));
-  CHECK(constCoordinatesF[0].w == Approx(8.0f));
-  CHECK(constCoordinatesF[1].x == Approx(-5.0f));
-  CHECK(constCoordinatesF[1].y == Approx(-6.0f));
-  CHECK(constCoordinatesF[1].z == Approx(-7.0f));
-  CHECK(constCoordinatesF[1].w == Approx(-8.0f));
+  CHECK(constCoordinatesSP[0].x == Approx(5.0f));
+  CHECK(constCoordinatesSP[0].y == Approx(6.0f));
+  CHECK(constCoordinatesSP[0].z == Approx(7.0f));
+  CHECK(constCoordinatesSP[1].x == Approx(-5.0f));
+  CHECK(constCoordinatesSP[1].y == Approx(-6.0f));
+  CHECK(constCoordinatesSP[1].z == Approx(-7.0f));
 }

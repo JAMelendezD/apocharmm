@@ -83,7 +83,7 @@ def create_context(assign_velocities: bool) -> apo.CharmmContext:
     ctx.useHolonomicConstraints(False)
 
     if assign_velocities == True:
-        ctx.setRandomSeedForVelocities(RANDOM_SEED)
+        ctx.setRandomSeed(RANDOM_SEED)
         ctx.assignVelocitiesAtTemperature(REFERENCE_TEMPERATURE)
 
     return ctx

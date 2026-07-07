@@ -37,7 +37,7 @@ public:
   void setForceConstant(const double forceConstant);
   void setForceConstants(const std::vector<double> &forceConstants);
   void
-  setReferenceCoordinates(const std::vector<double4> &referenceCoordinates);
+  setReferenceCoordinates(const std::vector<double3> &referenceCoordinates);
   void setReferenceCoordinates(
       const std::vector<std::vector<double>> &referenceCoordinates);
   void setMasses(const std::vector<double> &masses);

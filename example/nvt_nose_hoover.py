@@ -27,14 +27,23 @@ def main(argc, argv):
     psf = apo.CharmmPsf("test/data/waterbox.psf")
     crd = apo.CharmmCrd("test/data/waterbox.crd")
 
-    # Setup the ForceManager
-    fm = apo.ForceManager(psf, prm)
-    fm.setBoxDimensions(box_dims)
+    ## OLD INITIALIZATION
+    ## Setup the ForceManager
+    # fm = apo.ForceManager(psf, prm)
+    # fm.setBoxDimensions(box_dims)
+    #
+    ## Setup the CharmmContext
+    # ctx = apo.CharmmContext(fm)
+    # ctx.setCoordinates(crd)
+    # ctx.setRandomSeed(random_seed)
+    # ctx.assignVelocitiesAtTemperature(temperature)
+    # ctx.useHolonomicConstraints(use_holonomic_constraints)
 
-    # Setup the CharmmContext
-    ctx = apo.CharmmContext(fm)
+    # NEW INITIALIZATION
+    ctx = apo.CharmmContext(psf, prm)
+    ctx.setBoxDimensions(box_dims)
     ctx.setCoordinates(crd)
-    ctx.setRandomSeedForVelocities(random_seed)
+    ctx.setRandomSeed(random_seed)
     ctx.assignVelocitiesAtTemperature(temperature)
     ctx.useHolonomicConstraints(use_holonomic_constraints)
 

@@ -87,8 +87,8 @@ apo_charmm_crd_get_coordinates(double *xyz, const size_t xyz_len,
             apocharmm_c::require_handle_object<apo_charmm_crd>(
                 crd, function_name, "CharmmCrd"));
 
-        const std::vector<double4> &coordinates =
-            crd->object->getCoordinatesD();
+        const std::vector<double3> &coordinates =
+            crd->object->getCoordinatesDP();
         const size_t num_atoms = coordinates.size();
         const size_t required_len = 3 * num_atoms;
 

@@ -82,10 +82,11 @@ updateSPKernel(int numAtoms, float4 *__restrict__ xyzq,
 }
 
 void CudaVelocityVerletIntegrator::propagateOneStep(void) {
-  float4 *xyzq = m_Context->getXYZQ().getDeviceArray().data();
+  float4 *xyzq = m_Context->getCoordinatesChargesSP().getDeviceArray().data();
   auto coordsCharge =
-      m_Context->getCoordinatesCharges().getDeviceArray().data();
-  auto velMass = m_Context->getVelocityMass().getDeviceArray().data();
+      m_Context->getCoordinatesChargesDP().getDeviceArray().data();
+  auto velMass =
+      m_Context->getVelocitiesInverseMasses().getDeviceArray().data();
   auto force = m_Context->getForces();
 
   int numAtoms = m_Context->getNumAtoms();
@@ -129,8 +130,8 @@ void CudaVelocityVerletIntegrator::propagateOneStep(void) {
       numAtoms, stride, m_TimeStep, xyzq, coordsCharge, velMass, force->xyz());
   cudaCheck(cudaStreamSynchronize(*m_IntegratorStream));
 
-  auto mycccc = m_Context->getCoordinatesCharges();
-  auto myccvm = m_Context->getVelocityMass();
+  auto mycccc = m_Context->getCoordinatesChargesDP();
+  auto myccvm = m_Context->getVelocitiesInverseMasses();
   mycccc.transferFromDevice();
   myccvm.transferFromDevice();
 

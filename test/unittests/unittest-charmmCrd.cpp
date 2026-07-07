@@ -22,7 +22,7 @@ constexpr double DOUBLE_TOLERANCE = 1.0e-12;
 constexpr double FLOAT_TOLERANCE = 1.0e-6;
 
 void WriteStandardCharmmCrd(const std::string &fileName,
-                            const std::vector<double4> &coords) {
+                            const std::vector<double3> &coords) {
   std::ofstream file(fileName);
   REQUIRE(file.good());
 
@@ -51,7 +51,7 @@ void WriteStandardCharmmCrd(const std::string &fileName,
 }
 
 void WriteExtendedCharmmCrd(const std::string &fileName,
-                            const std::vector<double4> &coords) {
+                            const std::vector<double3> &coords) {
   std::ofstream file(fileName);
   REQUIRE(file.good());
 
@@ -99,58 +99,56 @@ void WriteMalformedCharmmCrd(const std::string &fileName) {
 
 TEST_CASE("CharmmCrdParsesStandardFormat") {
   const std::string fileName = "tmp_charmm_crd_standard.cor";
-  const std::vector<double4> expectedD = {
-      {1.25, -2.5, 3.75, 0.0}, {0.0, 4.5, -6.25, 0.0}, {-7.125, 8.0, 9.5, 0.0}};
-  const std::vector<float4> expectedF = {{1.25f, -2.5f, 3.75f, 0.0f},
-                                         {0.0f, 4.5f, -6.25f, 0.0f},
-                                         {-7.125f, 8.0f, 9.5f, 0.0f}};
+  const std::vector<double3> expectedDP = {
+      {1.25, -2.5, 3.75}, {0.0, 4.5, -6.25}, {-7.125, 8.0, 9.5}};
+  const std::vector<float3> expectedSP = {
+      {1.25f, -2.5f, 3.75f}, {0.0f, 4.5f, -6.25f}, {-7.125f, 8.0f, 9.5f}};
 
-  WriteStandardCharmmCrd(fileName, expectedD);
+  WriteStandardCharmmCrd(fileName, expectedDP);
 
   CharmmCrd crd(fileName);
 
-  apo_test::CheckVectorsClose<double4>(crd.getCoordinatesD(), expectedD,
-                                             DOUBLE_TOLERANCE);
-  apo_test::CheckVectorsClose<float4>(crd.getCoordinatesF(), expectedF,
-                                            FLOAT_TOLERANCE);
+  apo_test::CheckVectorsClose<double3>(crd.getCoordinatesDP(), expectedDP,
+                                       DOUBLE_TOLERANCE);
+  apo_test::CheckVectorsClose<float3>(crd.getCoordinatesSP(), expectedSP,
+                                      FLOAT_TOLERANCE);
 
   apo_test::RemoveIfExists(fileName);
 }
 
 TEST_CASE("CharmmCrdParsesExtendedFormat") {
   const std::string fileName = "tmp_charmm_crd_extended.cor";
-  const std::vector<double4> expectedD = {{-10.123456789, 20.25, -30.5, 0.0},
-                                          {1000.0, -2000.5, 3000.75, 0.0},
-                                          {0.125, 0.25, 0.5, 0.0}};
-  const std::vector<float4> expectedF = {{-10.123456789f, 20.25f, -30.5f, 0.0f},
-                                         {1000.0f, -2000.5f, 3000.75f, 0.0f},
-                                         {0.125f, 0.25f, 0.5f, 0.0f}};
+  const std::vector<double3> expectedDP = {{-10.123456789, 20.25, -30.5},
+                                           {1000.0, -2000.5, 3000.75},
+                                           {0.125, 0.25, 0.5}};
+  const std::vector<float3> expectedSP = {{-10.123456789f, 20.25f, -30.5f},
+                                          {1000.0f, -2000.5f, 3000.75f},
+                                          {0.125f, 0.25f, 0.5f}};
 
-  WriteExtendedCharmmCrd(fileName, expectedD);
+  WriteExtendedCharmmCrd(fileName, expectedDP);
 
   CharmmCrd crd(fileName);
 
-  apo_test::CheckVectorsClose<double4>(crd.getCoordinatesD(), expectedD,
-                                             DOUBLE_TOLERANCE);
-  apo_test::CheckVectorsClose<float4>(crd.getCoordinatesF(), expectedF,
-                                            FLOAT_TOLERANCE);
+  apo_test::CheckVectorsClose<double3>(crd.getCoordinatesDP(), expectedDP,
+                                       DOUBLE_TOLERANCE);
+  apo_test::CheckVectorsClose<float3>(crd.getCoordinatesSP(), expectedSP,
+                                      FLOAT_TOLERANCE);
 
   apo_test::RemoveIfExists(fileName);
 }
 
 TEST_CASE("CharmmCrdParsesRepositoryNaclPair") {
   const std::string fileName = getDataPath() + "nacl_pair.cor";
-  const std::vector<double4> expectedD = {{0.0, 0.0, 0.0, 0.0},
-                                          {2.82, 2.82, 2.82, 0.0}};
-  const std::vector<float4> expectedF = {{0.0f, 0.0f, 0.0f, 0.0f},
-                                         {2.82f, 2.82f, 2.82f, 0.0f}};
+  const std::vector<double3> expectedDP = {{0.0, 0.0, 0.0}, {2.82, 2.82, 2.82}};
+  const std::vector<float3> expectedSP = {{0.0f, 0.0f, 0.0f},
+                                          {2.82f, 2.82f, 2.82f}};
 
   CharmmCrd crd(fileName);
 
-  apo_test::CheckVectorsClose<double4>(crd.getCoordinatesD(), expectedD,
-                                             DOUBLE_TOLERANCE);
-  apo_test::CheckVectorsClose<float4>(crd.getCoordinatesF(), expectedF,
-                                            FLOAT_TOLERANCE);
+  apo_test::CheckVectorsClose<double3>(crd.getCoordinatesDP(), expectedDP,
+                                       DOUBLE_TOLERANCE);
+  apo_test::CheckVectorsClose<float3>(crd.getCoordinatesSP(), expectedSP,
+                                      FLOAT_TOLERANCE);
 }
 
 TEST_CASE("CharmmCrdRejectsMissingFile") {

@@ -27,15 +27,32 @@ def main(argc, argv):
     psf = apo.CharmmPsf("test/data/nacl_pair.psf")
     crd = apo.CharmmCrd("test/data/nacl_pair.cor")
 
-    # Setup ForceManager
-    fm = apo.ForceManager(psf, prm)
-    fm.setBoxDimensions(box_dims)
+    ############################
+    #### OLD INITIALIZATION ####
+    ############################
+    ########################################################################
+    ## Setup ForceManager
+    # fm = apo.ForceManager(psf, prm)
+    # fm.setBoxDimensions(box_dims)
+    #
+    ## Setup CharmmContext
+    # ctx = apo.CharmmContext(fm)
+    # ctx.setCoordinates(crd)
+    # ctx.setRandomSeed(random_seed)
+    # ctx.assignVelocitiesAtTemperature(temperature)
+    ########################################################################
 
+    ############################
+    #### NEW INITIALIZATION ####
+    ############################
+    ########################################################################
     # Setup CharmmContext
-    ctx = apo.CharmmContext(fm)
+    ctx = apo.CharmmContext(psf, prm)
+    ctx.setBoxDimensions(box_dims)
     ctx.setCoordinates(crd)
-    ctx.setRandomSeedForVelocities(random_seed)
+    ctx.setRandomSeed(random_seed)
     ctx.assignVelocitiesAtTemperature(temperature)
+    ########################################################################
 
     # Setup integrator
     integrator = apo.CudaLangevinThermostatIntegrator(time_step)
@@ -57,6 +74,8 @@ def main(argc, argv):
     harm.setReferenceCoordinates(crd.getCoordinates())
     # harm.setMasses(psf.getMasses())
 
+    # Subscribe harmonic restraint
+    fm = ctx.getForceManager()
     fm.subscribe(harm)
 
     # Compute initial distance between Na-Cl before any dynamics

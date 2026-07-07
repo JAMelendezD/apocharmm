@@ -119,7 +119,7 @@ TEST_CASE("CudaLangevinThermostatIntegratorContextInitialization") {
   ctx->setBoxDimensions(BOX_DIMENSIONS);
   ctx->setCoordinates(crd);
   ctx->useHolonomicConstraints(false);
-  ctx->setRandomSeedForVelocities(RANDOM_SEED);
+  ctx->setRandomSeed(RANDOM_SEED);
   ctx->assignVelocitiesAtTemperature(TEMPERATURE);
 
   auto integrator =
@@ -152,7 +152,7 @@ TEST_CASE(
   ctx->setBoxDimensions(BOX_DIMENSIONS);
   ctx->setCoordinates(crd);
   ctx->useHolonomicConstraints(false);
-  ctx->setRandomSeedForVelocities(RANDOM_SEED);
+  ctx->setRandomSeed(RANDOM_SEED);
   ctx->assignVelocitiesAtTemperature(TEMPERATURE);
 
   auto integrator =
@@ -178,7 +178,7 @@ TEST_CASE("CudaLangevinThermostatIntegratorShortPropagation") {
   ctx->setBoxDimensions(BOX_DIMENSIONS);
   ctx->setCoordinates(crd);
   ctx->useHolonomicConstraints(false);
-  ctx->setRandomSeedForVelocities(RANDOM_SEED);
+  ctx->setRandomSeed(RANDOM_SEED);
   ctx->assignVelocitiesAtTemperature(TEMPERATURE);
 
   auto integrator =
@@ -188,12 +188,12 @@ TEST_CASE("CudaLangevinThermostatIntegratorShortPropagation") {
   integrator->resetAverageTemperature();
 
   const std::vector<double4> initialCoordinates =
-      apo_test::CopyToHost<double4>(ctx->getCoordinatesCharges());
+      apo_test::CopyToHost<double4>(ctx->getCoordinatesChargesDP());
 
   integrator->propagate(NUM_STEPS);
 
   const std::vector<double4> finalCoordinates =
-      apo_test::CopyToHost<double4>(ctx->getCoordinatesCharges());
+      apo_test::CopyToHost<double4>(ctx->getCoordinatesChargesDP());
   const std::vector<double> averageTemperature =
       apo_test::CopyToHost<double>(integrator->getAverageTemperature());
   const std::vector<double> kineticEnergy =
@@ -241,23 +241,23 @@ TEST_CASE("CudaLangevinThermostatIntegratorDeterministicTrajectory") {
   ctx1->setBoxDimensions(BOX_DIMENSIONS);
   ctx1->setCoordinates(crd1);
   ctx1->useHolonomicConstraints(false);
-  ctx1->setRandomSeedForVelocities(RANDOM_SEED);
+  ctx1->setRandomSeed(RANDOM_SEED);
   ctx1->assignVelocitiesAtTemperature(TEMPERATURE);
 
   auto ctx2 = std::make_shared<CharmmContext>(psf2, prm2);
   ctx2->setBoxDimensions(BOX_DIMENSIONS);
   ctx2->setCoordinates(crd2);
   ctx2->useHolonomicConstraints(false);
-  ctx2->setRandomSeedForVelocities(RANDOM_SEED);
+  ctx2->setRandomSeed(RANDOM_SEED);
   ctx2->assignVelocitiesAtTemperature(TEMPERATURE);
 
   apo_test::CheckVectorsClose<double4>(
-      apo_test::CopyToHost<double4>(ctx1->getCoordinatesCharges()),
-      apo_test::CopyToHost<double4>(ctx2->getCoordinatesCharges()),
+      apo_test::CopyToHost<double4>(ctx1->getCoordinatesChargesDP()),
+      apo_test::CopyToHost<double4>(ctx2->getCoordinatesChargesDP()),
       DETERMINISTIC_TOLERANCE);
   apo_test::CheckVectorsClose<double4>(
-      apo_test::CopyToHost<double4>(ctx1->getVelocityMass()),
-      apo_test::CopyToHost<double4>(ctx2->getVelocityMass()),
+      apo_test::CopyToHost<double4>(ctx1->getVelocitiesInverseMasses()),
+      apo_test::CopyToHost<double4>(ctx2->getVelocitiesInverseMasses()),
       DETERMINISTIC_TOLERANCE);
 
   auto integrator1 =
@@ -274,23 +274,23 @@ TEST_CASE("CudaLangevinThermostatIntegratorDeterministicTrajectory") {
                               DETERMINISTIC_TOLERANCE);
 
   const std::vector<double4> initialCoordinates1 =
-      apo_test::CopyToHost<double4>(ctx1->getCoordinatesCharges());
+      apo_test::CopyToHost<double4>(ctx1->getCoordinatesChargesDP());
   const std::vector<double4> initialCoordinates2 =
-      apo_test::CopyToHost<double4>(ctx2->getCoordinatesCharges());
+      apo_test::CopyToHost<double4>(ctx2->getCoordinatesChargesDP());
 
   integrator1->propagate(NUM_STEPS);
   integrator2->propagate(NUM_STEPS);
 
   const std::vector<double4> finalCoordinates1 =
-      apo_test::CopyToHost<double4>(ctx1->getCoordinatesCharges());
+      apo_test::CopyToHost<double4>(ctx1->getCoordinatesChargesDP());
   const std::vector<double4> finalCoordinates2 =
-      apo_test::CopyToHost<double4>(ctx2->getCoordinatesCharges());
+      apo_test::CopyToHost<double4>(ctx2->getCoordinatesChargesDP());
 
   apo_test::CheckVectorsClose<double4>(finalCoordinates1, finalCoordinates2,
                                        DETERMINISTIC_TOLERANCE);
   apo_test::CheckVectorsClose<double4>(
-      apo_test::CopyToHost<double4>(ctx1->getVelocityMass()),
-      apo_test::CopyToHost<double4>(ctx2->getVelocityMass()),
+      apo_test::CopyToHost<double4>(ctx1->getVelocitiesInverseMasses()),
+      apo_test::CopyToHost<double4>(ctx2->getVelocitiesInverseMasses()),
       DETERMINISTIC_TOLERANCE);
   CheckIntegratorStateMatches(integrator1, integrator2,
                               DETERMINISTIC_TOLERANCE);
@@ -326,7 +326,7 @@ TEST_CASE("CudaLangevinThermostatIntegratorRestartValidation") {
   ctx->setBoxDimensions(BOX_DIMENSIONS);
   ctx->setCoordinates(crd);
   ctx->useHolonomicConstraints(false);
-  ctx->setRandomSeedForVelocities(RANDOM_SEED);
+  ctx->setRandomSeed(RANDOM_SEED);
   ctx->assignVelocitiesAtTemperature(TEMPERATURE);
 
   integrator->setCharmmContext(ctx);

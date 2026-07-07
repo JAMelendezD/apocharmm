@@ -72,5 +72,6 @@ OLD*
 ORIG*
 
 tmp*
+*.org
 
 .clangd

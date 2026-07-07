@@ -86,10 +86,10 @@ void CudaVerletIntegrator::initialize(void) {
   m_Context->calculatePotentialEnergy(true);
   auto force = m_Context->getForces();
   double *forceData = (double *)force->xyz();
-  auto velocityMass = m_Context->getVelocityMass();
+  auto velocityMass = m_Context->getVelocitiesInverseMasses();
   DeviceVector<double4> vmDeviceArray = velocityMass.getDeviceArray();
   double4 *d_velMass = vmDeviceArray.data();
-  float4 *xyzq = m_Context->getXYZQ().getDeviceArray().data();
+  float4 *xyzq = m_Context->getCoordinatesChargesSP().getDeviceArray().data();
   auto stride = m_Context->getForceStride();
   int nThreads = 128;
   int nBlocks = (numAtoms - 1) / nThreads + 1;

@@ -171,9 +171,10 @@ std::shared_ptr<CharmmContext> CreateContext(void) {
 
 void CheckFrameMatchesContext(const DcdFrame &frame,
                               std::shared_ptr<CharmmContext> ctx) {
-  ctx->getXYZQ().transferToHost();
+  ctx->getCoordinatesChargesSP().transferToHost();
 
-  const std::vector<float4> &xyzq = ctx->getXYZQ().getHostArray();
+  const std::vector<float4> &xyzq =
+      ctx->getCoordinatesChargesSP().getHostArray();
 
   REQUIRE(frame.x.size() == xyzq.size());
   REQUIRE(frame.y.size() == xyzq.size());

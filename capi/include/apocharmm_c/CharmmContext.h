@@ -70,7 +70,7 @@ APOCHARMM_C_API apo_status apo_charmm_context_set_vdw_type(
 APOCHARMM_C_API apo_status apo_charmm_context_set_coordinates(
     apo_charmm_context *context, const apo_charmm_crd *crd);
 
-APOCHARMM_C_API apo_status apo_charmm_context_set_random_seed_for_velocities(
+APOCHARMM_C_API apo_status apo_charmm_context_set_random_seed(
     apo_charmm_context *context, const uint64_t seed);
 
 APOCHARMM_C_API

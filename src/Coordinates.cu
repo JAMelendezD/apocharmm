@@ -13,86 +13,83 @@
 #include <vector_functions.h>
 
 Coordinates::Coordinates(void)
-    : m_NumAtoms(-1), m_CoordinatesD(), m_CoordinatesF() {}
+    : m_NumAtoms(-1), m_CoordinatesDP(), m_CoordinatesSP() {}
 
 Coordinates::Coordinates(const std::vector<double3> &coords) : Coordinates() {
   m_NumAtoms = static_cast<int>(coords.size());
-  m_CoordinatesD.resize(m_NumAtoms);
-  m_CoordinatesF.resize(m_NumAtoms);
+  m_CoordinatesDP.resize(m_NumAtoms);
+  m_CoordinatesSP.resize(m_NumAtoms);
 
   for (int i = 0; i < m_NumAtoms; i++) {
-    m_CoordinatesD[i] =
-        make_double4(coords[i].x, coords[i].y, coords[i].z, 0.0);
-    m_CoordinatesF[i] = make_float4(static_cast<float>(coords[i].x),
-                                    static_cast<float>(coords[i].y),
-                                    static_cast<float>(coords[i].z), 0.0);
+    m_CoordinatesDP[i] = make_double3(coords[i].x, coords[i].y, coords[i].z);
+    m_CoordinatesSP[i] = make_float3(static_cast<float>(coords[i].x),
+                                     static_cast<float>(coords[i].y),
+                                     static_cast<float>(coords[i].z));
   }
 }
 
 Coordinates::Coordinates(const std::vector<float3> &coords) : Coordinates() {
   m_NumAtoms = static_cast<int>(coords.size());
-  m_CoordinatesD.resize(m_NumAtoms);
-  m_CoordinatesF.resize(m_NumAtoms);
+  m_CoordinatesDP.resize(m_NumAtoms);
+  m_CoordinatesSP.resize(m_NumAtoms);
 
   for (int i = 0; i < m_NumAtoms; i++) {
-    m_CoordinatesD[i] = make_double4(static_cast<double>(coords[i].x),
-                                     static_cast<double>(coords[i].y),
-                                     static_cast<double>(coords[i].z), 0.0);
-    m_CoordinatesF[i] = make_float4(coords[i].x, coords[i].y, coords[i].z, 0.0);
+    m_CoordinatesDP[i] = make_double3(static_cast<double>(coords[i].x),
+                                      static_cast<double>(coords[i].y),
+                                      static_cast<double>(coords[i].z));
+    m_CoordinatesSP[i] = make_float3(coords[i].x, coords[i].y, coords[i].z);
   }
 }
 
 Coordinates::Coordinates(const std::vector<std::vector<double>> &coords)
     : Coordinates() {
   m_NumAtoms = static_cast<int>(coords.size());
-  m_CoordinatesD.resize(m_NumAtoms);
-  m_CoordinatesF.resize(m_NumAtoms);
+  m_CoordinatesDP.resize(m_NumAtoms);
+  m_CoordinatesSP.resize(m_NumAtoms);
 
   for (int i = 0; i < m_NumAtoms; i++) {
-    m_CoordinatesD[i] =
-        make_double4(coords[i][0], coords[i][1], coords[i][2], 0.0);
-    m_CoordinatesF[i] = make_float4(static_cast<float>(coords[i][0]),
-                                    static_cast<float>(coords[i][1]),
-                                    static_cast<float>(coords[i][2]), 0.0);
+    m_CoordinatesDP[i] = make_double3(coords[i][0], coords[i][1], coords[i][2]);
+    m_CoordinatesSP[i] = make_float3(static_cast<float>(coords[i][0]),
+                                     static_cast<float>(coords[i][1]),
+                                     static_cast<float>(coords[i][2]));
   }
 }
 
 Coordinates::Coordinates(const std::vector<std::vector<float>> &coords)
     : Coordinates() {
   m_NumAtoms = static_cast<int>(coords.size());
-  m_CoordinatesD.resize(m_NumAtoms);
-  m_CoordinatesF.resize(m_NumAtoms);
+  m_CoordinatesDP.resize(m_NumAtoms);
+  m_CoordinatesSP.resize(m_NumAtoms);
 
   for (int i = 0; i < m_NumAtoms; i++) {
-    m_CoordinatesD[i] = make_double4(static_cast<double>(coords[i][0]),
-                                     static_cast<double>(coords[i][1]),
-                                     static_cast<double>(coords[i][2]), 0.0);
-    m_CoordinatesF[i] =
-        make_float4(coords[i][0], coords[i][1], coords[i][2], 0.0);
+    m_CoordinatesDP[i] = make_double3(static_cast<double>(coords[i][0]),
+                                      static_cast<double>(coords[i][1]),
+                                      static_cast<double>(coords[i][2]));
+    m_CoordinatesSP[i] = make_float3(coords[i][0], coords[i][1], coords[i][2]);
   }
 }
 
 void Coordinates::setNumAtoms(const int numAtoms) {
   m_NumAtoms = numAtoms;
-  m_CoordinatesD.resize(numAtoms);
-  m_CoordinatesF.resize(numAtoms);
+  m_CoordinatesDP.resize(numAtoms);
+  m_CoordinatesSP.resize(numAtoms);
   return;
 }
 
-const std::vector<double4> &Coordinates::getCoordinatesD(void) const {
-  return m_CoordinatesD;
+const std::vector<double3> &Coordinates::getCoordinatesDP(void) const {
+  return m_CoordinatesDP;
 }
 
-std::vector<double4> &Coordinates::getCoordinatesD(void) {
-  return m_CoordinatesD;
+std::vector<double3> &Coordinates::getCoordinatesDP(void) {
+  return m_CoordinatesDP;
 }
 
-const std::vector<float4> &Coordinates::getCoordinatesF(void) const {
-  return m_CoordinatesF;
+const std::vector<float3> &Coordinates::getCoordinatesSP(void) const {
+  return m_CoordinatesSP;
 }
 
-std::vector<float4> &Coordinates::getCoordinatesF(void) {
-  return m_CoordinatesF;
+std::vector<float3> &Coordinates::getCoordinatesSP(void) {
+  return m_CoordinatesSP;
 }
 
 int Coordinates::getNumAtoms(void) const { return m_NumAtoms; }

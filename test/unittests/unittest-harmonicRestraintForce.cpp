@@ -134,19 +134,18 @@ TEST_CASE("HarmonicRestraintForceSettersAndValidation") {
   }
 
   SECTION("ReferenceCoordinateSizeMustMatch") {
-    CHECK_THROWS_AS(restraint.setReferenceCoordinates(
-                        std::vector<double4>{make_double4(0.0, 0.0, 0.0, 1.0),
-                                             make_double4(0.0, 0.0, 0.0, 1.0)}),
-                    std::invalid_argument);
-    CHECK_NOTHROW(restraint.setReferenceCoordinates(std::vector<double4>{
-        make_double4(0.0, 0.0, 0.0, 1.0), make_double4(0.0, 0.0, 0.0, 1.0),
-        make_double4(0.0, 0.0, 0.0, 1.0)}));
-    CHECK_THROWS_AS(restraint.setReferenceCoordinates(
-                        std::vector<double4>{make_double4(0.0, 0.0, 0.0, 1.0),
-                                             make_double4(0.0, 0.0, 0.0, 1.0),
-                                             make_double4(0.0, 0.0, 0.0, 1.0),
-                                             make_double4(0.0, 0.0, 0.0, 1.0)}),
-                    std::invalid_argument);
+    CHECK_THROWS_AS(
+        restraint.setReferenceCoordinates(std::vector<double3>{
+            make_double3(0.0, 0.0, 0.0), make_double3(0.0, 0.0, 0.0)}),
+        std::invalid_argument);
+    CHECK_NOTHROW(restraint.setReferenceCoordinates(std::vector<double3>{
+        make_double3(0.0, 0.0, 0.0), make_double3(0.0, 0.0, 0.0),
+        make_double3(0.0, 0.0, 0.0)}));
+    CHECK_THROWS_AS(
+        restraint.setReferenceCoordinates(std::vector<double3>{
+            make_double3(0.0, 0.0, 0.0), make_double3(0.0, 0.0, 0.0),
+            make_double3(0.0, 0.0, 0.0), make_double3(0.0, 0.0, 0.0)}),
+        std::invalid_argument);
   }
 
   SECTION("MassSizeMustMatch") {
@@ -177,9 +176,9 @@ TEST_CASE("HarmonicRestraintForceCalculatesForceAndEnergy") {
   restraint.setSelection(selection);
   restraint.setForceConstants({2.0, 0.5, 99.0});
   restraint.setMasses({1.5, 2.0, 5.0});
-  restraint.setReferenceCoordinates(std::vector<double4>{
-      make_double4(0.0, 0.0, 0.0, 1.0), make_double4(1.0, 1.0, 1.0, 2.0),
-      make_double4(10.0, 10.0, 10.0, 3.0)});
+  restraint.setReferenceCoordinates(std::vector<double3>{
+      make_double3(0.0, 0.0, 0.0), make_double3(1.0, 1.0, 1.0),
+      make_double3(10.0, 10.0, 10.0)});
   restraint.initialize(NUM_ATOMS, BOX_DIMENSIONS);
 
   CudaContainer<float4> xyzq =
@@ -207,9 +206,9 @@ TEST_CASE("HarmonicRestraintForceCalculatesForceAndEnergy") {
 TEST_CASE("HarmonicRestraintForceSelectionMakesScalarForceConstant") {
   HarmonicRestraintForce<long long int, float> restraint(NUM_ATOMS);
 
-  restraint.setReferenceCoordinates(std::vector<double4>{
-      make_double4(0.0, 0.0, 0.0, 1.0), make_double4(0.0, 0.0, 0.0, 2.0),
-      make_double4(0.0, 0.0, 0.0, 3.0)});
+  restraint.setReferenceCoordinates(std::vector<double3>{
+      make_double3(0.0, 0.0, 0.0), make_double3(0.0, 0.0, 0.0),
+      make_double3(0.0, 0.0, 0.0)});
   restraint.setSelection(MakeSelection(NUM_ATOMS, {1}));
   restraint.setForceConstant(3.0);
 
@@ -238,9 +237,9 @@ TEST_CASE("HarmonicRestraintForceClearResetsForcesAndEnergy") {
   HarmonicRestraintForce<long long int, float> restraint(NUM_ATOMS);
 
   restraint.setForceConstant(1.0);
-  restraint.setReferenceCoordinates(std::vector<double4>{
-      make_double4(0.0, 0.0, 0.0, 0.0), make_double4(0.0, 0.0, 0.0, 0.0),
-      make_double4(0.0, 0.0, 0.0, 0.0)});
+  restraint.setReferenceCoordinates(std::vector<double3>{
+      make_double3(0.0, 0.0, 0.0), make_double3(0.0, 0.0, 0.0),
+      make_double3(0.0, 0.0, 0.0)});
 
   CudaContainer<float4> xyzq = std::vector<float4>{
       make_float4(1.0f, 0.0f, 0.0f, 0.0f), make_float4(0.0f, 1.0f, 0.0f, 0.0f),
@@ -278,13 +277,13 @@ TEST_CASE("HarmonicRestraintForceCanBeSubscribedToForceManager") {
   ctx->setBoxDimensions(BOX_DIMENSIONS);
   ctx->setCoordinates(crd);
   ctx->useHolonomicConstraints(false);
-  ctx->setRandomSeedForVelocities(RANDOM_SEED);
+  ctx->setRandomSeed(RANDOM_SEED);
   ctx->assignVelocitiesAtTemperature(TEMPERATURE);
 
   auto restraint =
       std::make_shared<HarmonicRestraintForce<long long int, float>>(
           ctx->getNumAtoms());
-  restraint->setReferenceCoordinates(crd->getCoordinatesD());
+  restraint->setReferenceCoordinates(crd->getCoordinatesDP());
   restraint->setMasses(psf->getMasses());
   restraint->setSelection(MakeSelection(ctx->getNumAtoms(), {0, 1}));
   restraint->setForceConstant(10.0);

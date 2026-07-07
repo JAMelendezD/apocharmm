@@ -92,11 +92,11 @@ def _initialize_prototypes() -> None:
     ]
     lib().apo_charmm_context_set_coordinates.restype = ctypes.c_int
 
-    lib().apo_charmm_context_set_random_seed_for_velocities.argtypes = [
+    lib().apo_charmm_context_set_random_seed.argtypes = [
         ctypes.c_void_p,
         ctypes.c_uint64,
     ]
-    lib().apo_charmm_context_set_random_seed_for_velocities.restype = ctypes.c_int
+    lib().apo_charmm_context_set_random_seed.restype = ctypes.c_int
 
     lib().apo_charmm_context_use_holonomic_constraints.argtypes = [
         ctypes.c_void_p,
@@ -391,7 +391,7 @@ class CharmmContext(_ApoObject):
 
         return
 
-    def setRandomSeedForVelocities(self, seed: int) -> None:
+    def setRandomSeed(self, seed: int) -> None:
         _initialize_prototypes()
 
         if seed < 0 or seed > 2**64 - 1:
@@ -399,11 +399,9 @@ class CharmmContext(_ApoObject):
 
         c_seed: ctypes.c_uint64 = ctypes.c_uint64(seed)
 
-        status = lib().apo_charmm_context_set_random_seed_for_velocities(
-            self.handle, c_seed
-        )
+        status = lib().apo_charmm_context_set_random_seed(self.handle, c_seed)
 
-        check_status(status, "CharmmContext.setRandomSeedForVelocities(seed) failed")
+        check_status(status, "CharmmContext.setRandomSeed(seed) failed")
 
         return
 

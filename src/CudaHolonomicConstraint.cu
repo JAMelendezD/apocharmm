@@ -11,6 +11,7 @@
 #include "CudaHolonomicConstraint.h"
 
 #include "CharmmContext.h"
+
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
@@ -94,7 +95,7 @@ void CudaHolonomicConstraint::setup(const double timeStep) {
 void CudaHolonomicConstraint::handleHolonomicConstraints(
     const double4 *coordsRef) {
   copy_DtoD_async<double4>(
-      m_Context->getCoordinatesCharges().getDeviceArray().data(),
+      m_Context->getCoordinatesChargesDP().getDeviceArray().data(),
       m_CoordsStored.getDeviceArray().data(), m_Context->getNumAtoms(),
       *m_Stream);
 
@@ -152,7 +153,7 @@ void CudaHolonomicConstraint::removeForceAlongHolonomicConstraints(void) {
         m_Context->getForces()->xyz(), m_Context->getForceStride(),
         m_AllConstrainedAtomPairs.getDeviceArray().data(),
         m_AllConstrainedAtomPairs.size(),
-        m_Context->getCoordinatesCharges().getDeviceArray().data());
+        m_Context->getCoordinatesChargesDP().getDeviceArray().data());
     cudaStreamSynchronize(*m_Stream);
   }
   return;
@@ -304,7 +305,8 @@ SettleKernel(double4 *__restrict__ xyzq, const double4 *__restrict__ xyzq0,
 
 void CudaHolonomicConstraint::constrainWaterMolecules(
     const double4 *coordsRef) {
-  double4 *coords = m_Context->getCoordinatesCharges().getDeviceArray().data();
+  double4 *coords =
+      m_Context->getCoordinatesChargesDP().getDeviceArray().data();
 
   if (m_SettleAtoms.size() > 0) {
     constexpr int numThreads = 128;
@@ -610,7 +612,7 @@ __global__ static void Shake4Kernel(double4 *__restrict__ coords,
 void CudaHolonomicConstraint::constrainShakeAtoms(const double4 *coordsRef) {
   if (m_ShakeAtoms.size() > 0) {
     double4 *coords =
-        m_Context->getCoordinatesCharges().getDeviceArray().data();
+        m_Context->getCoordinatesChargesDP().getDeviceArray().data();
 
     constexpr int numThreads = 128;
     const int numBlocks =
@@ -667,8 +669,8 @@ void CudaHolonomicConstraint::updateVelocities(void) {
       (m_Context->getNumAtoms() + numThreads - 1) / numThreads;
 
   UpdateVelocitiesKernel<<<numBlocks, numThreads, 0, *m_Stream>>>(
-      m_Context->getVelocityMass().getDeviceArray().data(),
-      m_Context->getCoordinatesCharges().getDeviceArray().data(),
+      m_Context->getVelocitiesInverseMasses().getDeviceArray().data(),
+      m_Context->getCoordinatesChargesDP().getDeviceArray().data(),
       m_CoordsStored.getDeviceArray().data(), m_Context->getNumAtoms(),
       1.0 / m_TimeStep);
 

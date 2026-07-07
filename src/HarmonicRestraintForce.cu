@@ -112,7 +112,7 @@ void HarmonicRestraintForce<AT, CT>::setForceConstants(
 
 template <typename AT, typename CT>
 void HarmonicRestraintForce<AT, CT>::setReferenceCoordinates(
-    const std::vector<double4> &referenceCoordinates) {
+    const std::vector<double3> &referenceCoordinates) {
   if (referenceCoordinates.size() != static_cast<std::size_t>(m_NumAtoms)) {
     std::string msg =
         "ERROR: HarmonicRestraintForce::setReferenceCoordinates(const "

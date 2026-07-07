@@ -50,7 +50,7 @@ def create_context() -> apo.CharmmContext:
     ctx.setBoxDimensions(BOX_DIMENSIONS)
     ctx.setCoordinates(crd)
     ctx.useHolonomicConstraints(False)
-    ctx.setRandomSeedForVelocities(RANDOM_SEED)
+    ctx.setRandomSeed(RANDOM_SEED)
     ctx.assignVelocitiesAtTemperature(TEMPERATURE)
 
     return ctx

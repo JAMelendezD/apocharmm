@@ -49,10 +49,9 @@ void CharmmCrd::readCharmmCrdFile(const std::string &fileName) {
       y = std::stod(line.substr(30, 10));
       z = std::stod(line.substr(40, 10));
     }
-    m_CoordinatesD[i] = make_double4(x, y, z, 0.0);
-    m_CoordinatesF[i] =
-        make_float4(static_cast<float>(x), static_cast<float>(y),
-                    static_cast<float>(z), 0.0f);
+    m_CoordinatesDP[i] = make_double3(x, y, z);
+    m_CoordinatesSP[i] = make_float3(
+        static_cast<float>(x), static_cast<float>(y), static_cast<float>(z));
   }
 
   return;

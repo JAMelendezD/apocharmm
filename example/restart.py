@@ -33,7 +33,7 @@ def run0(
     # Setup the CharmmContext
     ctx = apo.CharmmContext(fm)
     ctx.setCoordinates(crd)
-    ctx.setRandomSeedForVelocities(random_seed)
+    ctx.setRandomSeed(random_seed)
     ctx.assignVelocitiesAtTemperature(temperature)
     ctx.useHolonomicConstraints(use_holonomic_constraints)
 
