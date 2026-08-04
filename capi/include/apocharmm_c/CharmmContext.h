@@ -39,6 +39,39 @@ APOCHARMM_C_API apo_status apo_charmm_context_create_from_psf_parameters(
 
 APOCHARMM_C_API void apo_charmm_context_destroy(apo_charmm_context *context);
 
+APOCHARMM_C_API apo_status apo_charmm_context_set_prm(
+    apo_charmm_context *context, apo_charmm_parameters *parameters);
+
+APOCHARMM_C_API apo_status
+apo_charmm_context_set_psf(apo_charmm_context *context, apo_charmm_psf *psf);
+
+APOCHARMM_C_API apo_status apo_charmm_context_set_force_manager(
+    apo_charmm_context *context, apo_force_manager *force_manager);
+
+APOCHARMM_C_API apo_status apo_charmm_context_set_coordinates_charges(
+    apo_charmm_context *context, const double *xyzq, const size_t xyzq_len);
+
+APOCHARMM_C_API apo_status apo_charmm_context_set_coordinates_from_array(
+    apo_charmm_context *context, const double *xyz, const size_t xyz_len);
+
+APOCHARMM_C_API apo_status apo_charmm_context_set_coordinates(
+    apo_charmm_context *context, const apo_charmm_crd *crd);
+
+APOCHARMM_C_API apo_status
+apo_charmm_context_set_charges(apo_charmm_context *context,
+                               const double *charges, const size_t charges_len);
+
+APOCHARMM_C_API apo_status apo_charmm_context_set_velocities_inverse_masses(
+    apo_charmm_context *context, const double *xyzm, const size_t xyzm_len);
+
+APOCHARMM_C_API apo_status apo_charmm_context_set_velocities(
+    apo_charmm_context *context, const double *xyz, const size_t xyz_len);
+
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+
 APOCHARMM_C_API apo_status apo_charmm_context_set_box_dimensions(
     apo_charmm_context *context, const double *box_dimensions,
     const size_t box_dimensions_len);
@@ -66,9 +99,6 @@ APOCHARMM_C_API apo_status apo_charmm_context_set_periodic_boundary_condition(
 
 APOCHARMM_C_API apo_status apo_charmm_context_set_vdw_type(
     apo_charmm_context *context, const int vdw_type);
-
-APOCHARMM_C_API apo_status apo_charmm_context_set_coordinates(
-    apo_charmm_context *context, const apo_charmm_crd *crd);
 
 APOCHARMM_C_API apo_status apo_charmm_context_set_random_seed(
     apo_charmm_context *context, const uint64_t seed);

@@ -12,13 +12,18 @@
 #include "apo_test_helpers.h"
 #include "catch.hpp"
 
+#include <iostream>
+
 TEST_CASE("ConstructionDestruction") {
+  DeviceVector<int> u(6);
+
   SECTION("DefaultConstructor") {
     DeviceVector<int> v;
     CHECK(v.empty() == true);
     CHECK(v.size() == 0);
     CHECK(v.capacity() == 0);
     CHECK(v.data() == nullptr);
+    std::cout << "u.size() = " << u.size() << std::endl;
   }
 
   SECTION("SizeConstructorZero") {
@@ -29,6 +34,7 @@ TEST_CASE("ConstructionDestruction") {
     CHECK_NOTHROW(v.clear());
     CHECK(v.empty() == true);
     CHECK(v.data() == nullptr);
+    std::cout << "u.size() = " << u.size() << std::endl;
   }
 
   SECTION("SizeConstructorNonzero") {
@@ -42,6 +48,7 @@ TEST_CASE("ConstructionDestruction") {
     const std::vector<int> expected(n, 4);
     apo_test::CopyToDevice<int>(v, expected);
     CHECK(apo_test::CopyToHost<int>(v) == expected);
+    std::cout << "u.size() = " << u.size() << std::endl;
   }
 
   SECTION("HostVectorConstructor") {
@@ -52,6 +59,7 @@ TEST_CASE("ConstructionDestruction") {
     CHECK(v.size() == expected.size());
     CHECK(v.capacity() == expected.size());
     CHECK(apo_test::CopyToHost<int>(v) == expected);
+    std::cout << "u.size() = " << u.size() << std::endl;
   }
 
   SECTION("HostRvalueConstructor") {

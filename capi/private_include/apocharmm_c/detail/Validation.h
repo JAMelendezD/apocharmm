@@ -109,6 +109,25 @@ require_output_buffer(const T *buffer, const std::size_t provided_len,
   return APO_STATUS_OK;
 }
 
+inline apo_status require_flat_array_length(const size_t length,
+                                            const size_t stride,
+                                            const char *argument_name,
+                                            const char *function_name) {
+  if (length == 0) {
+    return apocharmm_c::invalid_argument(
+        function_name, std::string(argument_name) + " must not be empty");
+  }
+
+  if ((stride == 0) || (length % stride != 0)) {
+    return apocharmm_c::invalid_argument(
+        function_name, std::string(argument_name) +
+                           " length must be a positive multiple of " +
+                           std::to_string(stride));
+  }
+
+  return APO_STATUS_OK;
+}
+
 } // namespace apocharmm_c
 
 #define APOCHARMM_C_RETURN_IF_ERROR(expression)                                \

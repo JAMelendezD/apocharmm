@@ -18,6 +18,7 @@
 #include "apocharmm_c/detail/Validation.h"
 
 #include <cmath>
+#include <limits>
 #include <memory>
 #include <vector>
 
@@ -84,6 +85,228 @@ extern "C" void apo_charmm_context_destroy(apo_charmm_context *context) {
   delete context;
   return;
 }
+
+extern "C" apo_status
+apo_charmm_context_set_prm(apo_charmm_context *context,
+                           apo_charmm_parameters *parameters) {
+  const char *function_name = "apo_charmm_context_set_prm";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_parameters>(
+                parameters, function_name, "CharmmParameters"));
+
+        context->parameters = parameters->object;
+        context->object->setPrm(parameters->object);
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status apo_charmm_context_set_psf(apo_charmm_context *context,
+                                                 apo_charmm_psf *psf) {
+  const char *function_name = "apo_charmm_context_set_psf";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_psf>(
+                psf, function_name, "CharmmPsf"));
+
+        context->psf = psf->object;
+        context->object->setPsf(psf->object);
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status
+apo_charmm_context_set_force_manager(apo_charmm_context *context,
+                                     apo_force_manager *force_manager) {
+  const char *function_name = "apo_charmm_context_set_force_manager";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_force_manager>(
+                force_manager, function_name, "ForceManager"));
+
+        context->force_manager = force_manager->object;
+        context->object->setForceManager(force_manager->object);
+
+        context->psf = context->object->getPsf();
+        context->parameters = context->object->getPrm();
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status apo_charmm_context_set_coordinates_charges(
+    apo_charmm_context *context, const double *xyzq, const size_t xyzq_len) {
+  const char *function_name = "apo_charmm_context_set_coordinates_charges";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_pointer<double>(xyzq, function_name, "xyzq"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_flat_array_length(
+            xyzq_len, 4, "xyzq", function_name));
+
+        const std::vector<double> cpp_xyzq(xyzq, xyzq + xyzq_len);
+        context->object->setCoordinatesCharges(cpp_xyzq);
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status apo_charmm_context_set_coordinates_from_array(
+    apo_charmm_context *context, const double *xyz, const size_t xyz_len) {
+  const char *function_name = "apo_charmm_context_set_coordinates_from_array";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_pointer<double>(xyz, function_name, "xyz"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_flat_array_length(
+            xyz_len, 3, "xyz", function_name));
+
+        const std::vector<double> cpp_xyz(xyz, xyz + xyz_len);
+        context->object->setCoordinates(cpp_xyz);
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status
+apo_charmm_context_set_coordinates(apo_charmm_context *context,
+                                   const apo_charmm_crd *crd) {
+  const char *function_name = "apo_charmm_context_set_coordinates";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_crd>(
+                crd, function_name, "CharmmCrd"));
+
+        context->object->setCoordinates(crd->object);
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status
+apo_charmm_context_set_charges(apo_charmm_context *context,
+                               const double *charges,
+                               const size_t charges_len) {
+  const char *function_name = "apo_charmm_context_set_charges";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<double>(
+            charges, function_name, "charges"));
+
+        if (charges_len == 0) {
+          return apocharmm_c::invalid_argument(function_name,
+                                               "charges must not be empty");
+        }
+
+        const std::vector<double> cpp_charges(charges, charges + charges_len);
+        context->object->setCharges(cpp_charges);
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status apo_charmm_context_set_velocities_inverse_masses(
+    apo_charmm_context *context, const double *xyzm, const size_t xyzm_len) {
+  const char *function_name =
+      "apo_charmm_context_set_velocities_inverse_masses";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_pointer<double>(xyzm, function_name, "xyzm"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_flat_array_length(
+            xyzm_len, 4, "xyzm", function_name));
+
+        const std::vector<double> cpp_xyzm(xyzm, xyzm + xyzm_len);
+        context->object->setVelocitiesInverseMasses(cpp_xyzm);
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status
+apo_charmm_context_set_velocities(apo_charmm_context *context,
+                                  const double *xyz, const size_t xyz_len) {
+  const char *function_name = "apo_charmm_context_set_velocities";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_pointer<double>(xyz, function_name, "xyz"));
+
+        static_cast<void>(xyz_len);
+
+        return APO_STATUS_NOT_IMPLEMENTED;
+
+        // return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 
 extern "C" apo_status
 apo_charmm_context_set_box_dimensions(apo_charmm_context *context,
@@ -292,28 +515,6 @@ apo_charmm_context_set_vdw_type(apo_charmm_context *context,
         }
 
         context->object->setVdwType(vdw_type);
-
-        return APO_STATUS_OK;
-      },
-      function_name);
-}
-
-extern "C" apo_status
-apo_charmm_context_set_coordinates(apo_charmm_context *context,
-                                   const apo_charmm_crd *crd) {
-  const char *function_name = "apo_charmm_context_set_coordinates";
-
-  return apocharmm_c::guard(
-      [&](void) -> apo_status {
-        APOCHARMM_C_RETURN_IF_ERROR(
-            apocharmm_c::require_handle_object<apo_charmm_context>(
-                context, function_name, "CharmmContext"));
-
-        APOCHARMM_C_RETURN_IF_ERROR(
-            apocharmm_c::require_handle_object<apo_charmm_crd>(
-                crd, function_name, "CharmmCrd"));
-
-        context->object->setCoordinates(crd->object);
 
         return APO_STATUS_OK;
       },

@@ -2,6 +2,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D__APO_DEBUG__")
 set(CMAKE_CUDA_FLAGS_DEBUG "${CMAKE_CUDA_FLAGS_DEBUG} -D__APO_DEBUG__")
 
 add_library(apoCHARMMlib
+  ${apoCHARMM_SOURCE_DIR}/src/ApoCharmmError.cpp
   ${apoCHARMM_SOURCE_DIR}/src/AtomSelection.cpp
   ${apoCHARMM_SOURCE_DIR}/src/AtomSelector.cpp
   ${apoCHARMM_SOURCE_DIR}/src/SelectionParser.cpp
@@ -82,7 +83,13 @@ add_library(apoCHARMMlib
   # ${apoCHARMM_SOURCE_DIR}/src/Utilities.cu
 )
 
-target_compile_definitions(apoCHARMMlib PUBLIC USE_TEXTURE_OBJECTS)
+target_compile_definitions(apoCHARMMlib
+  PUBLIC
+  USE_TEXTURE_OBJECTS
+
+  PRIVATE
+  APOCHARMM_SOURCE_ROOT="${apoCHARMM_SOURCE_DIR}/"
+)
 
 set_target_properties(apoCHARMMlib PROPERTIES
   POSITION_INDEPENDENT_CODE ON

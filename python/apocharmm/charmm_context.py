@@ -45,6 +45,11 @@ def _initialize_prototypes() -> None:
     lib().apo_charmm_context_destroy.argtypes = [ctypes.c_void_p]
     lib().apo_charmm_context_destroy.restype = None
 
+    ########################################################################
+    ########################################################################
+    ########################################################################
+    ########################################################################
+
     lib().apo_charmm_context_set_box_dimensions.argtypes = [
         ctypes.c_void_p,
         ctypes.POINTER(ctypes.c_double),
