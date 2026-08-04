@@ -1,6 +1,7 @@
 # Add any new tests to this list!
 set(SOURCES_UNITTESTS_TESTS
   # Base tests
+  unittest-apoCharmmError.cpp
   unittest-deviceVector.cpp
   unittest-cudaContainer.cpp
 
