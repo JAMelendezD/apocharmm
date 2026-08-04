@@ -16,6 +16,15 @@
 extern "C" {
 #endif
 
+/**
+ * Return the diagnostic for the most recent failed apoCHARMM C API call on the
+ * current thread.
+ *
+ * The returned pointer is owned by apoCHARMM and must not be freed or modified.
+ * It remains valid until a later apoCHARMM C API call on the same thread clears
+ * or replaces the thread-local diagnostic. An empty string means that no error
+ * is currently recorded.
+ */
 APOCHARMM_C_API const char *apo_last_error(void);
 
 #ifdef __cplusplus

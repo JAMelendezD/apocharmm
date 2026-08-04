@@ -40,9 +40,8 @@ apo_atom_selection_get_num_atoms(size_t *num_atoms,
 
         if (n < 0) {
           return apocharmm_c::set_last_error(
-              APO_STATUS_RUNTIME_ERROR,
-              "apo_atom_selection_get_num_atoms: AtomSelection returned a "
-              "negative atom count");
+              APO_STATUS_RUNTIME_ERROR, function_name,
+              "AtomSelection returned a negative atom count");
         }
 
         *num_atoms = static_cast<size_t>(n);

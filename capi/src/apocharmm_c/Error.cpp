@@ -10,40 +10,125 @@
 #include "apocharmm_c/Error.h"
 #include "apocharmm_c/detail/ErrorInternal.h"
 
+#include <cstddef>
 #include <string>
+#include <string_view>
+#include <utility>
 
 // Anonymous namespace to prevent usage outside of this file
 namespace {
 
-thread_local std::string g_last_error;
+constexpr char FALLBACK_DIAGNOSTIC[] =
+    "Failed to store or format the intended error diagnostic";
+constexpr std::size_t FALLBACK_DIAGNOSTIC_CAPACITY = 1024;
+constexpr std::string_view UNKNOWN_FUNCTION_NAME = "unknown C function";
+constexpr std::string_view UNKNOWN_ERROR_MESSAGE = "Unknown error";
 
+struct LastErrorState {
+  std::string storage;
+  char fallback[FALLBACK_DIAGNOSTIC_CAPACITY] = {};
+  const char *message = "";
+};
+
+thread_local LastErrorState g_last_error;
+
+std::string_view get_function_name(const char *function_name) noexcept {
+  if ((function_name == nullptr) || (function_name[0] == '\n'))
+    return UNKNOWN_FUNCTION_NAME;
+
+  return function_name;
 }
 
-extern "C" const char *apo_last_error(void) { return g_last_error.c_str(); }
+} // namespace
+
+extern "C" const char *apo_last_error(void) { return g_last_error.message; }
 
 void apocharmm_c::clear_last_error(void) noexcept {
-  g_last_error.clear();
+  g_last_error.storage.clear();
+  g_last_error.fallback[0] = '\0';
+  g_last_error.message = "";
   return;
 }
 
 apo_status apocharmm_c::set_last_error(apo_status status,
                                        const char *message) noexcept {
+  return set_last_error(status, (message != nullptr) ? std::string_view(message)
+                                                     : std::string_view());
+}
+
+apo_status
+apocharmm_c::set_last_error(apo_status status,
+                            const std::string_view message) noexcept {
+  const std::string_view safe_message =
+      message.empty() ? UNKNOWN_ERROR_MESSAGE : message;
+
   try {
-    g_last_error = (message != nullptr) ? message : "";
+    std::string diagnostic(safe_message.data(), safe_message.size());
+    g_last_error.storage = std::move(diagnostic);
+    g_last_error.message = g_last_error.storage.c_str();
   } catch (...) {
-    // Last-error storage is best-effort. Do not throw from the C ABI error
-    // path.
+    g_last_error.message = FALLBACK_DIAGNOSTIC;
   }
+
   return status;
 }
 
-apo_status apocharmm_c::set_last_error(apo_status status,
-                                       const std::string &message) noexcept {
+apo_status
+apocharmm_c::set_last_error(apo_status status, const char *function_name,
+                            const std::string_view message) noexcept {
+  const std::string_view safe_function_name = get_function_name(function_name);
+  const std::string_view safe_message =
+      message.empty() ? UNKNOWN_ERROR_MESSAGE : message;
+
   try {
-    g_last_error = message;
+    std::string diagnostic;
+    diagnostic.reserve(safe_function_name.size() + 2 + safe_message.size());
+    diagnostic.append(safe_function_name.data(), safe_function_name.size());
+    diagnostic.append(": ");
+    diagnostic.append(safe_message.data(), safe_message.size());
+
+    g_last_error.storage = std::move(diagnostic);
+    g_last_error.message = g_last_error.storage.c_str();
   } catch (...) {
-    // Last-error storage is best-effort. Do not throw from the C ABI error
-    // path.
+    std::size_t offset = 0;
+
+    const auto append = [&](const std::string_view text) noexcept -> void {
+      for (const char c : text) {
+        if (offset + 1 >= FALLBACK_DIAGNOSTIC_CAPACITY)
+          break;
+
+        g_last_error.fallback[offset++] = c;
+      }
+
+      return;
+    };
+
+    append(safe_function_name);
+    append(": ");
+    append(FALLBACK_DIAGNOSTIC);
+    g_last_error.fallback[offset] = '\0';
+    g_last_error.message = g_last_error.fallback;
   }
+
   return status;
+}
+
+apo_status apocharmm_c::ensure_last_error(apo_status status,
+                                          const char *function_name) noexcept {
+  const std::string_view safe_function_name = get_function_name(function_name);
+  const std::string_view diagnostic = g_last_error.message;
+
+  if ((diagnostic.size() > safe_function_name.size()) &&
+      (diagnostic.compare(0, safe_function_name.size(), safe_function_name) ==
+       0) &&
+      (diagnostic[safe_function_name.size()] == ':')) {
+    return status;
+  }
+
+  if (diagnostic.empty()) {
+    return set_last_error(status, function_name,
+                          "C ABI call failed without a diagnostic");
+  }
+
+  return set_last_error(status, function_name, diagnostic);
 }

@@ -21,8 +21,7 @@ namespace apocharmm_c {
 
 inline apo_status invalid_argument(const char *function_name,
                                    const std::string &message) {
-  return set_last_error(APO_STATUS_INVALID_ARGUMENT,
-                        std::string(function_name) + ": " + message);
+  return set_last_error(APO_STATUS_INVALID_ARGUMENT, function_name, message);
 }
 
 template <typename T>
