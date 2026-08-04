@@ -31,6 +31,10 @@ set(SOURCES_UNITTESTS_TESTS
   unittest-harmonicCenterOfMassRestraintForce.cpp
 )
 
+set(SOURCES_CAPI_TESTS
+  unittest-capiError.cpp
+)
+
 ###################################################
 #### STUFF BELOW SHOULDN'T NEED TO BE MODIFIED ####
 ###################################################
@@ -81,6 +85,7 @@ set(HEADER_DIR ${UNITTEST_DIR})
 set(SOURCES_ALL
   ${SOURCES_UNITTESTS_MAIN}
   ${SOURCES_UNITTESTS_TESTS}
+  ${SOURCES_CAPI_TESTS}
   ${SOURCES_UNITTESTS_HEADERS}
 )
 
@@ -91,6 +96,8 @@ endforeach()
 CheckFileList(SOURCES_ALL_PATH ${UNITTEST_DIR})
 
 set(TARGETS_UNITTESTS_TESTS)
+
+set(TARGETS_CAPI_TESTS)
 
 # Define shared Catch2 main object.
 add_library(CatchMain OBJECT
@@ -133,7 +140,66 @@ foreach(source_file ${SOURCES_UNITTESTS_TESTS})
   )
 endforeach()
 
-set(TARGETS_ALL ${TARGETS_UNITTESTS_TESTS} CatchMain)
+if(TARGET apocharmm_c)
+  target_compile_definitions(apocharmm_c PRIVATE
+    APOCHARMM_C_TESTING
+  )
+
+  foreach(source_file ${SOURCES_CAPI_TESTS})
+    get_filename_component(name "${source_file}" NAME_WE)
+    list(APPEND TARGETS_CAPI_TESTS ${name})
+
+    add_executable(${name}
+      ${UNITTEST_DIR}/${source_file}
+      $<TARGET_OBJECTS:CatchMain>
+      ${HEADER_DIR}/catch.hpp
+    )
+
+    target_compile_definitions(${name} PRIVATE
+      APOCHARMM_C_TESTING
+    )
+
+    target_include_directories(${name} PRIVATE
+      ${apoCHARMM_SOURCE_DIR}/capi/private_include
+    )
+
+    target_compile_options(${name} PRIVATE
+      $<$<COMPILE_LANG_AND_ID:CXX,GNU>:-pthread>
+      $<$<COMPILE_LANG_AND_ID:CXX,Clang>:-pthread>
+      $<$<COMPILE_LANG_AND_ID:CXX,AppleClang>:-pthread>
+    )
+
+    target_link_options(${name} PRIVATE
+      $<$<CXX_COMPILER_ID:GNU>:-pthread>
+      $<$<CXX_COMPILER_ID:Clang>:-pthread>
+      $<$<CXX_COMPILER_ID:AppleClang>:-pthread>
+    )
+
+    target_link_libraries(${name} PRIVATE
+      apocharmm_c
+      apoCHARMMlib
+    )
+
+    set_target_properties(${name} PROPERTIES
+      LINKER_LANGUAGE CXX
+    )
+
+    add_test(NAME ${name}
+      COMMAND ${name}
+      WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/test/unittests
+    )
+
+    set_tests_properties(${name} PROPERTIES
+      LABELS "c_api"
+    )
+  endforeach()
+endif()
+
+set(TARGETS_ALL
+  ${TARGETS_UNITTESTS_TESTS}
+  ${TARGETS_CAPI_TESTS}
+  CatchMain
+)
 
 foreach(name ${TARGETS_ALL})
   target_include_directories(${name} PRIVATE ${HEADER_DIR})

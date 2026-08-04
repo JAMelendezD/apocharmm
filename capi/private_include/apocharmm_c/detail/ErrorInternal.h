@@ -10,6 +10,7 @@
 #ifndef __APOCHARMM_C_ERROR_INTERNAL_H__
 #define __APOCHARMM_C_ERROR_INTERNAL_H__
 
+#include "apocharmm_c/Export.h"
 #include "apocharmm_c/Status.h"
 
 #include "ApoCharmmError.h"
@@ -18,18 +19,26 @@
 #include <stdexcept>
 #include <string_view>
 
+#if defined(APOCHARMM_C_TESTING)
+#define APOCHARMM_C_INTERNAL_TEST_API APOCHARMM_C_API
+#else
+#define APOCHARMM_C_INTERNAL_TEST_API
+#endif
+
 namespace apocharmm_c {
 
-void clear_last_error(void) noexcept;
+APOCHARMM_C_INTERNAL_TEST_API void clear_last_error(void) noexcept;
 
 apo_status set_last_error(apo_status status, const char *message) noexcept;
 
 apo_status set_last_error(apo_status status,
                           const std::string_view message) noexcept;
 
+APOCHARMM_C_INTERNAL_TEST_API
 apo_status set_last_error(apo_status status, const char *function_name,
                           const std::string_view message) noexcept;
 
+APOCHARMM_C_INTERNAL_TEST_API
 apo_status ensure_last_error(apo_status status,
                              const char *function_name) noexcept;
 
@@ -77,5 +86,7 @@ apo_status guard(Function &&function, const char *function_name) noexcept {
 }
 
 } // namespace apocharmm_c
+
+#undef APOCHARMM_C_INTERNAL_TEST_API
 
 #endif
