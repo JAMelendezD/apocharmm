@@ -28,7 +28,7 @@ def lib() -> ctypes.CDLL:
     library = ctypes.CDLL(library_path)
 
     library.apo_last_error.argtypes = []
-    library.apo_last_error.restype = ctypes.c_char_p
+    library.apo_last_error.restype = ctypes.c_void_p
 
     _library = library
 

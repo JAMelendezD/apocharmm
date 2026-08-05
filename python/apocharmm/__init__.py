@@ -7,7 +7,15 @@
 #
 # ENDLICENSE
 
-from .error import ApoCharmmError
+from .error import (
+    ApoCharmmError,
+    APO_STATUS_OK,
+    APO_STATUS_INVALID_ARGUMENT,
+    APO_STATUS_RUNTIME_ERROR,
+    APO_STATUS_CUDA_ERROR,
+    APO_STATUS_NOT_INITIALIZED,
+    APO_STATUS_NOT_IMPLEMENTED,
+)
 
 from .enums import CrystalType, PeriodicBoundaryCondition, VdwType
 
@@ -36,6 +44,12 @@ from .restart_subscriber import RestartSubscriber
 __all__: list[str] = [
     # Utility
     "ApoCharmmError",
+    "APO_STATUS_OK",
+    "APO_STATUS_INVALID_ARGUMENT",
+    "APO_STATUS_RUNTIME_ERROR",
+    "APO_STATUS_CUDA_ERROR",
+    "APO_STATUS_NOT_INITIALIZED",
+    "APO_STATUS_NOT_IMPLEMENTED",
     # Enums
     "CrystalType",
     "PeriodicBoundaryCondition",
