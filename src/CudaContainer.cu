@@ -375,7 +375,10 @@ __global__ void printKernel(const double4 *data, const std::size_t size) {
 template <typename T> void CudaContainer<T>::printDeviceArray(void) const {
   constexpr unsigned int blockDim = 256;
   const unsigned int gridDim = (this->size() + blockDim - 1) / blockDim;
-  printKernel<<<gridDim, blockDim>>>(m_DeviceArray.data(), this->size());
+
+  cudaCheckLaunch(
+      printKernel<<<gridDim, blockDim>>>(m_DeviceArray.data(), this->size()));
   cudaCheck(cudaDeviceSynchronize());
+
   return;
 }

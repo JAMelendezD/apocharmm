@@ -4,7 +4,7 @@
 // license, as described in the LICENSE file in the top level directory of this
 // project.
 //
-// Author: Antti-Pekka Hynninen, Samarjeet Prasad
+// Author: Antti-Pekka Hynninen, Samarjeet Prasad, James E. Gonzales II
 //
 // ENDLICENSE
 
@@ -13,45 +13,58 @@
 #ifndef CUDA_UTILS_H
 #define CUDA_UTILS_H
 
-// #include <nvToolsExt.h>
+// Contributed by German P. Barletta (260805)
+#if __has_include(<nvtx3/nvToolsExt.h>)
 #include <nvtx3/nvToolsExt.h>
-// #include <nvtx3/nvtx3.hpp>
+#else
+#include <nvToolsExt.h>
+#endif
+
+// Contributed by German P. Barletta (260805)
+#if __has_include(<nvtx3/nvToolsExtCuda.h>)
+#include <nvtx3/nvToolsExtCuda.h>
+#else
+#include <nvToolsExtCuda.h>
+#endif
+
 #include <cuda.h>
 #include <cuda_runtime.h>
-#include <stdexcept>
 #include <stdio.h>
-#include <string>
+#include <string_view>
 #include <vector>
 
-#define cudaCheck(result)                                                      \
-  do {                                                                         \
-    cudaError_t res = result;                                                  \
-    if (res != cudaSuccess) {                                                  \
-      std::string msg = std::string(cudaGetErrorString(res)) + "\n";           \
-      msg += "  file(): " + std::string(__FILE__) + "\n";                      \
-      msg += "   ftn(): " + std::string(__FUNCTION__) + "\n";                  \
-      msg += "  line(): " + std::to_string(__LINE__) + "\n";                   \
-      throw std::runtime_error(msg);                                           \
-    }                                                                          \
-  } while (false);
+[[noreturn]]
+void ThrowCudaError(const cudaError_t error, const std::string_view failureKind,
+                    const std::string_view expression,
+                    const std::string_view sourceFile,
+                    const std::string_view sourceFunction,
+                    const int sourceLine);
 
-#define APO_LAUNCH_CHECK(kernel, grid, block, shmem, stream, ...)              \
+#define cudaCheck(expression)                                                  \
   do {                                                                         \
-    cudaFuncAttributes attr{};                                                 \
-    cudaCheck(cudaFuncGetAttributes(&attr, kernel));                           \
-    std::cout << "Launching " << #kernel << " grid.{x, y, z}=" << (grid).x     \
-              << ", " << (grid.y) << ", " << (grid).z                          \
-              << " block.{x, y, z}=" << (block).x << ", " << (block.y) << ", " \
-              << (block).z                                                     \
-              << " maxThreadsPerBlock=" << attr.maxThreadsPerBlock             \
-              << " numRegs=" << attr.numRegs                                   \
-              << " staticShared=" << attr.sharedSizeBytes                      \
-              << " dynamicShared=" << static_cast<std::size_t>(shmem)          \
-              << std::endl;                                                    \
-    kernel<<<grid, block, shmem, stream>>>(__VA_ARGS__);                       \
-    cudaCheck(cudaPeekAtLastError());                                          \
-    cudaCheck(cudaDeviceSynchronize());                                        \
-  } while (false);
+    const cudaError_t apoCudaError = (expression);                             \
+    if (apoCudaError != cudaSuccess) {                                         \
+      ThrowCudaError(apoCudaError, "CUDA runtime expression failed",           \
+                     #expression, __FILE__, __func__, __LINE__);               \
+    }                                                                          \
+  } while (false)
+
+// Pass a complete kernel launch expression to preserve native CUDA syntax.
+#define cudaCheckLaunch(...)                                                   \
+  do {                                                                         \
+    __VA_ARGS__;                                                               \
+    const cudaError_t apoCudaLaunchError = cudaPeekAtLastError();              \
+    if (apoCudaLaunchError != cudaSuccess) {                                   \
+      ThrowCudaError(apoCudaLaunchError,                                       \
+                     "CUDA error detected immediately after kernel launch",    \
+                     #__VA_ARGS__, __FILE__, __func__, __LINE__);              \
+    }                                                                          \
+  } while (false)
+
+// COMPATIBILITY: Remove after APO_LAUNCH_CHECK call sites are migrated to
+// cudaCheckLaunch with native CUDA launch syntax.
+#define APO_LAUNCH_CHECK(kernel, grid, block, shmem, stream, ...)              \
+  cudaCheckLaunch(kernel<<<(grid), (block), (shmem), (stream)>>>(__VA_ARGS__))
 
 // The following macro is from
 // https://stackoverflow.com/questions/6978643/cuda-and-classes

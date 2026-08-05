@@ -86,6 +86,7 @@ add_library(apoCHARMMlib
 target_compile_definitions(apoCHARMMlib
   PUBLIC
   USE_TEXTURE_OBJECTS
+  $<$<CONFIG:Debug>:APOCHARMM_CUDA_DEBUG_SYNC>
 
   PRIVATE
   APOCHARMM_SOURCE_ROOT="${apoCHARMM_SOURCE_DIR}/"

@@ -4,20 +4,39 @@
 // license, as described in the LICENSE file in the top level directory of this
 // project.
 //
-// Author: Antti-Pekka Hynninen, Samarjeet Prasad
+// Author: Antti-Pekka Hynninen, Samarjeet Prasad, James E. Gonzales II
 //
 // ENDLICENSE
 
 #ifndef NOCUDAC
+
 #include "cuda_utils.h"
+
+#include "ApoCharmmError.h"
 #include "gpu_utils.h"
+
 #include <algorithm>
 #include <cuda.h>
 #include <fstream>
 #include <iostream>
-#include <nvtx3/nvToolsExtCuda.h>
-// #include <nvtx3/nvtx3.hpp>
+#include <sstream>
 #include <utility>
+
+[[noreturn]]
+void ThrowCudaError(const cudaError_t error, const std::string_view failureKind,
+                    const std::string_view expression,
+                    const std::string_view sourceFile,
+                    const std::string_view sourceFunction,
+                    const int sourceLine) {
+  std::ostringstream diagnostic;
+  diagnostic << failureKind << '\n'
+             << "  expression: " << expression << '\n'
+             << "  CUDA error name: " << cudaGetErrorName(error) << '\n'
+             << "  CUDA error description: " << cudaGetErrorString(error);
+
+  throw ApoCharmmError(ApoCharmmErrorCode::Cuda, diagnostic.str(), sourceFile,
+                       sourceFunction, sourceLine);
+}
 
 //----------------------------------------------------------------------------------------
 //
