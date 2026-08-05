@@ -124,12 +124,12 @@ private:
   // void set_NlistParam(cudaStream_t stream);
   // void get_NlistParam();
 
-  void dealloc(void);
+  void dealloc(void) noexcept;
 
 public:
   CudaNeighborListSort(const int tilesize, const int izoneStart,
                        const int izoneEnd);
-  ~CudaNeighborListSort();
+  ~CudaNeighborListSort() noexcept;
 
   void calc_min_max_xyz(const int *zone_patom, const float4 *xyzq,
                         ZoneParam_t *h_ZoneParam, ZoneParam_t *d_ZoneParam,

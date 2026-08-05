@@ -23,7 +23,7 @@ public: // Member functions
   DeviceVector(const DeviceVector<T> &other);
   DeviceVector(const DeviceVector<T> &&other);
 
-  ~DeviceVector(void);
+  ~DeviceVector(void) noexcept;
 
   DeviceVector<T> &operator=(const std::vector<T> &other);
   DeviceVector<T> &operator=(const std::vector<T> &&other);

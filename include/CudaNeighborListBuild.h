@@ -38,7 +38,9 @@ struct ientry_t {
 };
 
 #ifdef USE_SPARSE
-template <int tilesize> struct pairs_t { int i[tilesize]; };
+template <int tilesize> struct pairs_t {
+  int i[tilesize];
+};
 #endif
 
 template <int tilesize> class CudaNeighborListBuild {
@@ -135,6 +137,8 @@ private:
   // void set_NlistParam(cudaStream_t stream);
   // void get_NlistParam();
 
+  void dealloc(void) noexcept;
+
   void init();
   void load(const char *filename);
 
@@ -143,7 +147,7 @@ public:
                         const int izoneEnd, const bool q_p21_);
   CudaNeighborListBuild(const int n_int_zone_max, const int izoneStart,
                         const int izoneEnd, const char *filename);
-  ~CudaNeighborListBuild();
+  ~CudaNeighborListBuild() noexcept;
 
   void build(const int ncell, const int cellStart, const int maxNumExcl,
              const ZoneParam_t *h_ZoneParam, const ZoneParam_t *d_ZoneParam,

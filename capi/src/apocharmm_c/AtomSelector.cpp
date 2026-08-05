@@ -45,7 +45,13 @@ extern "C" apo_status apo_atom_selector_create(apo_atom_selector **out,
 }
 
 extern "C" void apo_atom_selector_destroy(apo_atom_selector *selector) {
-  delete selector;
+  const char *function_name = "apo_atom_selector_destroy";
+  apocharmm_c::guard_destroy(
+      [selector](void) -> void {
+        delete selector;
+        return;
+      },
+      function_name);
   return;
 }
 

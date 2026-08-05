@@ -37,8 +37,14 @@ CudaIntegrator::CudaIntegrator(void)
   m_IntegratorStream = std::make_shared<cudaStream_t>();
   cudaCheck(cudaStreamCreate(m_IntegratorStream.get()));
 
-  m_IntegratorMemcpyStream = std::make_shared<cudaStream_t>();
-  cudaCheck(cudaStreamCreate(m_IntegratorMemcpyStream.get()));
+  try {
+    m_IntegratorMemcpyStream = std::make_shared<cudaStream_t>();
+    cudaCheck(cudaStreamCreate(m_IntegratorMemcpyStream.get()));
+  } catch (...) {
+    destroy_cuda_stream_noexcept(m_IntegratorStream.get());
+    m_IntegratorStream.reset();
+    throw;
+  }
 }
 
 CudaIntegrator::CudaIntegrator(const double timeStep) : CudaIntegrator() {
@@ -49,6 +55,18 @@ CudaIntegrator::CudaIntegrator(const double timeStep,
                                const int debugPrintFrequency)
     : CudaIntegrator(timeStep) {
   m_DebugPrintFrequency = debugPrintFrequency;
+}
+
+CudaIntegrator::~CudaIntegrator(void) noexcept {
+  if (m_IntegratorMemcpyStream != nullptr) {
+    destroy_cuda_stream_noexcept(m_IntegratorMemcpyStream.get());
+    m_IntegratorMemcpyStream.reset();
+  }
+
+  if (m_IntegratorStream != nullptr) {
+    destroy_cuda_stream_noexcept(m_IntegratorStream.get());
+    m_IntegratorStream.reset();
+  }
 }
 
 double CudaIntegrator::getTimeStep(void) const {

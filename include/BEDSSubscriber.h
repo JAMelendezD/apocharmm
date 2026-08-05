@@ -17,7 +17,7 @@ class BEDSSubscriber : public Subscriber {
 public:
   BEDSSubscriber(const std::string &fileName);
   BEDSSubscriber(const std::string &fileName, const int reportFrequency);
-  ~BEDSSubscriber(void);
+  ~BEDSSubscriber(void) noexcept override = default;
 
 public:
   void update(void) override;

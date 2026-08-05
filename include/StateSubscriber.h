@@ -26,7 +26,7 @@ class StateSubscriber : public Subscriber {
 public:
   StateSubscriber(const std::string &fileName);
   StateSubscriber(const std::string &fileNameIn, const int reportFrequency);
-  ~StateSubscriber();
+  ~StateSubscriber() noexcept override = default;
 
 public:
   void update(void) override;

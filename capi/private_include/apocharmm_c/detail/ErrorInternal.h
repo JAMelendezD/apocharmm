@@ -85,6 +85,16 @@ apo_status guard(Function &&function, const char *function_name) noexcept {
   }
 }
 
+template <typename Function>
+void guard_destroy(Function &&function, const char *function_name) noexcept {
+  (void)guard(
+      [&function](void) -> apo_status {
+        function();
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
 } // namespace apocharmm_c
 
 #undef APOCHARMM_C_INTERNAL_TEST_API

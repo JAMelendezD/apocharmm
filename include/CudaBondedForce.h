@@ -137,7 +137,7 @@ public:
                   const char *nameUreyb, const char *nameAngle,
                   const char *nameDihe, const char *nameImdihe,
                   const char *nameCmap);
-  ~CudaBondedForce();
+  ~CudaBondedForce() noexcept;
 
   void setup_coef(const std::vector<int> &size,
                   const std::vector<std::vector<float>> &val);

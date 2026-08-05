@@ -24,11 +24,6 @@ XYZSubscriber::XYZSubscriber(const std::string &fileName,
   m_NumFramesWritten = 0;
 }
 
-XYZSubscriber::~XYZSubscriber(void) {
-  if (m_FileStream.is_open())
-    m_FileStream.close();
-}
-
 void XYZSubscriber::update(void) {
   if (m_CharmmContext == nullptr)
     throw std::runtime_error("ERROR: XYZSubscriber has no CHARMM context.");

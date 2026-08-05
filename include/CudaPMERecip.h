@@ -49,8 +49,8 @@ public:
   CT *data1 = 0;
   CT *data2 = 0;
 
-  int data1_len;
-  int data2_len;
+  int data1_len = 0;
+  int data2_len = 0;
 
   // Type of FFT
   FFTtype fft_type;
@@ -60,12 +60,12 @@ public:
   Matrix3d<CT> *solved_grid = 0; // data2
 
   // For COLUMN FFT
-  Matrix3d<CT2> *xfft_grid; // data2
-  Matrix3d<CT2> *yfft_grid; // data1
-  Matrix3d<CT2> *zfft_grid; // data2
+  Matrix3d<CT2> *xfft_grid = 0; // data2
+  Matrix3d<CT2> *yfft_grid = 0; // data1
+  Matrix3d<CT2> *zfft_grid = 0; // data2
 
   // For SLAB FFT. Also uses "zfft_grid" from above
-  Matrix3d<CT2> *xyfft_grid; // data2
+  Matrix3d<CT2> *xyfft_grid = 0; // data2
 
   // For BOX FFT
   Matrix3d<CT2> *fft_grid = 0; // data2
@@ -103,24 +103,24 @@ private:
   // since CUFFT_COMPATIBILITY_NATIVE
   // was deprecated
   CT *fft_scratch = 0;
-  size_t fft_scratch_bytes;
+  size_t fft_scratch_bytes = 0;
 
   // Plans for "COLUMN" FFT
-  cufftHandle x_r2c_plan;
-  cufftHandle y_c2c_plan;
-  cufftHandle z_c2c_plan;
-  cufftHandle x_c2r_plan;
+  cufftHandle x_r2c_plan = 0;
+  cufftHandle y_c2c_plan = 0;
+  cufftHandle z_c2c_plan = 0;
+  cufftHandle x_c2r_plan = 0;
 
   // Plans for "SLAB" FFT. Also uses "z_c2c_plan" form above
-  cufftHandle xy_r2c_plan;
-  cufftHandle xy_c2r_plan;
+  cufftHandle xy_r2c_plan = 0;
+  cufftHandle xy_c2r_plan = 0;
 
   // Plans for "BOX" FFT
   cufftHandle r2c_plan = 0;
   cufftHandle c2r_plan = 0;
 
   // true for using multiple GPUs for the FFTs
-  bool multi_gpu;
+  bool multi_gpu = false;
 
 #if CUDA_VERSION >= 6000
   // data for multi-gpus
@@ -130,7 +130,7 @@ private:
 #endif
 
   // Stream where all computation takes place
-  cudaStream_t stream;
+  cudaStream_t stream = 0;
 
   // Prefactor arrays
   CT *prefac_x = 0;
@@ -138,8 +138,10 @@ private:
   CT *prefac_z = 0;
 
 #ifdef USE_TEXTURE_OBJECTS
-  bool gridTexObjActive;
-  cudaTextureObject_t gridTexObj;
+  bool gridTexObjActive = false;
+  cudaTextureObject_t gridTexObj = 0;
+#else
+  bool gridTexRefBound = false;
 #endif
 
   // Energy terms
@@ -150,7 +152,7 @@ private:
   void init(int x0, int x1, int y0, int y1, int z0, int z1, int order,
             bool y_land_locked, bool z_land_locked);
 
-  void dealloc(void);
+  void dealloc(void) noexcept;
 
   void make_fft_plans();
 
@@ -164,8 +166,8 @@ public:
                cudaStream_t stream = 0);
 
   // Move constructor to work with the ForceManager
-  CudaPMERecip(CudaPMERecip &&other);
-  ~CudaPMERecip();
+  CudaPMERecip(CudaPMERecip &&other) noexcept;
+  ~CudaPMERecip() noexcept;
   void setParams(int nfft1, int nfft2, int nfft3, int ord, cudaStream_t stream);
 
   void setup_grid_texture(CT *data, const int data_len);

@@ -60,14 +60,11 @@ template <typename T> Force<T>::Force(const char *filename) : Force<T>() {
   copy_HtoD_sync<T>(z.data(), this->z(), nforce);
 }
 
-template <typename T> Force<T>::~Force(void) {
+template <typename T> Force<T>::~Force(void) noexcept {
+  deallocate_noexcept<T>(&m_XYZ);
   m_Size = 0;
   m_Stride = 0;
   m_Capacity = 0;
-  if (m_XYZ != nullptr) {
-    deallocate<T>(&m_XYZ);
-    m_XYZ = nullptr;
-  }
 }
 
 template <typename T> void Force<T>::clear(cudaStream_t stream) {

@@ -30,7 +30,7 @@ public:
 public:
   HarmonicRestraintForce(void) = delete;
   HarmonicRestraintForce(const int numAtoms);
-  ~HarmonicRestraintForce(void);
+  ~HarmonicRestraintForce(void) noexcept;
 
 public:
   void setSelection(const AtomSelection &selection);
@@ -53,9 +53,6 @@ public:
   void setBoxDimensions(const std::vector<double> &boxDimensions);
   std::shared_ptr<Force<AT>> getForce(void);
   std::shared_ptr<CudaEnergyVirial> getEnergyVirial(void);
-
-private:
-  void dealloc(void);
 
 private:
   int m_NumAtoms;

@@ -22,7 +22,7 @@
 class CudaLangevinThermostatIntegrator : public CudaIntegrator {
 public:
   CudaLangevinThermostatIntegrator(const double timeStep);
-  ~CudaLangevinThermostatIntegrator(void);
+  ~CudaLangevinThermostatIntegrator(void) noexcept override;
 
 public:
   void setReferenceTemperature(const double referenceTemperature);

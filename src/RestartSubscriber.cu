@@ -34,11 +34,6 @@ RestartSubscriber::RestartSubscriber(const std::string &fileName,
                                      const int reportFrequency)
     : Subscriber(fileName, reportFrequency) {}
 
-RestartSubscriber::~RestartSubscriber(void) {
-  if (m_FileStream.is_open())
-    m_FileStream.close();
-}
-
 void RestartSubscriber::update(void) {
   constexpr int rstDoubleWidth = 22;
   constexpr int rstDoublePrecision = 15;

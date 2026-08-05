@@ -47,8 +47,11 @@ HarmonicCenterOfMassRestraintForce<AT, CT>::HarmonicCenterOfMassRestraintForce(
 
 template <typename AT, typename CT>
 HarmonicCenterOfMassRestraintForce<AT, CT>::~HarmonicCenterOfMassRestraintForce(
-    void) {
-  this->dealloc();
+    void) noexcept {
+  if (m_Stream != nullptr) {
+    destroy_cuda_stream_noexcept(m_Stream.get());
+    m_Stream.reset();
+  }
 }
 
 template <typename AT, typename CT>
@@ -636,15 +639,6 @@ void HarmonicCenterOfMassRestraintForce<AT, CT>::updateSelectedAtoms(void) {
 
   m_RestraintState.set(make_double4(0.0, 0.0, 0.0, 0.0));
 
-  return;
-}
-
-template <typename AT, typename CT>
-void HarmonicCenterOfMassRestraintForce<AT, CT>::dealloc(void) {
-  if (m_Stream != nullptr) {
-    cudaCheck(cudaStreamDestroy(*m_Stream));
-    m_Stream.reset();
-  }
   return;
 }
 

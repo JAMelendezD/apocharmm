@@ -41,8 +41,11 @@ HarmonicRestraintForce<AT, CT>::HarmonicRestraintForce(const int numAtoms)
 }
 
 template <typename AT, typename CT>
-HarmonicRestraintForce<AT, CT>::~HarmonicRestraintForce(void) {
-  this->dealloc();
+HarmonicRestraintForce<AT, CT>::~HarmonicRestraintForce(void) noexcept {
+  if (m_Stream != nullptr) {
+    destroy_cuda_stream_noexcept(m_Stream.get());
+    m_Stream.reset();
+  }
 }
 
 template <typename AT, typename CT>
@@ -384,15 +387,6 @@ template <typename AT, typename CT>
 std::shared_ptr<CudaEnergyVirial>
 HarmonicRestraintForce<AT, CT>::getEnergyVirial(void) {
   return m_EnergyVirial;
-}
-
-template <typename AT, typename CT>
-void HarmonicRestraintForce<AT, CT>::dealloc(void) {
-  if (m_Stream != nullptr) {
-    cudaCheck(cudaStreamDestroy(*m_Stream));
-    m_Stream.reset();
-  }
-  return;
 }
 
 //

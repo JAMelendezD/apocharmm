@@ -31,7 +31,7 @@ CudaEnergyVirial::CudaEnergyVirial(void) : EnergyVirial() {
 //
 // Class destructor
 //
-CudaEnergyVirial::~CudaEnergyVirial(void) { this->deallocateBuffer(); }
+CudaEnergyVirial::~CudaEnergyVirial(void) noexcept { this->deallocateBuffer(); }
 
 //
 // Clears (sets to zero) energies and virials
@@ -385,16 +385,12 @@ void CudaEnergyVirial::reallocateBuffer(void) {
 //
 // Safely deallocate memory
 //
-void CudaEnergyVirial::deallocateBuffer(void) {
-  if (m_HostBuffer != NULL) {
-    m_HostBufferLength = 0;
-    deallocate_host<char>(&m_HostBuffer);
-  }
+void CudaEnergyVirial::deallocateBuffer(void) noexcept {
+  m_HostBufferLength = 0;
+  deallocate_host_noexcept<char>(&m_HostBuffer);
 
-  if (m_DeviceBuffer != NULL) {
-    m_DeviceBufferLength = 0;
-    deallocate<char>(&m_DeviceBuffer);
-  }
+  m_DeviceBufferLength = 0;
+  deallocate_noexcept<char>(&m_DeviceBuffer);
 
   return;
 }

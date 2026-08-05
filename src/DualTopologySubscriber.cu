@@ -24,11 +24,6 @@ DualTopologySubscriber::DualTopologySubscriber(const std::string &fileName,
   m_NumFramesWritten = 0;
 }
 
-DualTopologySubscriber::~DualTopologySubscriber(void) {
-  if (m_FileStream.is_open())
-    m_FileStream.close();
-}
-
 void DualTopologySubscriber::update(void) {
   m_CharmmContext->calculateForces(false, true, true);
 

@@ -33,11 +33,6 @@ DynaSubscriber::DynaSubscriber(const std::string &fileName,
   m_HasWrittenHeader = false;
 }
 
-DynaSubscriber::~DynaSubscriber(void) {
-  m_FileStream.flush();
-  m_FileStream.close();
-}
-
 void DynaSubscriber::update(void) {
   if (!m_HasWrittenHeader)
     this->writeHeader();

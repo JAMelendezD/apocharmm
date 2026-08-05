@@ -1214,38 +1214,24 @@ CudaBondedForce<AT, CT>::CudaBondedForce(CudaBondedForce &&other)
 // Class destructor
 //
 template <typename AT, typename CT>
-CudaBondedForce<AT, CT>::~CudaBondedForce() {
-  if (bondlist != NULL)
-    deallocate<bondlist_t>(&bondlist);
-  if (bondcoef != NULL)
-    deallocate<float2>(&bondcoef);
+CudaBondedForce<AT, CT>::~CudaBondedForce() noexcept {
+  deallocate_noexcept<bondlist_t>(&bondlist);
+  deallocate_noexcept<float2>(&bondcoef);
 
-  if (ureyblist != NULL)
-    deallocate<bondlist_t>(&ureyblist);
-  if (ureybcoef != NULL)
-    deallocate<float2>(&ureybcoef);
+  deallocate_noexcept<bondlist_t>(&ureyblist);
+  deallocate_noexcept<float2>(&ureybcoef);
 
-  if (anglelist != NULL)
-    deallocate<anglelist_t>(&anglelist);
-  if (anglecoef != NULL)
-    deallocate<float2>(&anglecoef);
+  deallocate_noexcept<anglelist_t>(&anglelist);
+  deallocate_noexcept<float2>(&anglecoef);
 
-  if (dihelist != NULL)
-    deallocate<dihelist_t>(&dihelist);
-  if (dihecoef != NULL)
-    deallocate<float4>(&dihecoef);
+  deallocate_noexcept<dihelist_t>(&dihelist);
+  deallocate_noexcept<float4>(&dihecoef);
 
-  if (imdihelist != NULL)
-    deallocate<dihelist_t>(&imdihelist);
-  if (imdihecoef != NULL)
-    deallocate<float4>(&imdihecoef);
+  deallocate_noexcept<dihelist_t>(&imdihelist);
+  deallocate_noexcept<float4>(&imdihecoef);
 
-  if (cmaplist != NULL)
-    deallocate<cmaplist_t>(&cmaplist);
-  if (cmapcoef != NULL)
-    deallocate<float2>(&cmapcoef);
-
-  //  deallocate_host<BondedEnergyVirial_t>(&h_energy_virial);
+  deallocate_noexcept<cmaplist_t>(&cmaplist);
+  deallocate_noexcept<float2>(&cmapcoef);
 }
 
 //

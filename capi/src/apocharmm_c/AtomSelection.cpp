@@ -16,7 +16,13 @@
 #include <vector>
 
 extern "C" void apo_atom_selection_destroy(apo_atom_selection *selection) {
-  delete selection;
+  const char *function_name = "apo_atom_selection_destroy";
+  apocharmm_c::guard_destroy(
+      [selection](void) -> void {
+        delete selection;
+        return;
+      },
+      function_name);
   return;
 }
 

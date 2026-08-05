@@ -163,7 +163,7 @@ public:
   //  */
   // ForceManager(std::shared_ptr<ForceManager> fmIn);
 
-  ~ForceManager(void);
+  virtual ~ForceManager(void) noexcept;
 
 public:
   /**
@@ -511,7 +511,7 @@ protected:
   void checkBoxDimensions(const std::vector<double> &boxDimensions);
 
 private:
-  void dealloc(void);
+  void dealloc(void) noexcept;
 
 protected:
   /**

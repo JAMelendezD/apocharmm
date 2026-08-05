@@ -100,12 +100,15 @@ CudaTopExcl::CudaTopExcl(const int ncoord, std::string iblo14File,
 //
 // Class destructor
 //
-CudaTopExcl::~CudaTopExcl() {
-  if (atomExclPos != NULL)
-    deallocate<int>(&atomExclPos);
-  if (atomExcl != NULL)
-    deallocate<int>(&atomExcl);
-  deallocate<int>(&glo2loc);
+CudaTopExcl::~CudaTopExcl() noexcept {
+  deallocate_noexcept<int>(&glo2loc);
+  deallocate_noexcept<int>(&atomExcl);
+  deallocate_noexcept<int>(&atomExclPos);
+
+  atomExclLen = 0;
+  atomExclPosLen = 0;
+  ncoord = 0;
+  maxNumExcl = 0;
 }
 
 /**
@@ -176,8 +179,8 @@ void CudaTopExcl::setup(const int *iblo14, const int *inb14) {
       int pos_startj = h_atomExclPos[j];
       int nj = nexcl[j];
       if (pos_startj + nj >= h_atomExclPos[j + 1]) {
-        //std::cerr << "CudaTopExcl::setup, overflow in j" << std::endl;
-        throw std::invalid_argument("CudaTopExcl::setup, overflow in j\n" );
+        // std::cerr << "CudaTopExcl::setup, overflow in j" << std::endl;
+        throw std::invalid_argument("CudaTopExcl::setup, overflow in j\n");
         exit(1);
       }
       h_atomExcl[pos_startj + nj] = i;
@@ -185,7 +188,7 @@ void CudaTopExcl::setup(const int *iblo14, const int *inb14) {
       nexcl[j] = nj;
       // Add i-j exclusion to atom i
       if (pos_starti + ni >= h_atomExclPos[i + 1]) {
-        //std::cerr << "CudaTopExcl::setup, overflow in i" << std::endl;
+        // std::cerr << "CudaTopExcl::setup, overflow in i" << std::endl;
         throw std::invalid_argument("CudaTopExcl::setup, overflow in i\n");
         exit(1);
       }

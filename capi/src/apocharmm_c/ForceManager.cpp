@@ -52,7 +52,13 @@ apo_force_manager_create(apo_force_manager **out, const apo_charmm_psf *psf,
 }
 
 extern "C" void apo_force_manager_destroy(apo_force_manager *force_manager) {
-  delete force_manager;
+  const char *function_name = "apo_force_manager_destroy";
+  apocharmm_c::guard_destroy(
+      [force_manager](void) -> void {
+        delete force_manager;
+        return;
+      },
+      function_name);
   return;
 }
 

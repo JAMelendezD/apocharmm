@@ -19,7 +19,7 @@ class DynaSubscriber : public Subscriber {
 public:
   DynaSubscriber(const std::string &fileName);
   DynaSubscriber(const std::string &fileName, const int reportFrequency);
-  ~DynaSubscriber(void);
+  ~DynaSubscriber(void) noexcept override = default;
 
 public:
   void update(void) override;

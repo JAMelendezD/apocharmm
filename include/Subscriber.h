@@ -30,6 +30,8 @@ public:
    */
   Subscriber(const std::string &fileName, const int reportFrequency);
 
+  virtual ~Subscriber(void) noexcept = default;
+
 public:
   /**
    * @brief Set frequency of reports

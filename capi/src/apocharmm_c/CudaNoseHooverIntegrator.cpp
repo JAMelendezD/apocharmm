@@ -40,7 +40,13 @@ apo_cuda_nose_hoover_integrator_create(apo_cuda_nose_hoover_integrator **out,
 
 extern "C" void apo_cuda_nose_hoover_integrator_destroy(
     apo_cuda_nose_hoover_integrator *integrator) {
-  delete integrator;
+  const char *function_name = "apo_cuda_nose_hoover_integrator_destroy";
+  apocharmm_c::guard_destroy(
+      [integrator](void) -> void {
+        delete integrator;
+        return;
+      },
+      function_name);
   return;
 }
 

@@ -23,7 +23,7 @@ class EDSSubscriber : public Subscriber {
 public:
   EDSSubscriber(const std::string &fileName);
   EDSSubscriber(const std::string &fileName, int reportFrequency);
-  ~EDSSubscriber(void);
+  ~EDSSubscriber(void) noexcept override = default;
 
 public:
   void update(void) override;

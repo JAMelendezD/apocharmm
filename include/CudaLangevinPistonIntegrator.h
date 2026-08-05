@@ -24,7 +24,7 @@
 class CudaLangevinPistonIntegrator : public CudaIntegrator {
 public:
   CudaLangevinPistonIntegrator(const double timeStep);
-  ~CudaLangevinPistonIntegrator(void);
+  ~CudaLangevinPistonIntegrator(void) noexcept override;
 
 public:
   void useNoseHooverThermostat(const bool usingNoseHooverThermostat);

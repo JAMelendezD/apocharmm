@@ -48,7 +48,7 @@ public:
   CudaTopExcl();
   CudaTopExcl(const int ncoord, const int *iblo14, const int *inb14);
   CudaTopExcl(const int ncoord, std::string iblo14File, std::string inb14File);
-  ~CudaTopExcl();
+  ~CudaTopExcl() noexcept;
 
   void setFromFile(const int numAtoms, std::string iblo14File,
                    std::string inb14File);

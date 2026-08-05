@@ -14,27 +14,36 @@
 #include <fstream>
 #include <iostream>
 
-CudaP21NeighborListBuild::CudaP21NeighborListBuild() {
+CudaP21NeighborListBuild::CudaP21NeighborListBuild()
+    : imx_lo(-1), imx_hi(1), imy_lo(-1), imy_hi(1), imz_lo(-1), imz_hi(1),
+      n_ientry(0), n_tile(0), n_ientry_est(0), n_tile_est(0), tile_excl_len(0),
+      tile_excl(NULL), ientry_raw_len(0), ientry_raw(NULL), ientry_len(0),
+      ientry(NULL), tile_indj_len(0), tile_indj(NULL), exclAtomHeapLen(0),
+      exclAtomHeap(NULL), bucketPosLen(n_jlist_max + 1), bucketPos(NULL),
+      bucketIndexLen(0), bucketIndex(NULL) {
+  allocate<int>(&bucketPos, bucketPosLen);
+}
 
-  // may be make _lo 0
-  imx_lo = -1;
-  imx_hi = 1;
-  imy_lo = -1;
-  imy_hi = 1;
-  imz_lo = -1;
-  imz_hi = 1;
-  // std::cout << "[p21nlbuild] Constructor called" << std::endl;
+CudaP21NeighborListBuild::~CudaP21NeighborListBuild() noexcept {
+  deallocate_noexcept<int>(&bucketIndex);
+  deallocate_noexcept<int>(&bucketPos);
+  deallocate_noexcept<int>(&exclAtomHeap);
+  deallocate_noexcept<int>(&tile_indj);
+  deallocate_noexcept<ientry_t>(&ientry);
+  deallocate_noexcept<ientry_t>(&ientry_raw);
+  deallocate_noexcept<tile_excl_t<32>>(&tile_excl);
 
-  ientry = NULL;
+  bucketIndexLen = 0;
+  bucketPosLen = 0;
+  exclAtomHeapLen = 0;
+  tile_indj_len = 0;
   ientry_len = 0;
-  ientry_raw = NULL;
-  tile_indj = NULL;
-
-  exclAtomHeap = NULL;
-  tile_excl = NULL;
-  //bucketPos = NULL;
-  allocate<int>(&bucketPos, n_jlist_max + 1);
-  bucketIndex = NULL;
+  ientry_raw_len = 0;
+  tile_excl_len = 0;
+  n_ientry = 0;
+  n_tile = 0;
+  n_ientry_est = 0;
+  n_tile_est = 0;
 }
 
 //
@@ -48,8 +57,8 @@ __forceinline__ __device__ int binary_excl_scan_p21(int val, int wid) {
 }
 
 //
-// Calculates reduction across warp for binary (0 or 1) values. Result is in all
-// threads within the warp
+// Calculates reduction across warp for binary (0 or 1) values. Result is in
+// all threads within the warp
 //
 __forceinline__ __device__ int binary_reduce_p21(int val) {
   return __popc(BALLOT(val));
@@ -356,11 +365,11 @@ __global__ void p21buildKernel(
 
 __forceinline__ __device__ void
 p21flushAtomjNew(const int wid, const int min_atomj, const int max_atomj,
-              const int n_atomj, const int reg_atomj, const int minExclAtom,
-              const int maxExclAtom, const int numExclAtom,
-              const int *__restrict__ exclAtom, const int tileStart,
-              tile_excl_t<32> *__restrict__ tile_excl,
-              const int *__restrict__ tile_indj) {
+                 const int n_atomj, const int reg_atomj, const int minExclAtom,
+                 const int maxExclAtom, const int numExclAtom,
+                 const int *__restrict__ exclAtom, const int tileStart,
+                 tile_excl_t<32> *__restrict__ tile_excl,
+                 const int *__restrict__ tile_indj) {
   int tilesize = 32;
   if ((min_atomj <= maxExclAtom) && (max_atomj >= minExclAtom)) {
     int atomj = (wid < n_atomj) ? (reg_atomj >> n_jlist_max_shift) : -1;
@@ -450,21 +459,20 @@ __global__ void p21buildExclKernel(
   int imx = tmp - 1;
   imy--;
   imz--;
-  
+
   xi += imx * boxx;
   if (imx == 0) {
     yi += imy * boxy;
-    zi += imz * boxz; 
-  }
-  else {
+    zi += imz * boxz;
+  } else {
     yi = -yi + imy * boxy;
-    zi = -zi + imz * boxz; 
+    zi = -zi + imz * boxz;
   }
 
   int jlen_excl = jend_excl - jstart_excl + 1;
   int pos = incl_scan_shfl(jlen_excl, wid);
-// Get the total number of excluded atoms by broadcasting the last value
-// across all threads in the warp
+  // Get the total number of excluded atoms by broadcasting the last value
+  // across all threads in the warp
   int numExclAtom = bcast_shfl(pos, warpsize - 1);
   // Get the exclusive sum position
   pos -= jlen_excl;
@@ -484,7 +492,7 @@ __global__ void p21buildExclKernel(
     // Store excluded atom index (atom) and atom i index
     exclAtom[pos + nexcl++] = (atom << 5) | wid;
   }
-// Reduce minExclAtom and maxExclAtom across the warp
+  // Reduce minExclAtom and maxExclAtom across the warp
   minExclAtom = min_shfl(minExclAtom);
   maxExclAtom = max_shfl(maxExclAtom);
 
@@ -569,15 +577,15 @@ __global__ void p21buildExclKernel(
         if (n_atomj == warpsize) {
           // Check for topological exclusions
           p21flushAtomjNew(wid, min_atomj, max_atomj, n_atomj, reg_atomj,
-                                  minExclAtom, maxExclAtom, numExclAtom,
-                                  exclAtom, tileStart, tile_excl, tile_indj);
+                           minExclAtom, maxExclAtom, numExclAtom, exclAtom,
+                           tileStart, tile_excl, tile_indj);
           min_atomj = 1 << 30;
           max_atomj = 0;
           n_atomj = 0;
         } // if (natomj == warpsize)
 
       } // if (__any((r2 < rcut2)))
-    }   // for (int j=0;j <= jatomEnd-jatomStart;j++)
+    } // for (int j=0;j <= jatomEnd-jatomStart;j++)
 
     //---------------------------------------------------------------------------------------
 
@@ -585,9 +593,9 @@ __global__ void p21buildExclKernel(
     // ientry[ientry_ind].tileEnd;jcell++)
 
   if (n_atomj > 0) {
-    p21flushAtomjNew(wid, min_atomj, max_atomj, n_atomj, reg_atomj,
-                            minExclAtom, maxExclAtom, numExclAtom, exclAtom,
-                            tileStart, tile_excl, tile_indj);
+    p21flushAtomjNew(wid, min_atomj, max_atomj, n_atomj, reg_atomj, minExclAtom,
+                     maxExclAtom, numExclAtom, exclAtom, tileStart, tile_excl,
+                     tile_indj);
   }
 
   // Re-write tileEnd with possibly reduced number of tiles
@@ -601,17 +609,18 @@ __global__ void p21buildExclKernel(
     int ibucket = n_jlist_max - n_tile_new;
     atomicAdd(&bucketPos[ibucket], 1);
     bucketIndex[ientry_ind] = ibucket;
-  } 
+  }
 }
 //
 // Sorts ientry with bucket sort using a single thread block
-// NOTE: Works for any length array but will not be optimal for very long arrays
+// NOTE: Works for any length array but will not be optimal for very long
+// arrays
 //
-__global__ void p21bucketSortShortIentryKernel(const int numBucket, int *bucketPos,
-                                            int *bucketIndex,
-                                            const int n_ientry,
-                                            const ientry_t *ientry_in,
-                                            ientry_t *ientry_out) {
+__global__ void p21bucketSortShortIentryKernel(const int numBucket,
+                                               int *bucketPos, int *bucketIndex,
+                                               const int n_ientry,
+                                               const ientry_t *ientry_in,
+                                               ientry_t *ientry_out) {
   // Shared memory
   // Requires: blockDim.x*sizeof(int)
   extern __shared__ int shBucketPos[];
@@ -647,7 +656,6 @@ __global__ void p21bucketSortShortIentryKernel(const int numBucket, int *bucketP
     ientry_out[pos] = ientry_in[i];
   }
 }
-
 
 void CudaP21NeighborListBuild::estimateIentry(
     const ZoneParam_t *__restrict__ h_ZoneParam, float rcut) {
@@ -778,5 +786,4 @@ void CudaP21NeighborListBuild::build(
   cudaCheck(cudaGetLastError());
 
   cudaDeviceSynchronize();
-
 }

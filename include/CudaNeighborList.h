@@ -112,7 +112,7 @@ private:
 
   void sort_realloc(const int indList);
 
-  void dealloc(void);
+  void dealloc(void) noexcept;
 
   std::shared_ptr<CellParam_t> h_cellParam;
   CellParam_t *d_cellParam;
@@ -122,7 +122,7 @@ public:
   CudaNeighborList();
   CudaNeighborList(const CudaTopExcl &topExcl, const int nx, const int ny,
                    const int nz);
-  ~CudaNeighborList();
+  ~CudaNeighborList() noexcept;
   void setPBC(PBC _pbc) { pbc = _pbc; }
   void registerList(std::vector<int> &numIntZone,
                     std::vector<std::vector<int>> &intZones,

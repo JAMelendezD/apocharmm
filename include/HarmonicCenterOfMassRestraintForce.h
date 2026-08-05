@@ -31,7 +31,7 @@ public:
 public:
   HarmonicCenterOfMassRestraintForce(void) = delete;
   HarmonicCenterOfMassRestraintForce(const int numAtoms);
-  ~HarmonicCenterOfMassRestraintForce(void);
+  ~HarmonicCenterOfMassRestraintForce(void) noexcept;
 
 public:
   void setSelection(const AtomSelection &selection);
@@ -62,7 +62,6 @@ public:
 
 private:
   void updateSelectedAtoms(void);
-  void dealloc(void);
 
 private:
   int m_NumAtoms;

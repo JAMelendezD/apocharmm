@@ -4,6 +4,7 @@ set(SOURCES_UNITTESTS_TESTS
   unittest-apoCharmmError.cpp
   unittest-deviceVector.cpp
   unittest-cudaContainer.cpp
+  unittest-nothrowDestruction.cpp
 
   # Manager tests
   unittest-charmmContext.cpp

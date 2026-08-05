@@ -2,6 +2,7 @@
 set(PYTHON_API_TESTS
   # Utility tests
   python_api_error.py
+  python_api_base.py
 
   # Manager tests
   python_api_charmm_context.py

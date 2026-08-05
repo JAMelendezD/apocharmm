@@ -50,7 +50,7 @@ public:
    */
   Force(const char *filename);
 
-  ~Force(void);
+  ~Force(void) noexcept;
 
   /**
    * @brief Given a cudaStream_t, clear the associated GPU array

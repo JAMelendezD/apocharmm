@@ -48,8 +48,9 @@ CudaLangevinThermostatIntegrator::CudaLangevinThermostatIntegrator(
   m_AverageTemperature.setToValue(0.0);
 }
 
-CudaLangevinThermostatIntegrator::~CudaLangevinThermostatIntegrator(void) {
-  this->dealloc();
+CudaLangevinThermostatIntegrator::~CudaLangevinThermostatIntegrator(
+    void) noexcept {
+  ::deallocate_noexcept(&m_RngStates);
 }
 
 void CudaLangevinThermostatIntegrator::setReferenceTemperature(
@@ -1006,10 +1007,6 @@ void CudaLangevinThermostatIntegrator::alloc(const int n) {
 }
 
 void CudaLangevinThermostatIntegrator::dealloc(void) {
-  if (m_RngStates != nullptr) {
-    // Deallocate memory for RNG
-    cudaCheck(cudaFree(static_cast<void *>(m_RngStates)));
-    m_RngStates = nullptr;
-  }
+  ::deallocate(&m_RngStates);
   return;
 }

@@ -12,12 +12,14 @@
 
 #include "CudaNeighborListBuild.h"
 #include "CudaNeighborListStruct.h"
-//#include "gpu_utils.h"
+// #include "gpu_utils.h"
 #include <cuda_runtime.h>
 
 class CudaP21NeighborListBuild {
 public:
   CudaP21NeighborListBuild();
+  ~CudaP21NeighborListBuild() noexcept;
+
   void build(const int ncell, const int maxNumExcl,
              const ZoneParam_t *__restrict__ h_zoneParam,
              const ZoneParam_t *__restrict__ d_zoneParam, const float boxx,
@@ -44,6 +46,7 @@ public:
   int get_n_tile_est() const { return n_tile_est; }
   const int *get_tile_indj() const { return tile_indj; }
   const tile_excl_t<32> *get_tile_excl() const { return tile_excl; }
+
 private:
   int imx_lo, imx_hi, imy_lo, imy_hi, imz_lo, imz_hi;
 

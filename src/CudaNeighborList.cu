@@ -115,7 +115,8 @@ CudaNeighborList<tilesize>::CudaNeighborList(const CudaTopExcl &topExcl,
 //
 // Class destructor
 //
-template <int tilesize> CudaNeighborList<tilesize>::~CudaNeighborList() {
+template <int tilesize>
+CudaNeighborList<tilesize>::~CudaNeighborList() noexcept {
   this->dealloc(); // To get rid of compiler warnings
 }
 
@@ -271,41 +272,49 @@ void CudaNeighborList<tilesize>::sort(const int indList, const int *zone_patom,
   }
 }
 
-template <int tilesize> void CudaNeighborList<tilesize>::dealloc(void) {
-  // Neighbor list building
-  if (ind_sorted != NULL)
-    deallocate<int>(&ind_sorted);
-  if (cell_patom != NULL)
-    deallocate<int>(&cell_patom);
-  if (col_ncellz != NULL)
-    deallocate<int>(&col_ncellz);
-  if (col_cell != NULL)
-    deallocate<int>(&col_cell);
-  if (cell_xyz_zone != NULL)
-    deallocate<int4>(&cell_xyz_zone);
-  if (cell_bz != NULL)
-    deallocate<float>(&cell_bz);
-  if (bb != NULL)
-    deallocate<bb_t>(&bb);
-  for (std::size_t i = 0; i < d_NlistParam.size(); i++) {
-    deallocate<NlistParam_t>(&d_NlistParam.at(i));
-    deallocate_host<NlistParam_t>(&h_NlistParam.at(i));
+template <int tilesize>
+void CudaNeighborList<tilesize>::dealloc(void) noexcept {
+  for (cudaEvent_t &event : build_event)
+    destroy_cuda_event_noexcept(&event);
+  build_event.clear();
+
+  destroy_cuda_event_noexcept(&glo2loc_reset_event);
+
+  for (CudaNeighborListBuild<tilesize> *&pointer : builder) {
+    CudaNeighborListBuild<tilesize> *const object_to_delete = pointer;
+    pointer = nullptr;
+    delete object_to_delete;
   }
-  for (std::size_t i = 0; i < sorter.size(); i++)
-    delete sorter.at(i);
-  if (!builder.empty()) {
-    for (std::size_t i = 0; i < builder.size(); i++)
-      delete builder.at(i);
+  builder.clear();
+
+  for (CudaNeighborListSort *&pointer : sorter) {
+    CudaNeighborListSort *const object_to_delete = pointer;
+    pointer = nullptr;
+    delete object_to_delete;
   }
-  if (h_ZoneParam != NULL)
-    deallocate_host<ZoneParam_t>(&h_ZoneParam);
-  if (d_ZoneParam != NULL)
-    deallocate<ZoneParam_t>(&d_ZoneParam);
-  for (std::size_t i = 0; i < build_event.size(); i++)
-    cudaCheck(cudaEventDestroy(build_event.at(i)));
-  cudaCheck(cudaEventDestroy(glo2loc_reset_event));
-  if (d_cellParam != NULL)
-    deallocate<CellParam_t>(&d_cellParam);
+  sorter.clear();
+
+  p21builder.reset();
+  neighborListSorter.reset();
+
+  for (NlistParam_t *&pointer : d_NlistParam)
+    deallocate_noexcept<NlistParam_t>(&pointer);
+  d_NlistParam.clear();
+
+  for (NlistParam_t *&pointer : h_NlistParam)
+    deallocate_host_noexcept<NlistParam_t>(&pointer);
+  h_NlistParam.clear();
+
+  deallocate_noexcept<CellParam_t>(&d_cellParam);
+  deallocate_noexcept<ZoneParam_t>(&d_ZoneParam);
+  deallocate_host_noexcept<ZoneParam_t>(&h_ZoneParam);
+  deallocate_noexcept<bb_t>(&bb);
+  deallocate_noexcept<float>(&cell_bz);
+  deallocate_noexcept<int4>(&cell_xyz_zone);
+  deallocate_noexcept<int>(&col_cell);
+  deallocate_noexcept<int>(&col_ncellz);
+  deallocate_noexcept<int>(&cell_patom);
+  deallocate_noexcept<int>(&ind_sorted);
 
   return;
 }

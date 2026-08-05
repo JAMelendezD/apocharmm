@@ -26,11 +26,6 @@ CompositeSubscriber::CompositeSubscriber(const std::string &fileName,
   m_NumFramesWritten = 0;
 }
 
-CompositeSubscriber::~CompositeSubscriber(void) {
-  if (m_FileStream.is_open())
-    m_FileStream.close();
-}
-
 void CompositeSubscriber::update(void) {
   // We need to access the potential energy for all members of the CompositeFM
   auto fm = m_CharmmContext->getForceManager();

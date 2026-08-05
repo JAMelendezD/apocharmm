@@ -16,20 +16,23 @@
 
 class CudaEMap {
 public:
-  CudaEMap(std::shared_ptr<CharmmContext> context) : context(context) {
+  // for now we are assuming that the grid is cubic
+  // and set to 100x100x100.
+  // this can be changed later
+  CudaEMap(std::shared_ptr<CharmmContext> context)
+      : context(context), stream(nullptr), nx(100), ny(100), nz(100) {
     cudaCheck(cudaStreamCreate(&stream));
 
-    // for now we are assuming that the grid is cubic
-    // and set to 100x100x100.
-    // this can be changed later
-    nx = 100;
-    ny = 100;
-    nz = 100;
-
-    atomicMasses = context->getForceManager()->getPsf()->getMasses();
+    try {
+      atomicMasses = context->getForceManager()->getPsf()->getMasses();
+    } catch (...) {
+      destroy_cuda_stream_noexcept(&stream);
+      throw;
+    }
   }
 
-  ~CudaEMap() { this->dealloc(); }
+  ~CudaEMap(void) noexcept { destroy_cuda_stream_noexcept(&stream); }
+
   void generate();
   void dealloc(void);
 

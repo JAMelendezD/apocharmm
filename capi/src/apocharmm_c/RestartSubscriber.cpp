@@ -72,7 +72,13 @@ extern "C" apo_status apo_restart_subscriber_create_with_report_frequency(
 
 extern "C" void
 apo_restart_subscriber_destroy(apo_restart_subscriber *subscriber) {
-  delete subscriber;
+  const char *function_name = "apo_restart_subscriber_destroy";
+  apocharmm_c::guard_destroy(
+      [subscriber](void) -> void {
+        delete subscriber;
+        return;
+      },
+      function_name);
   return;
 }
 

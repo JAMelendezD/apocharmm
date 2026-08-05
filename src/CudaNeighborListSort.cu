@@ -715,35 +715,42 @@ __global__ void calc_bb_cell_bz_kernel(const int ncell,
   }
 }
 
-void CudaNeighborListSort::dealloc(void) {
-  if (col_natom != NULL)
-    deallocate<int>(&col_natom);
-  if (col_patom != NULL)
-    deallocate<int>(&col_patom);
-  if (atom_icol != NULL)
-    deallocate<int>(&atom_icol);
-  if (col_xy_zone != NULL)
-    deallocate<int3>(&col_xy_zone);
-  if (loc2gloTmp != NULL)
-    deallocate<int>(&loc2gloTmp);
-  if (xyzqTmp != NULL)
-    deallocate<float4>(&xyzqTmp);
+void CudaNeighborListSort::dealloc(void) noexcept {
+  deallocate_noexcept<int>(&col_natom);
+  deallocate_noexcept<int>(&col_patom);
+  deallocate_noexcept<int>(&atom_icol);
+  deallocate_noexcept<int3>(&col_xy_zone);
+  deallocate_noexcept<int>(&loc2gloTmp);
+  deallocate_noexcept<float4>(&xyzqTmp);
+
 #ifdef BUCKET_SORT_IN_USE
-  if (bucketPos != NULL)
-    deallocate<int>(&bucketPos);
-  if (bucketIndex != NULL)
-    deallocate<int>(&bucketIndex);
-  if (indSortedTmp != NULL)
-    deallocate<int>(&indSortedTmp);
+  deallocate_noexcept<int>(&bucketPos);
+  deallocate_noexcept<int>(&bucketIndex);
+  deallocate_noexcept<int>(&indSortedTmp);
 #else
-  if (keyvalBuffer != NULL)
-    deallocate<keyval_t>(&keyvalBuffer);
+  deallocate_noexcept<keyval_t>(&keyvalBuffer);
 #endif
-  deallocate_host<int>(&h_ncell);
-  deallocate_host<int>(&h_zoneMaxZColNatom);
-  deallocate<int>(&d_zoneMaxZColNatom);
-  cudaCheck(cudaEventDestroy(ncell_copy_event));
-  cudaCheck(cudaEventDestroy(zoneMaxZColNatom_copy_event));
+
+  deallocate_host_noexcept<int>(&h_ncell);
+  deallocate_host_noexcept<int>(&h_zoneMaxZColNatom);
+  deallocate_noexcept<int>(&d_zoneMaxZColNatom);
+
+  destroy_cuda_event_noexcept(&ncell_copy_event);
+  destroy_cuda_event_noexcept(&zoneMaxZColNatom_copy_event);
+
+  col_natom_len = 0;
+  col_patom_len = 0;
+  col_xy_zone_len = 0;
+  atom_icol_len = 0;
+  loc2gloTmp_len = 0;
+  xyzqTmpLen = 0;
+#ifdef BUCKET_SORT_IN_USE
+  bucketPosLen = 0;
+  bucketIndexLen = 0;
+  indSortedTmpLen = 0;
+#else
+  keyvalBufferLen = 0;
+#endif
 
   return;
 }
@@ -791,24 +798,35 @@ CudaNeighborListSort::CudaNeighborListSort(const int tilesize,
   keyvalBuffer = NULL;
 #endif
 
+  h_ncell = NULL;
+  h_zoneMaxZColNatom = NULL;
+  d_zoneMaxZColNatom = NULL;
+  ncell_copy_event = nullptr;
+  zoneMaxZColNatom_copy_event = nullptr;
+
   test = false;
 
-  // Allocate pinned host memory
-  allocate_host<int>(&h_ncell, 1);
-  allocate_host<int>(&h_zoneMaxZColNatom, izoneEnd - izoneStart + 1);
+  try {
+    // Allocate pinned host memory
+    allocate_host<int>(&h_ncell, 1);
+    allocate_host<int>(&h_zoneMaxZColNatom, izoneEnd - izoneStart + 1);
 
-  // Allocate device memory
-  allocate<int>(&d_zoneMaxZColNatom, izoneEnd - izoneStart + 1);
+    // Allocate device memory
+    allocate<int>(&d_zoneMaxZColNatom, izoneEnd - izoneStart + 1);
 
-  // Create events
-  cudaCheck(cudaEventCreate(&ncell_copy_event));
-  cudaCheck(cudaEventCreate(&zoneMaxZColNatom_copy_event));
+    // Create events
+    cudaCheck(cudaEventCreate(&ncell_copy_event));
+    cudaCheck(cudaEventCreate(&zoneMaxZColNatom_copy_event));
+  } catch (...) {
+    this->dealloc();
+    throw;
+  }
 }
 
 //
 // Class destructor
 //
-CudaNeighborListSort::~CudaNeighborListSort() {
+CudaNeighborListSort::~CudaNeighborListSort() noexcept {
   this->dealloc(); // To get rid of compiler warnings
 }
 

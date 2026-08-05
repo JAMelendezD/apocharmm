@@ -23,7 +23,7 @@ class CompositeSubscriber : public Subscriber {
 public:
   CompositeSubscriber(const std::string &fileName);
   CompositeSubscriber(const std::string &fileName, const int reportFrequency);
-  ~CompositeSubscriber(void);
+  ~CompositeSubscriber(void) noexcept override = default;
 
 public:
   void update(void) override;

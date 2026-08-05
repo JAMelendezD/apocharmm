@@ -10,6 +10,7 @@
 
 #ifndef NOCUDAC
 #include "CudaPMERecip.h"
+
 #include "cuda_utils.h"
 #include "gpu_utils.h"
 #include "reduce.h"
@@ -18,6 +19,8 @@
 #include <iostream>
 #include <math.h>
 #include <sstream>
+#include <utility>
+
 static const double pi = 3.14159265358979323846;
 
 //
@@ -1353,7 +1356,16 @@ __global__ void gather_force_4_ortho_kernel
   cudaTextureDesc texDesc;
   memset(&texDesc, 0, sizeof(texDesc));
   texDesc.readMode = cudaReadModeElementType;
+
+  if (gridTexObjActive) {
+    const cudaTextureObject_t texture_object = gridTexObj;
+    gridTexObjActive = false;
+    gridTexObj = 0;
+    cudaCheck(cudaDestroyTextureObject(texture_object));
+  }
+
   cudaCheck(cudaCreateTextureObject(&gridTexObj, &resDesc, &texDesc, NULL));
+  gridTexObjActive = true;
 #else
   gridTexRef.normalized = 0;
   gridTexRef.filterMode = cudaFilterModePoint;
@@ -1363,7 +1375,14 @@ __global__ void gather_force_4_ortho_kernel
   gridTexRef.channelDesc.z = 0;
   gridTexRef.channelDesc.w = 0;
   gridTexRef.channelDesc.f = cudaChannelFormatKindFloat;
+
+  if (gridTexRefBound) {
+    gridTexRefBound = false;
+    cudaCheck(cudaUnbindTexture(gridTexRef));
+  }
+
   cudaCheck(cudaBindTexture(NULL, gridTexRef, data, data_len * sizeof(CT)));
+  gridTexRefBound = true;
 #endif
 }
 
@@ -1477,67 +1496,125 @@ void CudaPMERecip<AT, CT, CT2>::init(int x0, int x1, int y0, int y1, int z0,
 }
 
 template <typename AT, typename CT, typename CT2>
-void CudaPMERecip<AT, CT, CT2>::dealloc(void) {
+void CudaPMERecip<AT, CT, CT2>::dealloc(void) noexcept {
 #ifdef USE_TEXTURE_OBJECTS
-  cudaCheck(cudaDestroyTextureObject(gridTexObj));
+  gridTexObjActive = false;
+  destroy_cuda_texture_object_noexcept(&gridTexObj);
 #else
-  // Unbind grid texture
-  cudaCheck(cudaUnbindTexture(gridTexRef));
+  if (gridTexRefBound) {
+    gridTexRefBound = false;
+    // Unbind grid texture
+    (void)cudaUnbindTexture(gridTexRef);
+  }
 #endif
 
-  delete accum_grid;
-  delete charge_grid;
-  delete solved_grid;
-  deallocate<CT>(&data1);
-  deallocate<CT>(&data2);
+  if (c2r_plan != 0) {
+    const cufftHandle plan = c2r_plan;
+    c2r_plan = 0;
+    (void)cufftDestroy(plan);
+  }
 
-  cudaCheck(cudaFree(fft_scratch));
+  if (r2c_plan != 0) {
+    const cufftHandle plan = r2c_plan;
+    r2c_plan = 0;
+    (void)cufftDestroy(plan);
+  }
+
+  if (xy_c2r_plan != 0) {
+    const cufftHandle plan = xy_c2r_plan;
+    xy_c2r_plan = 0;
+    (void)cufftDestroy(plan);
+  }
+
+  if (xy_r2c_plan != 0) {
+    const cufftHandle plan = xy_r2c_plan;
+    xy_r2c_plan = 0;
+    (void)cufftDestroy(plan);
+  }
+
+  if (x_c2r_plan != 0) {
+    const cufftHandle plan = x_c2r_plan;
+    x_c2r_plan = 0;
+    (void)cufftDestroy(plan);
+  }
+
+  if (z_c2c_plan != 0) {
+    const cufftHandle plan = z_c2c_plan;
+    z_c2c_plan = 0;
+    (void)cufftDestroy(plan);
+  }
+
+  if (y_c2c_plan != 0) {
+    const cufftHandle plan = y_c2c_plan;
+    y_c2c_plan = 0;
+    (void)cufftDestroy(plan);
+  }
+
+  if (x_r2c_plan != 0) {
+    const cufftHandle plan = x_r2c_plan;
+    x_r2c_plan = 0;
+    (void)cufftDestroy(plan);
+  }
 
 #if CUDA_VERSION >= 6000
-  if (multi_gpu) {
-    delete[] host_data;
-    delete[] host_tmp;
-    cufftCheck(cufftXtFree(multi_data));
+  if (multi_data != 0) {
+    cudaLibXtDesc *const descriptor = multi_data;
+    multi_data = 0;
+    (void)cufftXtFree(descriptor);
   }
+
+  CT *const host_tmp_to_delete = host_tmp;
+  host_tmp = 0;
+  delete[] host_tmp_to_delete;
+
+  CT2 *const host_data_to_delete = host_data;
+  host_data = 0;
+  delete[] host_data_to_delete;
 #endif
 
-  if (fft_type == COLUMN) {
-    delete xfft_grid;
-    delete yfft_grid;
-    delete zfft_grid;
-    if (x_r2c_plan)
-      cufftCheck(cufftDestroy(x_r2c_plan));
-    if (y_c2c_plan)
-      cufftCheck(cufftDestroy(y_c2c_plan));
-    if (z_c2c_plan)
-      cufftCheck(cufftDestroy(z_c2c_plan));
-    if (x_c2r_plan)
-      cufftCheck(cufftDestroy(x_c2r_plan));
-  } else if (fft_type == SLAB) {
-    delete xyfft_grid;
-    delete zfft_grid;
-    if (xy_r2c_plan)
-      cufftCheck(cufftDestroy(xy_r2c_plan));
-    if (z_c2c_plan)
-      cufftCheck(cufftDestroy(z_c2c_plan));
-    if (xy_c2r_plan)
-      cufftCheck(cufftDestroy(xy_c2r_plan));
-  } else if (fft_type == BOX) {
-    delete fft_grid;
-    if (r2c_plan)
-      cufftCheck(cufftDestroy(r2c_plan));
-    if (c2r_plan)
-      cufftCheck(cufftDestroy(c2r_plan));
-  }
+  Matrix3d<CT2> *const fft_grid_to_delete = fft_grid;
+  fft_grid = 0;
+  delete fft_grid_to_delete;
 
-  deallocate<CT>(&prefac_x);
-  deallocate<CT>(&prefac_y);
-  deallocate<CT>(&prefac_z);
+  Matrix3d<CT2> *const xyfft_grid_to_delete = xyfft_grid;
+  xyfft_grid = 0;
+  delete xyfft_grid_to_delete;
 
-  // if (d_energy_virial != NULL)
-  // deallocate<RecipEnergyVirial_t>(&d_energy_virial);
-  // if (h_energy_virial != NULL)
-  // deallocate_host<RecipEnergyVirial_t>(&h_energy_virial);
+  Matrix3d<CT2> *const zfft_grid_to_delete = zfft_grid;
+  zfft_grid = 0;
+  delete zfft_grid_to_delete;
+
+  Matrix3d<CT2> *const yfft_grid_to_delete = yfft_grid;
+  yfft_grid = 0;
+  delete yfft_grid_to_delete;
+
+  Matrix3d<CT2> *const xfft_grid_to_delete = xfft_grid;
+  xfft_grid = 0;
+  delete xfft_grid_to_delete;
+
+  Matrix3d<CT> *const solved_grid_to_delete = solved_grid;
+  solved_grid = 0;
+  delete solved_grid_to_delete;
+
+  Matrix3d<CT> *const charge_grid_to_delete = charge_grid;
+  charge_grid = 0;
+  delete charge_grid_to_delete;
+
+  Matrix3d<AT> *const accum_grid_to_delete = accum_grid;
+  accum_grid = 0;
+  delete accum_grid_to_delete;
+
+  deallocate_noexcept<CT>(&prefac_z);
+  deallocate_noexcept<CT>(&prefac_y);
+  deallocate_noexcept<CT>(&prefac_x);
+  deallocate_noexcept<CT>(&fft_scratch);
+  deallocate_noexcept<CT>(&data2);
+  deallocate_noexcept<CT>(&data1);
+
+  fft_scratch_bytes = 0;
+  data2_len = 0;
+  data1_len = 0;
+  multi_gpu = false;
 
   return;
 }
@@ -1594,65 +1671,70 @@ CudaPMERecip<AT, CT, CT2>::CudaPMERecip(
   assert(nameRecip != NULL);
   assert(nameSelf != NULL);
 
-  // Insert energy terms
-  energyVirial.insert(nameRecip);
-  strRecip = nameRecip;
-  energyVirial.insert(nameSelf);
-  strSelf = nameSelf;
+  try {
+    // Insert energy terms
+    energyVirial.insert(nameRecip);
+    strRecip = nameRecip;
+    energyVirial.insert(nameSelf);
+    strSelf = nameSelf;
 
-  int nnode_y, nnode_z;
+    int nnode_y, nnode_z;
 
-  if (fft_type == COLUMN) {
-    nnode_y =
-        max(1, (int)ceil(sqrt((double)(nnode * nffty) / (double)(nfftz))));
-    nnode_z = nnode / nnode_y;
-    while (nnode_y * nnode_z != nnode) {
-      nnode_y = nnode_y - 1;
+    if (fft_type == COLUMN) {
+      nnode_y =
+          max(1, (int)ceil(sqrt((double)(nnode * nffty) / (double)(nfftz))));
       nnode_z = nnode / nnode_y;
+      while (nnode_y * nnode_z != nnode) {
+        nnode_y = nnode_y - 1;
+        nnode_z = nnode / nnode_y;
+      }
+    } else if (fft_type == SLAB) {
+      nnode_y = 1;
+      nnode_z = nnode;
+      assert(nfftz / nnode_z >= 1);
+    } else if (fft_type == BOX) {
+      assert(nnode == 1);
+      nnode_y = 1;
+      nnode_z = 1;
+    } else {
+      // std::cerr << "CudaPMERecip::fft_type invalid" << std::endl;
+      throw std::invalid_argument("CudaPMERecip::fft_type invalid\n");
+      exit(1);
     }
-  } else if (fft_type == SLAB) {
-    nnode_y = 1;
-    nnode_z = nnode;
-    assert(nfftz / nnode_z >= 1);
-  } else if (fft_type == BOX) {
-    assert(nnode == 1);
-    nnode_y = 1;
-    nnode_z = 1;
-  } else {
-    // std::cerr << "CudaPMERecip::fft_type invalid" << std::endl;
-    throw std::invalid_argument("CudaPMERecip::fft_type invalid\n");
-    exit(1);
+
+    // We have nodes nnode_y * nnode_z. Get y and z index of this node:
+    int inode_y = mynode % nnode_y;
+    int inode_z = mynode / nnode_y;
+
+    assert(nnode_y != 0);
+    assert(nnode_z != 0);
+
+    int x0 = 0;
+    int x1 = nfftx - 1;
+
+    int y0 = inode_y * nffty / nnode_y;
+    int y1 = (inode_y + 1) * nffty / nnode_y - 1;
+
+    int z0 = inode_z * nfftz / nnode_z;
+    int z1 = (inode_z + 1) * nfftz / nnode_z - 1;
+
+    bool y_land_locked = (inode_y - 1 >= 0) && (inode_y + 1 < nnode_y);
+    bool z_land_locked = (inode_z - 1 >= 0) && (inode_z + 1 < nnode_z);
+
+    multi_gpu = false;
+
+    assert((multi_gpu && fft_type == BOX) || !multi_gpu);
+
+    init(x0, x1, y0, y1, z0, z1, order, y_land_locked, z_land_locked);
+
+    allocate<CT>(&prefac_x, nfftx);
+    allocate<CT>(&prefac_y, nffty);
+    allocate<CT>(&prefac_z, nfftz);
+    calc_prefac();
+  } catch (...) {
+    this->dealloc();
+    throw;
   }
-
-  // We have nodes nnode_y * nnode_z. Get y and z index of this node:
-  int inode_y = mynode % nnode_y;
-  int inode_z = mynode / nnode_y;
-
-  assert(nnode_y != 0);
-  assert(nnode_z != 0);
-
-  int x0 = 0;
-  int x1 = nfftx - 1;
-
-  int y0 = inode_y * nffty / nnode_y;
-  int y1 = (inode_y + 1) * nffty / nnode_y - 1;
-
-  int z0 = inode_z * nfftz / nnode_z;
-  int z1 = (inode_z + 1) * nfftz / nnode_z - 1;
-
-  bool y_land_locked = (inode_y - 1 >= 0) && (inode_y + 1 < nnode_y);
-  bool z_land_locked = (inode_z - 1 >= 0) && (inode_z + 1 < nnode_z);
-
-  multi_gpu = false;
-
-  assert((multi_gpu && fft_type == BOX) || !multi_gpu);
-
-  init(x0, x1, y0, y1, z0, z1, order, y_land_locked, z_land_locked);
-
-  allocate<CT>(&prefac_x, nfftx);
-  allocate<CT>(&prefac_y, nffty);
-  allocate<CT>(&prefac_z, nfftz);
-  calc_prefac();
 
   // allocate<RecipEnergyVirial_t>(&d_energy_virial, 1);
   // allocate_host<RecipEnergyVirial_t>(&h_energy_virial, 1);
@@ -1775,85 +1857,89 @@ void CudaPMERecip<AT, CT, CT2>::set_stream(cudaStream_t stream) {
 
 // move constructor
 template <typename AT, typename CT, typename CT2>
-CudaPMERecip<AT, CT, CT2>::CudaPMERecip(CudaPMERecip &&other)
-    : energyVirial(other.energyVirial) {
-
-  data1 = other.data1;
-  data2 = other.data2;
+CudaPMERecip<AT, CT, CT2>::CudaPMERecip(CudaPMERecip &&other) noexcept
+    : data1(other.data1), data2(other.data2), data1_len(other.data1_len),
+      data2_len(other.data2_len), fft_type(other.fft_type),
+      accum_grid(other.accum_grid), charge_grid(other.charge_grid),
+      solved_grid(other.solved_grid), xfft_grid(other.xfft_grid),
+      yfft_grid(other.yfft_grid), zfft_grid(other.zfft_grid),
+      xyfft_grid(other.xyfft_grid), fft_grid(other.fft_grid),
+      order(other.order), nfftx(other.nfftx), nffty(other.nffty),
+      nfftz(other.nfftz), x0(other.x0), x1(other.x1), y0(other.y0),
+      y1(other.y1), z0(other.z0), z1(other.z1), xlo(other.xlo), xhi(other.xhi),
+      ylo(other.ylo), yhi(other.yhi), zlo(other.zlo), zhi(other.zhi),
+      xsize(other.xsize), ysize(other.ysize), zsize(other.zsize),
+      data_size(other.data_size), fft_scratch(other.fft_scratch),
+      fft_scratch_bytes(other.fft_scratch_bytes), x_r2c_plan(other.x_r2c_plan),
+      y_c2c_plan(other.y_c2c_plan), z_c2c_plan(other.z_c2c_plan),
+      x_c2r_plan(other.x_c2r_plan), xy_r2c_plan(other.xy_r2c_plan),
+      xy_c2r_plan(other.xy_c2r_plan), r2c_plan(other.r2c_plan),
+      c2r_plan(other.c2r_plan), multi_gpu(other.multi_gpu),
+#if CUDA_VERSION >= 6000
+      multi_data(other.multi_data), host_data(other.host_data),
+      host_tmp(other.host_tmp),
+#endif
+      stream(other.stream), prefac_x(other.prefac_x), prefac_y(other.prefac_y),
+      prefac_z(other.prefac_z),
+#ifdef USE_TEXTURE_OBJECTS
+      gridTexObjActive(other.gridTexObjActive), gridTexObj(other.gridTexObj),
+#else
+      gridTexRefBound(other.gridTexRefBound),
+#endif
+      energyVirial(other.energyVirial), strRecip(std::move(other.strRecip)),
+      strSelf(std::move(other.strSelf)) {
   other.data1 = 0;
   other.data2 = 0;
-
-  data1_len = other.data1_len;
-  data2_len = other.data2_len;
-
   other.data1_len = 0;
   other.data2_len = 0;
 
-  fft_type = other.fft_type;
-
-  accum_grid = other.accum_grid;
-  charge_grid = other.charge_grid;
-  solved_grid = other.solved_grid;
-
-  other.accum_grid = nullptr;
-  other.charge_grid = nullptr;
-  other.solved_grid = nullptr;
-
-  fft_grid = other.fft_grid;
+  other.accum_grid = 0;
+  other.charge_grid = 0;
+  other.solved_grid = 0;
+  other.xfft_grid = 0;
+  other.yfft_grid = 0;
+  other.zfft_grid = 0;
+  other.xyfft_grid = 0;
   other.fft_grid = 0;
 
-  order = other.order;
-  nfftx = other.nfftx;
-  nffty = other.nffty;
-  nfftz = other.nfftz;
-
-  x0 = other.x0;
-  x1 = other.x1;
-  y0 = other.y0;
-  y1 = other.y1;
-  z0 = other.z0;
-  z1 = other.z1;
-
-  xsize = other.xsize;
-  ysize = other.ysize;
-  zsize = other.zsize;
-  data_size = other.data_size;
-
-  fft_scratch = other.fft_scratch;
   other.fft_scratch = 0;
-  fft_scratch_bytes = other.fft_scratch_bytes;
+  other.fft_scratch_bytes = 0;
 
-  r2c_plan = other.r2c_plan;
-  c2r_plan = other.c2r_plan;
+  other.x_r2c_plan = 0;
+  other.y_c2c_plan = 0;
+  other.z_c2c_plan = 0;
+  other.x_c2r_plan = 0;
+  other.xy_r2c_plan = 0;
+  other.xy_c2r_plan = 0;
   other.r2c_plan = 0;
   other.c2r_plan = 0;
 
-  multi_gpu = other.multi_gpu;
-
-  stream = other.stream;
-
-  prefac_x = other.prefac_x;
-  prefac_y = other.prefac_y;
-  prefac_z = other.prefac_z;
+#if CUDA_VERSION >= 6000
+  other.multi_data = 0;
+  other.host_data = 0;
+  other.host_tmp = 0;
+#endif
 
   other.prefac_x = 0;
   other.prefac_y = 0;
   other.prefac_z = 0;
 
 #ifdef USE_TEXTURE_OBJECTS
-  gridTexObjActive = other.gridTexObjActive;
-  gridTexObj = other.gridTexObj;
+  other.gridTexObjActive = false;
+  other.gridTexObj = 0;
+#else
+  other.gridTexRefBound = false;
 #endif
 
-  strRecip = other.strRecip;
-  strSelf = other.strSelf;
+  other.multi_gpu = false;
 }
+
 //
 // Class destructor
 //
 template <typename AT, typename CT, typename CT2>
-CudaPMERecip<AT, CT, CT2>::~CudaPMERecip() {
-  this->dealloc(); // To get rid of compiler warnings
+CudaPMERecip<AT, CT, CT2>::~CudaPMERecip() noexcept {
+  this->dealloc();
 }
 
 template <typename AT, typename CT, typename CT2>

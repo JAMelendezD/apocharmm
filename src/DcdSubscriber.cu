@@ -40,11 +40,6 @@ DcdSubscriber::DcdSubscriber(const std::string &fileName,
 //   this->writeHeader();
 // }
 
-DcdSubscriber::~DcdSubscriber(void) {
-  if (m_FileStream.is_open())
-    m_FileStream.close();
-}
-
 void DcdSubscriber::update(void) {
   // Write header if needed
   if (!m_IsHeaderWritten)

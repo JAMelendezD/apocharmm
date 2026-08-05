@@ -41,7 +41,13 @@ extern "C" apo_status apo_charmm_psf_create(apo_charmm_psf **out,
 }
 
 extern "C" void apo_charmm_psf_destroy(apo_charmm_psf *psf) {
-  delete psf;
+  const char *function_name = "apo_charmm_psf_destroy";
+  apocharmm_c::guard_destroy(
+      [psf](void) -> void {
+        delete psf;
+        return;
+      },
+      function_name);
   return;
 }
 

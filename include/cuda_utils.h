@@ -75,6 +75,7 @@ void ThrowCudaError(const cudaError_t error, const std::string_view failureKind,
 #endif
 
 void deallocate_host_T(void **pp);
+void deallocate_host_noexcept_T(void **pp) noexcept;
 void allocate_host_T(void **pp, const int len, const size_t sizeofT);
 void reallocate_host_T(void **pp, int *curlen, const int newlen,
                        const float fac, const size_t sizeofT);
@@ -82,11 +83,17 @@ void resize_host_T(void **pp, int *curlen, const int cur_size,
                    const int new_size, const float fac, const size_t sizeofT);
 
 void deallocate_T(void **pp);
+void deallocate_noexcept_T(void **pp) noexcept;
 void allocate_T(void **pp, const int len, const size_t sizeofT);
 void reallocate_T(void **pp, int *curlen, const int newlen, const float fac,
                   const size_t sizeofT);
 void resize_T(void **pp, int *curlen, const int cur_size, const int new_size,
               const float fac, const size_t sizeofT);
+
+void destroy_cuda_stream_noexcept(cudaStream_t *stream) noexcept;
+void destroy_cuda_event_noexcept(cudaEvent_t *event) noexcept;
+void destroy_cuda_texture_object_noexcept(
+    cudaTextureObject_t *texture_object) noexcept;
 
 #ifdef __CUDACC__
 void copy_HtoD_async_T(const void *h_array, void *d_array, int array_len,
@@ -143,7 +150,12 @@ void set_gpu_array_T(void *data, const int ndata, const int value,
 template <class T> void deallocate_host(T **pp) {
   deallocate_host_T((void **)pp);
 }
+
+template <class T> void deallocate_host_noexcept(T **pp) noexcept {
+  deallocate_host_noexcept_T((void **)pp);
+}
 #endif
+
 //----------------------------------------------------------------------------------------
 //
 // Allocate page-locked host memory
@@ -198,6 +210,10 @@ void resize_host(T **pp, int *curlen, const int cur_size, const int new_size,
 //
 #ifdef __cplusplus
 template <class T> void deallocate(T **pp) { deallocate_T((void **)pp); }
+
+template <class T> void deallocate_noexcept(T **pp) noexcept {
+  deallocate_noexcept_T((void **)pp);
+}
 #endif
 //----------------------------------------------------------------------------------------
 //

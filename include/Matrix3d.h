@@ -40,7 +40,7 @@ public:
            const int ysize, const int zsize, T *ext_data = NULL);
   Matrix3d(const int nx, const int ny, const int nz, const char *filename,
            T *ext_data = NULL);
-  ~Matrix3d();
+  ~Matrix3d() noexcept;
 
   void print_info();
 

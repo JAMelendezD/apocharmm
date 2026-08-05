@@ -50,7 +50,13 @@ apo_harmonic_restraint_force_create(apo_harmonic_restraint_force **out,
 
 extern "C" void
 apo_harmonic_restraint_force_destroy(apo_harmonic_restraint_force *restraint) {
-  delete restraint;
+  const char *function_name = "apo_harmonic_restraint_force_destroy";
+  apocharmm_c::guard_destroy(
+      [restraint](void) -> void {
+        delete restraint;
+        return;
+      },
+      function_name);
   return;
 }
 

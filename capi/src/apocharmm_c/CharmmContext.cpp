@@ -82,7 +82,13 @@ extern "C" apo_status apo_charmm_context_create_from_psf_parameters(
 }
 
 extern "C" void apo_charmm_context_destroy(apo_charmm_context *context) {
-  delete context;
+  const char *function_name = "apo_charmm_context_destroy";
+  apocharmm_c::guard_destroy(
+      [context](void) -> void {
+        delete context;
+        return;
+      },
+      function_name);
   return;
 }
 

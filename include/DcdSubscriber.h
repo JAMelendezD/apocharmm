@@ -23,7 +23,7 @@ class DcdSubscriber : public Subscriber {
 public:
   DcdSubscriber(const std::string &fileName);
   DcdSubscriber(const std::string &fileName, const int reportFrequency);
-  ~DcdSubscriber(void);
+  ~DcdSubscriber(void) noexcept override = default;
 
 public:
   void update(void) override;

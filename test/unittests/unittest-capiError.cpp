@@ -335,3 +335,16 @@ TEST_CASE("CapiPublicFunctionRejectsInvalidPointerAndClearsOnRecovery") {
   apo_charmm_parameters_destroy(parameters);
   CHECK(std::remove(PARAMETER_FILE) == 0);
 }
+
+TEST_CASE("CapiDestroyGuardDoesNotAllowExceptionsToEscape") {
+  CHECK_NOTHROW(apocharmm_c::guard_destroy(
+      [](void) { throw std::runtime_error("destroy failure"); },
+      "apo_test_destroy"));
+
+  CHECK_FALSE(std::string(apo_last_error()).empty());
+
+  CHECK_NOTHROW(
+      apocharmm_c::guard_destroy([](void) {}, "apo_test_destroy_success"));
+
+  CHECK(std::string(apo_last_error()).empty());
+}

@@ -51,7 +51,14 @@ extern "C" apo_status apo_harmonic_center_of_mass_restraint_force_create(
 
 extern "C" void apo_harmonic_center_of_mass_restraint_force_destroy(
     apo_harmonic_center_of_mass_restraint_force *restraint) {
-  delete restraint;
+  const char *function_name =
+      "apo_harmonic_center_of_mass_restraint_force_destroy";
+  apocharmm_c::guard_destroy(
+      [restraint](void) -> void {
+        delete restraint;
+        return;
+      },
+      function_name);
   return;
 }
 

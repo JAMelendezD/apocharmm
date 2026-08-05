@@ -54,6 +54,11 @@ void CudaEMap::generate() {
 }
 
 void CudaEMap::dealloc(void) {
-  cudaCheck(cudaStreamDestroy(stream));
+  if (stream != nullptr) {
+    const cudaStream_t stream_to_destroy = stream;
+    stream = nullptr;
+    cudaCheck(cudaStreamDestroy(stream_to_destroy));
+  }
+
   return;
 }

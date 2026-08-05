@@ -27,11 +27,6 @@ FEPSubscriber::FEPSubscriber(const std::string &fileName,
   m_NumFramesWritten = 0;
 }
 
-FEPSubscriber::~FEPSubscriber(void) {
-  if (m_FileStream.is_open())
-    m_FileStream.close();
-}
-
 void FEPSubscriber::update(void) {
   auto fm = m_CharmmContext->getForceManager();
   auto bridgeEDSForceManager = std::dynamic_pointer_cast<FEPEIForceManager>(fm);

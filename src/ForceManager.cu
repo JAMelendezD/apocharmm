@@ -113,7 +113,7 @@ ForceManager::ForceManager(const ForceManager &other) : ForceManager() {
   // acting on copied fm does not change original fm attributes)
 }
 
-ForceManager::~ForceManager(void) { this->dealloc(); }
+ForceManager::~ForceManager(void) noexcept { this->dealloc(); }
 
 void ForceManager::setContext(std::shared_ptr<CharmmContext> ctx) {
   if (ctx == nullptr) {
@@ -1015,22 +1015,26 @@ void ForceManager::checkBoxDimensions(
   return;
 }
 
-void ForceManager::dealloc(void) {
+void ForceManager::dealloc(void) noexcept {
   if (m_BondedStream != nullptr) {
-    cudaCheck(cudaStreamDestroy(*m_BondedStream));
+    destroy_cuda_stream_noexcept(m_BondedStream.get());
     m_BondedStream.reset();
   }
+
   if (m_ReciprocalStream != nullptr) {
-    cudaCheck(cudaStreamDestroy(*m_ReciprocalStream));
+    destroy_cuda_stream_noexcept(m_ReciprocalStream.get());
     m_ReciprocalStream.reset();
   }
+
   if (m_DirectStream != nullptr) {
-    cudaCheck(cudaStreamDestroy(*m_DirectStream));
+    destroy_cuda_stream_noexcept(m_DirectStream.get());
     m_DirectStream.reset();
   }
+
   if (m_ForceManagerStream != nullptr) {
-    cudaCheck(cudaStreamDestroy(*m_ForceManagerStream));
+    destroy_cuda_stream_noexcept(m_ForceManagerStream.get());
     m_ForceManagerStream.reset();
   }
+
   return;
 }

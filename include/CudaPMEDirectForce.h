@@ -47,7 +47,7 @@
 template <typename AT, typename CT> class CudaPMEDirectForceBase {
   // class CudaPMEDirectForceBase  {
 public:
-  virtual ~CudaPMEDirectForceBase() {}
+  virtual ~CudaPMEDirectForceBase() noexcept = default;
   virtual void setup(double boxx, double boxy, double boxz, double kappa,
                      double roff, double ron, double e14fac, int vdw_model,
                      int elec_model, bool q_p21) = 0;
@@ -122,8 +122,8 @@ protected:
   CT *vdwparam;
   const bool use_tex_vdwparam;
 #ifdef USE_TEXTURE_OBJECTS
-  bool vdwParamTexObjActive;
-  cudaTextureObject_t vdwParamTexObj;
+  bool vdwParamTexObjActive = false;
+  cudaTextureObject_t vdwParamTexObj = 0;
 #endif
 
   /** @brief VdW 1-4 parameters */
@@ -132,8 +132,8 @@ protected:
   CT *vdwparam14;
   const bool use_tex_vdwparam14;
 #ifdef USE_TEXTURE_OBJECTS
-  bool vdwParam14TexObjActive;
-  cudaTextureObject_t vdwParam14TexObj;
+  bool vdwParam14TexObjActive = false;
+  cudaTextureObject_t vdwParam14TexObj = 0;
 #endif
 
   /** @brief 1-4 interaction and exclusion lists */
@@ -204,7 +204,7 @@ public:
                      const char *nameElec, const char *nameExcl);
   // Move constructor
   CudaPMEDirectForce(CudaPMEDirectForce &&other);
-  ~CudaPMEDirectForce();
+  ~CudaPMEDirectForce() noexcept override;
 
   /** @brief Sets parameters for the nonbonded computation */
   void setup(double boxx, double boxy, double boxz, double kappa, double roff,

@@ -45,10 +45,21 @@ void ThrowCudaError(const cudaError_t error, const std::string_view failureKind,
 //
 void deallocate_host_T(void **pp) {
   if (*pp != NULL) {
-    cudaCheck(cudaFreeHost((void *)(*pp)));
+    void *const pointer = *pp;
     *pp = NULL;
+    cudaCheck(cudaFreeHost(pointer));
   }
 }
+
+void deallocate_host_noexcept_T(void **pp) noexcept {
+  if ((pp == NULL) || (*pp == NULL))
+    return;
+
+  void *const pointer = *pp;
+  *pp = NULL;
+  (void)cudaFreeHost(pointer);
+}
+
 //----------------------------------------------------------------------------------------
 //
 // Allocate page-locked host memory
@@ -121,10 +132,49 @@ void resize_host_T(void **pp, int *curlen, const int cur_size,
 //
 void deallocate_T(void **pp) {
   if (*pp != NULL) {
-    cudaCheck(cudaFree((void *)(*pp)));
+    void *const pointer = *pp;
     *pp = NULL;
+    cudaCheck(cudaFree(pointer));
   }
 }
+
+void deallocate_noexcept_T(void **pp) noexcept {
+  if ((pp == NULL) || (*pp == NULL))
+    return;
+
+  void *const pointer = *pp;
+  *pp = NULL;
+  (void)cudaFree(pointer);
+}
+
+void destroy_cuda_stream_noexcept(cudaStream_t *stream) noexcept {
+  if ((stream == nullptr) || (*stream == nullptr))
+    return;
+
+  const cudaStream_t stream_to_destroy = *stream;
+  *stream = nullptr;
+  (void)cudaStreamDestroy(stream_to_destroy);
+}
+
+void destroy_cuda_event_noexcept(cudaEvent_t *event) noexcept {
+  if ((event == nullptr) || (*event == nullptr))
+    return;
+
+  const cudaEvent_t event_to_destroy = *event;
+  *event = nullptr;
+  (void)cudaEventDestroy(event_to_destroy);
+}
+
+void destroy_cuda_texture_object_noexcept(
+    cudaTextureObject_t *texture_object) noexcept {
+  if ((texture_object == nullptr) || (*texture_object == 0))
+    return;
+
+  const cudaTextureObject_t texture_object_to_destroy = *texture_object;
+  *texture_object = 0;
+  (void)cudaDestroyTextureObject(texture_object_to_destroy);
+}
+
 //----------------------------------------------------------------------------------------
 //
 // Allocate gpu memory

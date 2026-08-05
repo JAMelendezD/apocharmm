@@ -170,9 +170,9 @@ Matrix3d<T>::Matrix3d(const int nx, const int ny, const int nz,
   load(nx, ny, nz, filename);
 }
 
-template <typename T> Matrix3d<T>::~Matrix3d() {
+template <typename T> Matrix3d<T>::~Matrix3d() noexcept {
   if (!external_storage)
-    deallocate<T>(&data);
+    deallocate_noexcept<T>(&data);
 }
 
 template <typename T> void Matrix3d<T>::init(const int size, T *ext_data) {

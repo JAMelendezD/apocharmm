@@ -26,12 +26,6 @@ BEDSSubscriber::BEDSSubscriber(const std::string &fileName,
   m_NumFramesWritten = 0;
 }
 
-BEDSSubscriber::~BEDSSubscriber(void) {
-  if (m_FileStream.is_open())
-    m_FileStream.close();
-  return;
-}
-
 void BEDSSubscriber::update(void) {
   auto fm = m_CharmmContext->getForceManager();
   auto bridgeEDSForceManager = std::dynamic_pointer_cast<BEDSForceManager>(fm);

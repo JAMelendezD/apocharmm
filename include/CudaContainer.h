@@ -78,6 +78,8 @@ public: // Member functions
    */
   CudaContainer(const CudaContainer<T> &&other);
 
+  ~CudaContainer(void) noexcept = default;
+
   CudaContainer<T> &operator=(const std::vector<T> &other);
   CudaContainer<T> &operator=(const std::vector<T> &&other);
   CudaContainer<T> &operator=(const DeviceVector<T> &other);

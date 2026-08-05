@@ -38,7 +38,7 @@ public:
    */
   RestartSubscriber(const std::string &fileName, const int reportFrequency);
 
-  ~RestartSubscriber(void);
+  ~RestartSubscriber(void) noexcept override = default;
 
   /** @brief Rewrites the restart file to the latest configuration.
    *

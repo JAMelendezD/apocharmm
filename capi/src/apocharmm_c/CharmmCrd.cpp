@@ -41,7 +41,13 @@ extern "C" apo_status apo_charmm_crd_create(apo_charmm_crd **out,
 }
 
 extern "C" void apo_charmm_crd_destroy(apo_charmm_crd *crd) {
-  delete crd;
+  const char *function_name = "apo_charmm_crd_destroy";
+  apocharmm_c::guard_destroy(
+      [crd](void) -> void {
+        delete crd;
+        return;
+      },
+      function_name);
   return;
 }
 

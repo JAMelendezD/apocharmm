@@ -46,7 +46,7 @@ public:
    * @brief Base constructor
    */
   CudaEnergyVirial(void);
-  ~CudaEnergyVirial(void);
+  ~CudaEnergyVirial(void) noexcept;
 
 public:
   /**
@@ -139,7 +139,7 @@ public:
 
 private:
   void reallocateBuffer(void);
-  void deallocateBuffer(void);
+  void deallocateBuffer(void) noexcept;
 
 private:
   // Host and device arrays for storing energies and sforce -arrays

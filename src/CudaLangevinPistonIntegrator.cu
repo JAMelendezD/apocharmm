@@ -106,8 +106,8 @@ CudaLangevinPistonIntegrator::CudaLangevinPistonIntegrator(
   m_UsingOldTemperature = false;
 }
 
-CudaLangevinPistonIntegrator::~CudaLangevinPistonIntegrator(void) {
-  this->dealloc();
+CudaLangevinPistonIntegrator::~CudaLangevinPistonIntegrator(void) noexcept {
+  ::deallocate_noexcept(&m_RngStates);
 }
 
 void CudaLangevinPistonIntegrator::useNoseHooverThermostat(
@@ -2338,10 +2338,6 @@ void CudaLangevinPistonIntegrator::alloc(const int n) {
 }
 
 void CudaLangevinPistonIntegrator::dealloc(void) {
-  if (m_RngStates != nullptr) {
-    // Deallocate memory for RNG
-    cudaCheck(cudaFree(static_cast<void *>(m_RngStates)));
-    m_RngStates = nullptr;
-  }
+  ::deallocate(&m_RngStates);
   return;
 }

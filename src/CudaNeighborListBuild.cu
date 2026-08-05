@@ -1289,35 +1289,36 @@ CudaNeighborListBuild<tilesize>::CudaNeighborListBuild(const int n_int_zone_max,
     : n_int_zone_max(n_int_zone_max), izoneStart(izoneStart),
       izoneEnd(izoneEnd) {
   this->init();
-  load(filename);
+  try {
+    load(filename);
+  } catch (...) {
+    this->dealloc();
+    throw;
+  }
 }
 
 //
 // Class destructor
 //
 template <int tilesize>
-CudaNeighborListBuild<tilesize>::~CudaNeighborListBuild() {
-  if (tile_excl != NULL)
-    deallocate<tile_excl_t<tilesize>>(&tile_excl);
-  if (ientry_raw != NULL)
-    deallocate<ientry_t>(&ientry_raw);
-  if (ientry != NULL)
-    deallocate<ientry_t>(&ientry);
-  if (tile_indj != NULL)
-    deallocate<int>(&tile_indj);
-  if (exclAtomHeap != NULL)
-    deallocate<int>(&exclAtomHeap);
-  deallocate<int>(&bucketPos);
-  if (bucketIndex != NULL)
-    deallocate<int>(&bucketIndex);
+CudaNeighborListBuild<tilesize>::~CudaNeighborListBuild() noexcept {
+  this->dealloc();
+}
+
+template <int tilesize>
+void CudaNeighborListBuild<tilesize>::dealloc(void) noexcept {
+  deallocate_noexcept<tile_excl_t<tilesize>>(&tile_excl);
+  deallocate_noexcept<ientry_t>(&ientry_raw);
+  deallocate_noexcept<ientry_t>(&ientry);
+  deallocate_noexcept<int>(&tile_indj);
+  deallocate_noexcept<int>(&exclAtomHeap);
+  deallocate_noexcept<int>(&bucketPos);
+  deallocate_noexcept<int>(&bucketIndex);
 #ifdef USE_SPARSE
   // Sparse
-  if (pairs != NULL)
-    deallocate<pairs_t<tilesize>>(&pairs);
-  if (ientry_sparse != NULL)
-    deallocate<ientry_t>(&ientry_sparse);
-  if (tile_indj_sparse != NULL)
-    deallocate<int>(&tile_indj_sparse);
+  deallocate_noexcept<pairs_t<tilesize>>(&pairs);
+  deallocate_noexcept<ientry_t>(&ientry_sparse);
+  deallocate_noexcept<int>(&tile_indj_sparse);
 #endif
 }
 

@@ -27,7 +27,7 @@ public:
    * @param[in] reportFreq Number of steps between two reports
    */
   XYZSubscriber(const std::string &fileName, const int reportFrequency);
-  ~XYZSubscriber(void);
+  ~XYZSubscriber(void) noexcept override = default;
 
 public:
   void update(void) override;

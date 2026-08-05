@@ -54,8 +54,10 @@ DeviceVector<T>::DeviceVector(const DeviceVector<T> &&other)
                        other.size() * sizeof(T), cudaMemcpyDeviceToDevice));
 }
 
-template <typename T> DeviceVector<T>::~DeviceVector(void) {
-  this->deallocate();
+template <typename T> DeviceVector<T>::~DeviceVector(void) noexcept {
+  ::deallocate_noexcept(&m_Data);
+  m_Size = 0;
+  m_Capacity = 0;
 }
 
 template <typename T>
@@ -228,9 +230,6 @@ void DeviceVector<T>::reallocate(const std::size_t count) {
 template <typename T> void DeviceVector<T>::deallocate(void) {
   m_Size = 0;
   m_Capacity = 0;
-  if (m_Data != nullptr) {
-    cudaCheck(cudaFree(static_cast<void *>(m_Data)));
-    m_Data = nullptr;
-  }
+  ::deallocate(&m_Data);
   return;
 }

@@ -17,7 +17,7 @@ class DualTopologySubscriber : public Subscriber {
 public:
   DualTopologySubscriber(const std::string &fileName);
   DualTopologySubscriber(const std::string &fileName, int reportFrequency);
-  ~DualTopologySubscriber(void);
+  ~DualTopologySubscriber(void) noexcept override = default;
 
 public:
   void update(void) override;

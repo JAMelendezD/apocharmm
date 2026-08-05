@@ -135,13 +135,25 @@ CudaPMEDirectForce<AT, CT>::CudaPMEDirectForce(CudaPMEDirectForce &&other)
   vdwtype14 = other.vdwtype14;
   vdwtypeTemp = other.vdwtypeTemp;
   vdwtype_len = other.vdwtype_len;
-
   glo_vdwtype = other.vdwtype;
 
   other.vdwtype = NULL;
   other.vdwtype14 = NULL;
   other.vdwtypeTemp = NULL;
   other.vdwtype_len = 0;
+  other.glo_vdwtype = NULL;
+
+#ifdef USE_TEXTURE_OBJECTS
+  vdwParamTexObjActive = other.vdwParamTexObjActive;
+  vdwParamTexObj = other.vdwParamTexObj;
+  vdwParam14TexObjActive = other.vdwParam14TexObjActive;
+  vdwParam14TexObj = other.vdwParam14TexObj;
+
+  other.vdwParamTexObjActive = false;
+  other.vdwParamTexObj = 0;
+  other.vdwParam14TexObjActive = false;
+  other.vdwParam14TexObj = 0;
+#endif
 
   ewald_force = other.ewald_force;
   n_ewald_force = other.n_ewald_force;
@@ -230,34 +242,38 @@ CudaPMEDirectForce<AT, CT>::CudaPMEDirectForce(CudaEnergyVirial &energyVirial,
 // Class destructor
 //
 template <typename AT, typename CT>
-CudaPMEDirectForce<AT, CT>::~CudaPMEDirectForce() {
-  this->clearTextures();
-  if (vdwparam != NULL)
-    deallocate<CT>(&vdwparam);
-  if (vdwparam14 != NULL)
-    deallocate<CT>(&vdwparam14);
-  if (in14list != NULL)
-    deallocate<xx14list_t>(&in14list);
-  if (ex14list != NULL)
-    deallocate<xx14list_t>(&ex14list);
-  if (vdwtype != NULL)
-    deallocate<int>(&vdwtype);
-  if (ewald_force != NULL)
-    deallocate<CT>(&ewald_force);
-  // if (d_energy_virial != NULL)
-  // deallocate<DirectEnergyVirial_t>(&d_energy_virial); if (h_energy_virial
-  // != NULL) deallocate_host<DirectEnergyVirial_t>(&h_energy_virial);
-  if (h_setup != NULL)
-    deallocate_host<DirectSettings_t>(&h_setup);
+CudaPMEDirectForce<AT, CT>::~CudaPMEDirectForce() noexcept {
+#ifdef USE_TEXTURE_OBJECTS
+  vdwParamTexObjActive = false;
+  destroy_cuda_texture_object_noexcept(&vdwParamTexObj);
 
-  if (vdwtype14 != NULL)
-    deallocate<int>(&vdwtype14);
-  if (glo_vdwtype != NULL)
-    deallocate<int>(&glo_vdwtype);
+  vdwParam14TexObjActive = false;
+  destroy_cuda_texture_object_noexcept(&vdwParam14TexObj);
+#else
+  if (get_vdwparam_texref_bound()) {
+    set_vdwparam_texref_bound(false);
+    (void)cudaUnbindTexture(*get_vdwparam_texref());
+  }
+
+  if (get_vdwparam14_texref_bound()) {
+    set_vdwparam14_texref_bound(false);
+    (void)cudaUnbindTexture(*get_vdwparam14_texref());
+  }
+#endif
 
   neighborList.reset();
-  if (loc2glo != NULL)
-    deallocate<int>(&loc2glo);
+
+  deallocate_noexcept<CT>(&vdwparam);
+  deallocate_noexcept<CT>(&vdwparam14);
+  deallocate_noexcept<xx14list_t>(&in14list);
+  deallocate_noexcept<xx14list_t>(&ex14list);
+  deallocate_noexcept<int>(&vdwtype);
+  deallocate_noexcept<CT>(&ewald_force);
+  deallocate_host_noexcept<DirectSettings_t>(&h_setup);
+  deallocate_noexcept<int>(&vdwtype14);
+  deallocate_noexcept<int>(&vdwtypeTemp);
+  deallocate_noexcept<int>(&glo_vdwtype);
+  deallocate_noexcept<int>(&loc2glo);
 }
 
 //
@@ -487,21 +503,27 @@ template <typename AT, typename CT>
 void CudaPMEDirectForce<AT, CT>::clearTextures() {
 #ifdef USE_TEXTURE_OBJECTS
   if (vdwParamTexObjActive) {
-    cudaCheck(cudaDestroyTextureObject(vdwParamTexObjActive));
+    const cudaTextureObject_t texture_object = vdwParamTexObj;
     vdwParamTexObjActive = false;
+    vdwParamTexObj = 0;
+    cudaCheck(cudaDestroyTextureObject(texture_object));
   }
+
   if (vdwParam14TexObjActive) {
-    cudaCheck(cudaDestroyTextureObject(vdwParam14TexObjActive));
+    const cudaTextureObject_t texture_object = vdwParam14TexObj;
     vdwParam14TexObjActive = false;
+    vdwParam14TexObj = 0;
+    cudaCheck(cudaDestroyTextureObject(texture_object));
   }
 #else
   if (get_vdwparam_texref_bound()) {
-    cudaCheck(cudaUnbindTexture(*get_vdwparam_texref()));
     set_vdwparam_texref_bound(false);
+    cudaCheck(cudaUnbindTexture(*get_vdwparam_texref()));
   }
+
   if (get_vdwparam14_texref_bound()) {
-    cudaCheck(cudaUnbindTexture(*get_vdwparam14_texref()));
     set_vdwparam14_texref_bound(false);
+    cudaCheck(cudaUnbindTexture(*get_vdwparam14_texref()));
   }
 #endif
 }

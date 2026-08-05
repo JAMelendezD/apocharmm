@@ -43,7 +43,13 @@ extern "C" apo_status apo_cuda_langevin_piston_integrator_create(
 
 extern "C" void apo_cuda_langevin_piston_integrator_destroy(
     apo_cuda_langevin_piston_integrator *integrator) {
-  delete integrator;
+  const char *function_name = "apo_cuda_langevin_piston_integrator_destroy";
+  apocharmm_c::guard_destroy(
+      [integrator](void) -> void {
+        delete integrator;
+        return;
+      },
+      function_name);
   return;
 }
 

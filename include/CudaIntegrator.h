@@ -49,6 +49,8 @@ public:
    */
   CudaIntegrator(const double timeStep, const int debugPrintFrequency);
 
+  virtual ~CudaIntegrator(void) noexcept;
+
   /** @brief Returns integrator timestep (in ps)
    */
   double getTimeStep(void) const;

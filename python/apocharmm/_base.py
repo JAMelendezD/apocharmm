@@ -37,9 +37,9 @@ class _ApoObject:
             raise RuntimeError("No destroy function has been set for this object")
 
         destroy = getattr(lib(), destroy_function_name)
-        destroy(self._handle)
-
+        handle = self._handle
         self._handle = ctypes.c_void_p()
+        destroy(handle)
 
         return
 

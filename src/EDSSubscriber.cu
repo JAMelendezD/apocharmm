@@ -25,11 +25,6 @@ EDSSubscriber::EDSSubscriber(const std::string &fileName, int reportFrequency)
   m_NumFramesWritten = 0;
 }
 
-EDSSubscriber::~EDSSubscriber(void) {
-  if (m_FileStream.is_open())
-    m_FileStream.close();
-}
-
 void EDSSubscriber::update(void) {
   // We need to access the potential energy for all members of the CompositeFM
   auto fm = m_CharmmContext->getForceManager();

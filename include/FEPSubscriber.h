@@ -16,7 +16,7 @@ class FEPSubscriber : public Subscriber {
 public:
   FEPSubscriber(const std::string &fileName);
   FEPSubscriber(const std::string &fileName, const int reportFrequency);
-  ~FEPSubscriber(void);
+  ~FEPSubscriber(void) noexcept override = default;
 
 public:
   void update(void) override;

@@ -29,8 +29,6 @@ StateSubscriber::StateSubscriber(const std::string &fileName,
   this->initialize();
 }
 
-StateSubscriber::~StateSubscriber(void) { m_FileStream.close(); }
-
 void StateSubscriber::update(void) {
   // TODO : add HFCTE
   if (!m_HeaderWritten)
