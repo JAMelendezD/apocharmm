@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import TypeVar
 
 T = TypeVar("T")
+ExceptionT = TypeVar("ExceptionT", bound=BaseException)
 
 
 def get_repo_root() -> Path:
@@ -144,13 +145,13 @@ def assert_finite_temperature(label: str, temperature: float) -> None:
 
 
 def expect_exception(
-    label: str, exception_type: type[BaseException], action: Callable[[], object]
-) -> None:
+    label: str, exception_type: type[ExceptionT], action: Callable[[], object]
+) -> ExceptionT:
     try:
         action()
-    except exception_type:
+    except exception_type as exc:
         print(f"Expected exception observed: {label}")
-        return
+        return exc
     except Exception as exc:
         raise AssertionError(
             f"{label}: expected {exception_type.__name__}, observed {type(exc).__name__}: {exc}"

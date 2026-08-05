@@ -1,0 +1,263 @@
+# BEGINLICENSE
+# This file is part of apoCHARMM, which is distributed under the BSD 3-clause
+# license, as described in the LICENSE file in the top level directory of this
+# project.
+#
+# Author: James E. Gonzales II
+#
+# ENDLICENSE
+
+from __future__ import annotations
+
+from collections.abc import Callable
+import ctypes
+from pathlib import Path
+import sys
+from typing import cast
+
+import apocharmm as apo
+import apocharmm._lib as apo_lib
+from apocharmm.error import check_status
+
+from python_api_test_helpers import require_file, assert_equal, expect_exception
+
+NATIVE_DIAGNOSTIC_FALLBACK: str = "Unknown apoCHARMM C API error"
+
+
+class _FakeErrorLibrary:
+    def __init__(self, message_address: int | None) -> None:
+        self._message_address: int | None = message_address
+        return
+
+    def apo_last_error(self) -> int | None:
+        return self._message_address
+
+
+def capture_check_status_error(
+    status: int, context: str, native_message: bytes | None
+) -> apo.ApoCharmmError:
+    message_buffer: ctypes.Array[ctypes.c_char] | None = None
+    message_address: int | None = None
+
+    if native_message is not None:
+        message_buffer = ctypes.create_string_buffer(native_message)
+        message_address = ctypes.addressof(message_buffer)
+
+    fake_library = _FakeErrorLibrary(message_address)
+    original_lib: Callable[[], ctypes.CDLL] = apo_lib.lib
+
+    def fake_lib() -> ctypes.CDLL:
+        return cast(ctypes.CDLL, fake_library)
+
+    apo_lib.lib = fake_lib
+    try:
+        error = expect_exception(
+            f"check_status rejects status {status}",
+            apo.ApoCharmmError,
+            lambda: check_status(status, context),
+        )
+    finally:
+        apo_lib.lib = original_lib
+
+    return error
+
+
+def check_exception_model() -> None:
+    print("Checking ApoCharmError fields and rendered message...")
+
+    context: str = "Python operation failed"
+    native_diagnostic: str = "apo_native_operation: native diagnostic"
+    expected_message: str = (
+        "Python operation failed [APO_STATUS_INVALID_ARGUMENT (1)]: apo_native_operation: native diagnostic"
+    )
+
+    error = apo.ApoCharmmError(
+        apo.APO_STATUS_INVALID_ARGUMENT, context, native_diagnostic
+    )
+
+    assert_equal(
+        "ApoCharmmError RuntimeError subclass",
+        issubclass(apo.ApoCharmmError, RuntimeError),
+        True,
+    )
+    assert_equal(
+        "ApoCharmmError RuntimeError instance", isinstance(error, RuntimeError), True
+    )
+    assert_equal("Known numeric status", error.status, apo.APO_STATUS_INVALID_ARGUMENT)
+    assert_equal("Known status name", error.status_name, "APO_STATUS_INVALID_ARGUMENT")
+    assert_equal("Python operation context", error.context, context)
+    assert_equal("Native diagnostic", error.native_diagnostic, native_diagnostic)
+    assert_equal("Stored rendered message", error.message, expected_message)
+    assert_equal("Exception string", str(error), expected_message)
+    assert_equal("Rendered context occurence count", error.message.count(context), 1)
+
+    unknown_status: int = 987654321
+    unknown_error = apo.ApoCharmmError(
+        unknown_status, "Unknown-status operation", "unknown-status diagnostic"
+    )
+
+    assert_equal("Unknown numeric status", unknown_error.status, unknown_status)
+    assert_equal("Unknown status name", unknown_error.status_name, "APO_STATUS_UNKNOWN")
+    assert_equal(
+        "Unknown rendered message",
+        unknown_error.message,
+        "Unknown-status operation [APO_STATUS_UNKNOWN (987654321)]: unknown-status diagnostic",
+    )
+
+    return
+
+
+def check_native_message_handling() -> None:
+    print("Checking native diagnostic fallback and decoding...")
+
+    null_error = capture_check_status_error(
+        apo.APO_STATUS_RUNTIME_ERROR, "Null native message operation", None
+    )
+    assert_equal(
+        "Null native message fallback",
+        null_error.native_diagnostic,
+        NATIVE_DIAGNOSTIC_FALLBACK,
+    )
+    assert_equal(
+        "Null native message rendered fallback",
+        null_error.message,
+        "Null native message operation [APO_STATUS_RUNTIME_ERROR (2)]: Unknown apoCHARMM C API error",
+    )
+
+    empty_error = capture_check_status_error(
+        apo.APO_STATUS_RUNTIME_ERROR, "Empty native message operation", b""
+    )
+    assert_equal(
+        "Empty native message fallback",
+        empty_error.native_diagnostic,
+        NATIVE_DIAGNOSTIC_FALLBACK,
+    )
+    assert_equal(
+        "Empty native message rendered fallback",
+        empty_error.message,
+        "Empty native message operation [APO_STATUS_RUNTIME_ERROR (2)]: Unknown apoCHARMM C API error",
+    )
+
+    invalid_utf8_error = capture_check_status_error(
+        apo.APO_STATUS_RUNTIME_ERROR,
+        "Invalid UTF-8 operation",
+        b"native \xff diagnostic",
+    )
+    assert_equal(
+        "Invalid UTF-8 replacement decoding",
+        invalid_utf8_error.native_diagnostic,
+        "native \ufffd diagnostic",
+    )
+    assert_equal(
+        "Invalid UTF-8 rendered message",
+        invalid_utf8_error.message,
+        "Invalid UTF-8 operation [APO_STATUS_RUNTIME_ERROR (2)]: native \ufffd diagnostic",
+    )
+
+    return
+
+
+def check_python_and_native_failures(repo_root: Path) -> None:
+    print("Checking Python validation and native wrapper failures...")
+
+    psf_path: str = require_file(repo_root / "test/data/nacl_pair.psf")
+    psf = apo.CharmmPsf(psf_path)
+    selector = apo.AtomSelector(psf)
+
+    type_error = expect_exception(
+        "AtomSelector.select preserves Python TypeError",
+        TypeError,
+        lambda: selector.select(cast(str, 1)),
+    )
+    assert_equal("Python type-check exception type", type(type_error), TypeError)
+
+    value_error = expect_exception(
+        "AtomSelector.select preserves Python ValueError",
+        ValueError,
+        lambda: selector.select(""),
+    )
+    assert_equal("Python value-check exception type", type(value_error), ValueError)
+
+    runtime_error = expect_exception(
+        "AtomSelector.select maps a native runtime failure",
+        apo.ApoCharmmError,
+        lambda: selector.select("bynu A:C"),
+    )
+    assert_equal(
+        "native runtime exception type", type(runtime_error), apo.ApoCharmmError
+    )
+    assert_equal(
+        "native runtime numeric status",
+        runtime_error.status,
+        apo.APO_STATUS_RUNTIME_ERROR,
+    )
+    assert_equal(
+        "native runtime status name",
+        runtime_error.status_name,
+        "APO_STATUS_RUNTIME_ERROR",
+    )
+    assert_equal(
+        "native runtime context",
+        runtime_error.context,
+        "AtomSelector.select(selection_string) failed",
+    )
+    assert_equal(
+        "native runtime diagnostic",
+        runtime_error.native_diagnostic,
+        "apo_atom_selector_select: BYNU range requires integer atom numbers",
+    )
+
+    invalid_argument_error = expect_exception(
+        "CharmmParameters maps a native invalid argument",
+        apo.ApoCharmmError,
+        lambda: apo.CharmmParameters([]),
+    )
+    assert_equal(
+        "native invalid-argument exception type",
+        type(invalid_argument_error),
+        apo.ApoCharmmError,
+    )
+    assert_equal(
+        "native invalid-argument numeric status",
+        invalid_argument_error.status,
+        apo.APO_STATUS_INVALID_ARGUMENT,
+    )
+    assert_equal(
+        "native invalid-argument status name",
+        invalid_argument_error.status_name,
+        "APO_STATUS_INVALID_ARGUMENT",
+    )
+    assert_equal(
+        "native invalid-argument context",
+        invalid_argument_error.context,
+        "CharmmParameters construction failed",
+    )
+    assert_equal(
+        "end-to-end native diagnostic",
+        invalid_argument_error.native_diagnostic,
+        "apo_charmm_parameters_create_from_files: "
+        "paths must contain at least one parameter file",
+    )
+    assert_equal(
+        "end-to-end rendered context occurrence count",
+        invalid_argument_error.message.count(invalid_argument_error.context),
+        1,
+    )
+
+    return
+
+
+def main(argc: int, argv: list[str]) -> int:
+    repo_root: Path = Path(argv[1]) if argc > 1 else Path(".")
+
+    check_exception_model()
+    check_native_message_handling()
+    check_python_and_native_failures(repo_root)
+
+    print("\033[32m" + "PASS: Python error API tests completed." + "\033[0m")
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(len(sys.argv), sys.argv))

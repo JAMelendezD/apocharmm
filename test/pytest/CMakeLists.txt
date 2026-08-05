@@ -1,5 +1,8 @@
 # Add any new tests to this list!
 set(PYTHON_API_TESTS
+  # Utility tests
+  python_api_error.py
+
   # Manager tests
   python_api_charmm_context.py
   python_api_force_manager.py
