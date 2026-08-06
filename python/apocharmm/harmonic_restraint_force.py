@@ -13,7 +13,7 @@ import ctypes
 from ._base import _ApoObject
 from ._lib import lib
 from .atom_selection import AtomSelection
-from .error import check_status
+from .error import check_status, configure_status_function
 from .force_manager import ForceManager
 
 _prototypes_initialized: bool = False
@@ -25,54 +25,50 @@ def _initialize_prototypes() -> None:
     if _prototypes_initialized:
         return
 
-    lib().apo_harmonic_restraint_force_create.argtypes = [
-        ctypes.POINTER(ctypes.c_void_p),
-        ctypes.c_int,
-    ]
-    lib().apo_harmonic_restraint_force_create.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_harmonic_restraint_force_create,
+        [ctypes.POINTER(ctypes.c_void_p), ctypes.c_int],
+        "HarmonicRestraintForce construction",
+    )
 
     lib().apo_harmonic_restraint_force_destroy.argtypes = [ctypes.c_void_p]
     lib().apo_harmonic_restraint_force_destroy.restype = None
 
-    lib().apo_harmonic_restraint_force_set_selection.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_void_p,
-    ]
-    lib().apo_harmonic_restraint_force_set_selection.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_harmonic_restraint_force_set_selection,
+        [ctypes.c_void_p, ctypes.c_void_p],
+        "HarmonicRestraintForce.setSelection(selection)",
+    )
 
-    lib().apo_harmonic_restraint_force_set_force_constant.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_double,
-    ]
-    lib().apo_harmonic_restraint_force_set_force_constant.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_harmonic_restraint_force_set_force_constant,
+        [ctypes.c_void_p, ctypes.c_double],
+        "HarmonicRestraintForce.setForceConstant(force_constant)",
+    )
 
-    lib().apo_harmonic_restraint_force_set_force_constants.argtypes = [
-        ctypes.c_void_p,
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_size_t,
-    ]
-    lib().apo_harmonic_restraint_force_set_force_constants.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_harmonic_restraint_force_set_force_constants,
+        [ctypes.c_void_p, ctypes.POINTER(ctypes.c_double), ctypes.c_size_t],
+        "HarmonicRestraintForce.setForceConstants(force_constants)",
+    )
 
-    lib().apo_harmonic_restraint_force_set_reference_coordinates.argtypes = [
-        ctypes.c_void_p,
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_size_t,
-    ]
-    lib().apo_harmonic_restraint_force_set_reference_coordinates.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_harmonic_restraint_force_set_reference_coordinates,
+        [ctypes.c_void_p, ctypes.POINTER(ctypes.c_double), ctypes.c_size_t],
+        "HarmonicRestraintForce.setReferenceCoordinates(reference_coordinates)",
+    )
 
-    lib().apo_harmonic_restraint_force_set_masses.argtypes = [
-        ctypes.c_void_p,
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_size_t,
-    ]
-    lib().apo_harmonic_restraint_force_set_masses.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_harmonic_restraint_force_set_masses,
+        [ctypes.c_void_p, ctypes.POINTER(ctypes.c_double), ctypes.c_size_t],
+        "HarmonicRestraintForce.setMasses(masses)",
+    )
 
-    lib().apo_harmonic_restraint_force_set_box_dimensions.argtypes = [
-        ctypes.c_void_p,
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_size_t,
-    ]
-    lib().apo_harmonic_restraint_force_set_box_dimensions.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_harmonic_restraint_force_set_box_dimensions,
+        [ctypes.c_void_p, ctypes.POINTER(ctypes.c_double), ctypes.c_size_t],
+        "HarmonicRestraintForce.setBoxDimensions(box_dimensions)",
+    )
 
     lib().apo_force_manager_subscribe_harmonic_restraint_force.argtypes = [
         ctypes.c_void_p,
@@ -137,11 +133,7 @@ class HarmonicRestraintForce(_ApoObject):
                 "HarmonicRestraintForce.setSelection expects an AtomSelection"
             )
 
-        status = lib().apo_harmonic_restraint_force_set_selection(
-            self.handle, selection.handle
-        )
-
-        check_status(status, "HarmonicRestraintForce.setSelection(selection) failed")
+        lib().apo_harmonic_restraint_force_set_selection(self.handle, selection.handle)
 
         return
 
@@ -150,12 +142,8 @@ class HarmonicRestraintForce(_ApoObject):
 
         c_force_constant: ctypes.c_double = ctypes.c_double(float(force_constant))
 
-        status = lib().apo_harmonic_restraint_force_set_force_constant(
+        lib().apo_harmonic_restraint_force_set_force_constant(
             self.handle, c_force_constant
-        )
-
-        check_status(
-            status, "HarmonicRestraintForce.setForceConstant(force_constant) failed"
         )
 
         return
@@ -169,12 +157,8 @@ class HarmonicRestraintForce(_ApoObject):
         c_buffer = c_buffer_type(*force_constant_values)
         c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(len(force_constant_values))
 
-        status = lib().apo_harmonic_restraint_force_set_force_constants(
+        lib().apo_harmonic_restraint_force_set_force_constants(
             self.handle, c_buffer, c_buffer_len
-        )
-
-        check_status(
-            status, "HarmonicRestraintForce.setForceConstants(force_constants) failed"
         )
 
         return
@@ -200,13 +184,8 @@ class HarmonicRestraintForce(_ApoObject):
         c_buffer = c_buffer_type(*flattened_coordinates)
         c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(len(flattened_coordinates))
 
-        status = lib().apo_harmonic_restraint_force_set_reference_coordinates(
+        lib().apo_harmonic_restraint_force_set_reference_coordinates(
             self.handle, c_buffer, c_buffer_len
-        )
-
-        check_status(
-            status,
-            "HarmonicRestraintForce.setReferenceCoordinates(reference_coordinates) failed",
         )
 
         return
@@ -220,11 +199,9 @@ class HarmonicRestraintForce(_ApoObject):
         c_buffer = c_buffer_type(*mass_values)
         c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(len(mass_values))
 
-        status = lib().apo_harmonic_restraint_force_set_masses(
+        lib().apo_harmonic_restraint_force_set_masses(
             self.handle, c_buffer, c_buffer_len
         )
-
-        check_status(status, "HarmonicRestraintForce.setMasses(masses) failed")
 
         return
 
@@ -237,12 +214,8 @@ class HarmonicRestraintForce(_ApoObject):
         c_buffer = c_buffer_type(*box_values)
         c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(len(box_values))
 
-        status = lib().apo_harmonic_restraint_force_set_box_dimensions(
+        lib().apo_harmonic_restraint_force_set_box_dimensions(
             self.handle, c_buffer, c_buffer_len
-        )
-
-        check_status(
-            status, "HarmonicRestraintForce.setBoxDimensions(box_dimensions) failed"
         )
 
         return

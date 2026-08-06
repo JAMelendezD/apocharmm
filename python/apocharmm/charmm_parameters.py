@@ -12,7 +12,7 @@ import ctypes
 from ._base import _ApoObject
 from ._lib import encode_path, lib
 from ._types import FilePaths
-from .error import check_status
+from .error import configure_status_function
 
 _prototypes_initialized: bool = False
 
@@ -23,18 +23,21 @@ def _initialize_prototypes() -> None:
     if _prototypes_initialized:
         return
 
-    lib().apo_charmm_parameters_create.argtypes = [
-        ctypes.POINTER(ctypes.c_void_p),
-        ctypes.c_char_p,
-    ]
-    lib().apo_charmm_parameters_create.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_charmm_parameters_create,
+        [ctypes.POINTER(ctypes.c_void_p), ctypes.c_char_p],
+        "CharmmParameters construction",
+    )
 
-    lib().apo_charmm_parameters_create_from_files.argtypes = [
-        ctypes.POINTER(ctypes.c_void_p),
-        ctypes.POINTER(ctypes.c_char_p),
-        ctypes.c_size_t,
-    ]
-    lib().apo_charmm_parameters_create_from_files.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_charmm_parameters_create_from_files,
+        [
+            ctypes.POINTER(ctypes.c_void_p),
+            ctypes.POINTER(ctypes.c_char_p),
+            ctypes.c_size_t,
+        ],
+        "CharmmParameters construction",
+    )
 
     lib().apo_charmm_parameters_destroy.argtypes = [ctypes.c_void_p]
     lib().apo_charmm_parameters_destroy.restype = None
@@ -61,7 +64,7 @@ class CharmmParameters(_ApoObject):
             path_array_type = ctypes.c_char_p * len(encoded_paths)
             path_array = path_array_type(*encoded_paths)
 
-            status = lib().apo_charmm_parameters_create_from_files(
+            lib().apo_charmm_parameters_create_from_files(
                 ctypes.byref(handle), path_array, c_num_paths
             )
 
@@ -70,11 +73,9 @@ class CharmmParameters(_ApoObject):
             encoded_path: bytes = encode_path(paths)
             c_path: ctypes.c_char_p = ctypes.c_char_p(encoded_path)
 
-            status = lib().apo_charmm_parameters_create(ctypes.byref(handle), c_path)
+            lib().apo_charmm_parameters_create(ctypes.byref(handle), c_path)
 
             function_name = "apo_charmm_parameters_create"
-
-        check_status(status, "CharmmParameters construction failed")
 
         if handle.value is None:
             raise RuntimeError(

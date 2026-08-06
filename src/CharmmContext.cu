@@ -45,21 +45,11 @@ CharmmContext::CharmmContext(void)
 CharmmContext::CharmmContext(std::shared_ptr<CharmmPSF> psf,
                              std::shared_ptr<CharmmParameters> prm)
     : CharmmContext() {
-  constexpr std::string_view functionName =
-      "CharmmContext::CharmmContext(std::shared_ptr<CharmmPSF>, "
-      "std::shared_ptr<CharmmParameters>)";
+  APOCHARMM_REQUIRE(psf != nullptr, ApoCharmmErrorCode::InvalidArgument,
+                    "CharmmPSF must not be null");
 
-  if (psf == nullptr) {
-    std::string msg(functionName);
-    msg += ": CharmmPSF == nullptr";
-    throw std::invalid_argument(msg);
-  }
-
-  if (prm == nullptr) {
-    std::string msg(functionName);
-    msg += ": CharmmParameters == nullptr";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(prm != nullptr, ApoCharmmErrorCode::InvalidArgument,
+                    "CharmmParameters must not be null");
 
   std::vector<int> devices = {0, 1, 2, 3};
   start_gpu(1, 1, 0, devices);

@@ -165,10 +165,32 @@ def check_validation() -> None:
         TypeError,
         lambda: restraint.setSelection(object()),  # type: ignore[arg-type]
     )
-    expect_invalid_argument(
+    force_constant_error = expect_invalid_argument(
         "setForceConstant rejects negative force constant",
         lambda: restraint.setForceConstant(-1.0),
         "Force constant must be non-negative",
+    )
+    assert_equal(
+        "setForceConstant Python operation context",
+        force_constant_error.context,
+        "HarmonicRestraintForce.setForceConstant(force_constant)",
+    )
+    assert_equal(
+        "setForceConstant rendered context occurrence count",
+        force_constant_error.message.count(force_constant_error.context),
+        1,
+    )
+    assert_equal(
+        "setForceConstant rendered native function occurrence count",
+        force_constant_error.message.count(
+            "apo_harmonic_restraint_force_set_force_constant"
+        ),
+        1,
+    )
+    assert_equal(
+        "setForceConstant rendered failed text count",
+        force_constant_error.message.count("failed"),
+        0,
     )
     expect_invalid_argument(
         "setForceConstant rejects non-finite force constant",

@@ -17,7 +17,7 @@ from typing import cast
 
 import apocharmm as apo
 import apocharmm._lib as apo_lib
-from apocharmm.error import check_status
+from apocharmm.error import check_status, configure_status_function
 
 from python_api_test_helpers import require_file, assert_equal, expect_exception
 
@@ -157,6 +157,66 @@ def check_native_message_handling() -> None:
     return
 
 
+def check_configured_status_function() -> None:
+    print("Checking configured apo_status function behavior...")
+
+    success_function = ctypes.CFUNCTYPE(ctypes.c_int)(lambda: apo.APO_STATUS_OK)
+    configure_status_function(success_function, [], "Configured success operation")
+
+    assert_equal("Configured status argtypes", success_function.argtypes, [])
+    assert_equal("Configured status restype", success_function.restype, ctypes.c_int)
+    assert_equal(
+        "Configured status errcheck installed",
+        callable(success_function.errcheck),
+        True,
+    )
+    assert_equal(
+        "Configured status success result", success_function(), apo.APO_STATUS_OK
+    )
+
+    unknown_status: int = 987654321
+    context: str = "Configured status operation"
+    message_buffer: ctypes.Array[ctypes.c_char] = ctypes.create_string_buffer(
+        b"configured native diagnostic"
+    )
+    fake_library = _FakeErrorLibrary(ctypes.addressof(message_buffer))
+    original_lib: Callable[[], ctypes.CDLL] = apo_lib.lib
+
+    def fake_lib() -> ctypes.CDLL:
+        return cast(ctypes.CDLL, fake_library)
+
+    status_function = ctypes.CFUNCTYPE(ctypes.c_int)(lambda: unknown_status)
+    configure_status_function(status_function, [], context)
+
+    apo_lib.lib = fake_lib
+    try:
+        error = expect_exception(
+            "Configured status function preserves unknown status",
+            apo.ApoCharmmError,
+            lambda: status_function(),
+        )
+    finally:
+        apo_lib.lib = original_lib
+
+    assert_equal("Configured unknown numeric status", error.status, unknown_status)
+    assert_equal(
+        "Configured unknown status name", error.status_name, "APO_STATUS_UNKNOWN"
+    )
+    assert_equal("Configured operation context", error.context, context)
+    assert_equal(
+        "Configured native diagnostic",
+        error.native_diagnostic,
+        "configured native diagnostic",
+    )
+    assert_equal(
+        "Configured rendered message",
+        error.message,
+        "Configured status operation [APO_STATUS_UNKNOWN (987654321)]: configured native diagnostic",
+    )
+
+    return
+
+
 def check_python_and_native_failures(repo_root: Path) -> None:
     print("Checking Python validation and native wrapper failures...")
 
@@ -230,7 +290,7 @@ def check_python_and_native_failures(repo_root: Path) -> None:
     assert_equal(
         "native invalid-argument context",
         invalid_argument_error.context,
-        "CharmmParameters construction failed",
+        "CharmmParameters construction",
     )
     assert_equal(
         "end-to-end native diagnostic",
@@ -243,6 +303,16 @@ def check_python_and_native_failures(repo_root: Path) -> None:
         invalid_argument_error.message.count(invalid_argument_error.context),
         1,
     )
+    assert_equal(
+        "end-to-end rendered native function occurrence count",
+        invalid_argument_error.message.count("apo_charmm_parameters_create_from_files"),
+        1,
+    )
+    assert_equal(
+        "end-to-end rendered failed text count",
+        invalid_argument_error.message.count("failed"),
+        0,
+    )
 
     return
 
@@ -252,6 +322,7 @@ def main(argc: int, argv: list[str]) -> int:
 
     check_exception_model()
     check_native_message_handling()
+    check_configured_status_function()
     check_python_and_native_failures(repo_root)
 
     print("\033[32m" + "PASS: Python error API tests completed." + "\033[0m")

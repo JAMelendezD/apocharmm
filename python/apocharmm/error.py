@@ -7,7 +7,9 @@
 #
 # ENDLICENSE
 
+from collections.abc import Callable, Sequence
 import ctypes
+from typing import Protocol
 
 APO_STATUS_OK: int = 0
 APO_STATUS_INVALID_ARGUMENT: int = 1
@@ -27,6 +29,12 @@ _STATUS_NAMES: dict[int, str] = {
 }
 _UNKNOWN_STATUS_NAME: str = "APO_STATUS_UNKNOWN"
 _NATIVE_DIAGNOSTIC_FALLBACK: str = "Unknown apoCHARMM C API error"
+
+
+class _StatusFunction(Protocol):
+    argtypes: Sequence[object] | None
+    restype: object
+    errcheck: Callable[[int, "_StatusFunction", tuple[object, ...]], int] | None
 
 
 class ApoCharmmError(RuntimeError):
@@ -78,3 +86,19 @@ def check_status(status: int, context: str) -> None:
             native_diagnostic = _NATIVE_DIAGNOSTIC_FALLBACK
 
     raise ApoCharmmError(status, context, native_diagnostic)
+
+
+def configure_status_function(
+    function: _StatusFunction, argtypes: Sequence[object], context: str
+) -> None:
+    def raise_on_error(
+        result: int, _function: _StatusFunction, _arguments: tuple[object, ...]
+    ) -> int:
+        check_status(result, context)
+        return result
+
+    function.argtypes = list(argtypes)
+    function.restype = ctypes.c_int
+    function.errcheck = raise_on_error
+
+    return
