@@ -20,6 +20,7 @@ from python_api_test_helpers import (
     assert_equal,
     assert_finite_temperature,
     expect_exception,
+    expect_invalid_argument,
 )
 
 BOX_DIMENSIONS: list[float] = [50.0, 50.0, 50.0]
@@ -100,10 +101,10 @@ def check_subscription_and_short_propagation() -> None:
 
     fm.subscribe(restraint)
 
-    expect_exception(
+    expect_invalid_argument(
         "ForceManager rejects duplicate HarmonicCenterOfMassRestraintForce subscription",
-        ValueError,
         lambda: fm.subscribe(restraint),
+        "Force is already subscribed to this ForceManager",
     )
 
     integrator = apo.CudaLangevinThermostatIntegrator(TIME_STEP)

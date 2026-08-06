@@ -90,7 +90,10 @@ ApoCharmmError::ApoCharmmError(const ApoCharmmErrorCode code,
             GetProjectRelativeSourceFile(sourceFile);
 
         std::ostringstream diagnostic;
-        diagnostic << APOCHARMM_SKULL << '\n'
+        diagnostic << '\n'
+                   << '\n'
+                   << APOCHARMM_SKULL << '\n'
+                   << '\n'
                    << "apoCHARMM error [" << GetApoCharmmErrorCodeName(code)
                    << "]: " << message << '\n'
                    << "  source: " << projectRelativeSourceFile << ':'

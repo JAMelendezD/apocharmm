@@ -48,3 +48,10 @@ private:
 
 #define APOCHARMM_THROW(errorCode, message)                                    \
   throw ::ApoCharmmError((errorCode), (message), __FILE__, __func__, __LINE__)
+
+#define APOCHARMM_REQUIRE(condition, errorCode, message)                       \
+  do {                                                                         \
+    if (!(condition)) {                                                        \
+      APOCHARMM_THROW((errorCode), (message));                                 \
+    }                                                                          \
+  } while (false)

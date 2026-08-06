@@ -15,6 +15,8 @@ import os
 from pathlib import Path
 from typing import TypeVar
 
+import apocharmm as apo
+
 T = TypeVar("T")
 ExceptionT = TypeVar("ExceptionT", bound=BaseException)
 
@@ -160,3 +162,31 @@ def expect_exception(
     raise AssertionError(
         f"{label}: expected {exception_type.__name__}, but no exception was raised"
     )
+
+
+def expect_invalid_argument(
+    label: str, action: Callable[[], object], diagnostic_substring: str
+) -> apo.ApoCharmmError:
+    error = expect_exception(label, apo.ApoCharmmError, action)
+
+    assert_equal(f"{label} status", error.status, apo.APO_STATUS_INVALID_ARGUMENT)
+    assert_equal(
+        f"{label} status name", error.status_name, "APO_STATUS_INVALID_ARGUMENT"
+    )
+
+    if diagnostic_substring not in error.native_diagnostic:
+        raise AssertionError(
+            f"{label}: expected native diagnostic to contain "
+            f"{diagnostic_substring!r}, observed "
+            f"{error.native_diagnostic!r}"
+        )
+
+    if "ERROR:" in error.native_diagnostic:
+        raise AssertionError(
+            f"{label}: native diagnostic contains a manual ERROR: prefix"
+        )
+
+    if error.native_diagnostic.endswith("\n"):
+        raise AssertionError(f"{label}: native diagnostic has a trailing newline")
+
+    return error

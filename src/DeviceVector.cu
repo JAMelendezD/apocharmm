@@ -205,22 +205,34 @@ void DeviceVector<T>::reallocate(const std::size_t count) {
   if (count == m_Capacity) // No need for a new memory block
     return;
 
-  // Allocate new memory block
-  std::size_t oldSize = m_Size;
+  if (count == 0) {
+    this->deallocate();
+    return;
+  }
+
+  const std::size_t copySize = (count < m_Size) ? count : m_Size;
   T *data = nullptr;
-  cudaCheck(cudaMalloc(reinterpret_cast<void **>(&data), count * sizeof(T)));
 
-  // Copy relevant data to new memory block
-  cudaCheck(cudaMemcpy(static_cast<void *>(data),
-                       static_cast<const void *>(m_Data),
-                       ((count < m_Size) ? count : m_Size) * sizeof(T),
-                       cudaMemcpyDeviceToDevice));
+  try {
+    // Allocate new memory block
+    cudaCheck(cudaMalloc(reinterpret_cast<void **>(&data), count * sizeof(T)));
 
-  // Free old memory block
-  this->deallocate();
+    // Copy relevant data to new memory block
+    if (copySize > 0) {
+      cudaCheck(cudaMemcpy(static_cast<void *>(data),
+                           static_cast<const void *>(m_Data),
+                           copySize * sizeof(T), cudaMemcpyDeviceToDevice));
+    }
+
+    // Free old memory block
+    this->deallocate();
+  } catch (...) {
+    ::deallocate_noexcept(&data);
+    throw;
+  }
 
   // Assign new memory block
-  m_Size = (count < oldSize) ? count : oldSize;
+  m_Size = copySize;
   m_Capacity = count;
   m_Data = data;
 

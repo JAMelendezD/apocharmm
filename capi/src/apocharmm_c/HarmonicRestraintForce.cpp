@@ -14,7 +14,6 @@
 #include "apocharmm_c/detail/HarmonicRestraintForceHandle.h"
 #include "apocharmm_c/detail/Validation.h"
 
-#include <cmath>
 #include <cstddef>
 #include <memory>
 #include <string>
@@ -30,9 +29,6 @@ apo_harmonic_restraint_force_create(apo_harmonic_restraint_force **out,
         APOCHARMM_C_RETURN_IF_ERROR(
             apocharmm_c::prepare_output_pointer<apo_harmonic_restraint_force>(
                 out, function_name, "out"));
-
-        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_positive_int(
-            num_atoms, function_name, "num_atoms"));
 
         std::unique_ptr<apo_harmonic_restraint_force> handle(
             new apo_harmonic_restraint_force());
@@ -92,16 +88,6 @@ extern "C" apo_status apo_harmonic_restraint_force_set_force_constant(
             apocharmm_c::require_handle_object<apo_harmonic_restraint_force>(
                 restraint, function_name, "HarmonicRestraintForce"));
 
-        if (!std::isfinite(force_constant)) {
-          return apocharmm_c::invalid_argument(function_name,
-                                               "force_constant must be finite");
-        }
-
-        if (force_constant < 0.0) {
-          return apocharmm_c::invalid_argument(
-              function_name, "force_constant must be non-negative");
-        }
-
         restraint->object->setForceConstant(force_constant);
 
         return APO_STATUS_OK;
@@ -151,11 +137,9 @@ extern "C" apo_status apo_harmonic_restraint_force_set_reference_coordinates(
         APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<double>(
             reference_coordinates, function_name, "reference_coordinates"));
 
-        if (reference_coordinates_len % 3 != 0) {
-          return apocharmm_c::invalid_argument(
-              function_name,
-              "reference_coordinates length must be divisible by 3");
-        }
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_flat_array_length(
+            reference_coordinates_len, 3, "reference_coordinates",
+            function_name));
 
         const size_t num_coordiantes = reference_coordinates_len / 3;
 
@@ -213,25 +197,9 @@ extern "C" apo_status apo_harmonic_restraint_force_set_box_dimensions(
         APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<double>(
             box_dimensions, function_name, "box_dimensions"));
 
-        if (box_dimensions_len != 3) {
-          return apocharmm_c::invalid_argument(
-              function_name, "box_dimensions must contain exactly 3 elements");
-        }
-
-        std::vector<double> cpp_box_dimensions(3);
-        for (size_t i = 0; i < 3; i++) {
-          if (!std::isfinite(box_dimensions[i])) {
-            return apocharmm_c::invalid_argument(
-                function_name, "box_dimensions values must be finite");
-          }
-
-          if (box_dimensions[i] <= 0.0) {
-            return apocharmm_c::invalid_argument(
-                function_name, "box_dimensions values must be positive");
-          }
-
+        std::vector<double> cpp_box_dimensions(box_dimensions_len);
+        for (size_t i = 0; i < box_dimensions_len; i++)
           cpp_box_dimensions[i] = box_dimensions[i];
-        }
 
         restraint->object->setBoxDimensions(cpp_box_dimensions);
 
@@ -256,7 +224,7 @@ extern "C" apo_status apo_force_manager_subscribe_harmonic_restraint_force(
             apocharmm_c::require_handle_object<apo_harmonic_restraint_force>(
                 restraint, function_name, "HarmonicRestraintForce"));
 
-        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_c_string(
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<char>(
             force_tag, function_name, "force_tag"));
 
         force_manager->object->subscribe(

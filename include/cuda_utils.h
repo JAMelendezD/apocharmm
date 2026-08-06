@@ -53,7 +53,7 @@ void ThrowCudaError(const cudaError_t error, const std::string_view failureKind,
 #define cudaCheckLaunch(...)                                                   \
   do {                                                                         \
     __VA_ARGS__;                                                               \
-    const cudaError_t apoCudaLaunchError = cudaPeekAtLastError();              \
+    const cudaError_t apoCudaLaunchError = cudaGetLastError();                 \
     if (apoCudaLaunchError != cudaSuccess) {                                   \
       ThrowCudaError(apoCudaLaunchError,                                       \
                      "CUDA error detected immediately after kernel launch",    \

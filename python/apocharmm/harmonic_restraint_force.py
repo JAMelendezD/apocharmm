@@ -9,10 +9,9 @@
 
 from collections.abc import Sequence
 import ctypes
-import math
 
 from ._base import _ApoObject
-from ._lib import encode_path, lib
+from ._lib import lib
 from .atom_selection import AtomSelection
 from .error import check_status
 from .force_manager import ForceManager
@@ -102,8 +101,8 @@ class HarmonicRestraintForce(_ApoObject):
         if not isinstance(num_atoms, int):
             raise TypeError("num_atoms must be an int")
 
-        if num_atoms <= 0 or num_atoms > 2**31 - 1:
-            raise ValueError("num_atoms must fit in positive int")
+        if num_atoms < -(2**31) or num_atoms > 2**31 - 1:
+            raise ValueError("num_atoms must fit in int")
 
         _initialize_prototypes()
 
@@ -263,9 +262,6 @@ class HarmonicRestraintForce(_ApoObject):
                 raise TypeError("force_tag must be a str")
 
             force_tag_value = force_tag
-
-        if force_tag_value == "":
-            raise ValueError("force_tag must not be empty")
 
         encoded_force_tag: bytes = force_tag_value.encode("utf-8")
         c_force_tag: ctypes.c_char_p = ctypes.c_char_p(encoded_force_tag)

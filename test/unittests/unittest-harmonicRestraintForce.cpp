@@ -8,6 +8,7 @@
 //
 // ENDLICENSE
 
+#include "ApoCharmmError.h"
 #include "AtomSelection.h"
 #include "CharmmContext.h"
 #include "CharmmCrd.h"
@@ -21,9 +22,10 @@
 #include "test_paths.h"
 
 #include <cmath>
+#include <limits>
 #include <memory>
-#include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <vector_types.h>
 
@@ -76,6 +78,27 @@ GetHarmonicEnergy(HarmonicRestraintForce<long long int, float> &restraint) {
   return restraint.getEnergyVirial()->getEnergy("harm");
 }
 
+template <typename Function>
+void CheckApoCharmmError(Function action, const ApoCharmmErrorCode expectedCode,
+                         const std::string_view expectedMessage) {
+  bool caught = false;
+
+  try {
+    action();
+  } catch (const ApoCharmmError &error) {
+    caught = true;
+
+    CHECK(error.getCode() == expectedCode);
+    CHECK(error.getMessage() == expectedMessage);
+    CHECK(error.getMessage().find("ERROR:") == std::string_view::npos);
+    CHECK((error.getMessage().empty() || error.getMessage().back() != '\n'));
+  }
+
+  CHECK(caught == true);
+
+  return;
+}
+
 } // namespace
 
 TEST_CASE("HarmonicRestraintForceConstructorAndDefaults") {
@@ -106,67 +129,243 @@ TEST_CASE("HarmonicRestraintForceConstructorAndDefaults") {
   CHECK(GetHarmonicEnergy(restraint) == Approx(0.0).margin(ENERGY_TOLERANCE));
 }
 
-TEST_CASE("HarmonicRestraintForceSettersAndValidation") {
+TEST_CASE("HarmonicRestraintForceConstructionAndInitializationValidation") {
+  CheckApoCharmmError(
+      []() -> void { (void)HarmonicRestraintForce<long long int, float>(0); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Atom count must be positive; observed 0");
+
+  CheckApoCharmmError(
+      []() -> void { (void)HarmonicRestraintForce<long long int, float>(-1); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Atom count must be positive; observed -1");
+
   HarmonicRestraintForce<long long int, float> restraint(NUM_ATOMS);
 
-  SECTION("SelectionSizeMustMatch") {
-    AtomSelection wrongSelection(NUM_ATOMS + 1);
+  CudaContainer<float4> xyzq = std::vector<float4>{
+      make_float4(0.0f, 0.0f, 0.0f, 0.0f), make_float4(0.0f, 0.0f, 0.0f, 0.0f),
+      make_float4(0.0f, 0.0f, 0.0f, 0.0f)};
 
-    CHECK_THROWS_AS(restraint.setSelection(wrongSelection),
-                    std::invalid_argument);
-  }
+  CHECK_NOTHROW(restraint.setBoxDimensions(BOX_DIMENSIONS));
+  CHECK_NOTHROW(
+      restraint.calcForce(xyzq.getDeviceArray().data(), false, false));
+  cudaCheck(cudaStreamSynchronize(*restraint.getStream()));
 
-  SECTION("ForceConstantValidation") {
-    CHECK_THROWS_AS(restraint.setForceConstant(-1.0), std::invalid_argument);
-    CHECK_THROWS_AS(
-        restraint.setForceConstant(std::numeric_limits<double>::infinity()),
-        std::invalid_argument);
-    CHECK_NOTHROW(restraint.setForceConstant(0.0));
-    CHECK_NOTHROW(restraint.setForceConstant(1.0));
-  }
+  CheckApoCharmmError(
+      [&restraint]() -> void {
+        restraint.initialize(NUM_ATOMS + 1, BOX_DIMENSIONS);
+      },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Initialization atom count mismatch; expected 3, observed 4");
 
-  SECTION("ForceConstantsSizeMustMatch") {
-    CHECK_THROWS_AS(restraint.setForceConstants({1.0, 2.0}),
-                    std::invalid_argument);
-    CHECK_NOTHROW(restraint.setForceConstants({1.0, 2.0, 3.0}));
-    CHECK_THROWS_AS(restraint.setForceConstants({1.0, 2.0, 3.0, 4.0}),
-                    std::invalid_argument);
-  }
+  CHECK_NOTHROW(restraint.initialize(NUM_ATOMS, BOX_DIMENSIONS));
+}
 
-  SECTION("ReferenceCoordinateSizeMustMatch") {
-    CHECK_THROWS_AS(
+TEST_CASE("HarmonicRestraintForceSelectionAndForceConstantValidation") {
+  HarmonicRestraintForce<long long int, float> restraint(NUM_ATOMS);
+  const double infinity = std::numeric_limits<double>::infinity();
+
+  AtomSelection wrongSelection(NUM_ATOMS + 1);
+  CheckApoCharmmError(
+      [&restraint, &wrongSelection]() -> void {
+        restraint.setSelection(wrongSelection);
+      },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Selection atom count mismatch; expected 3, observed 4");
+
+  CheckApoCharmmError(
+      [&restraint, infinity]() -> void {
+        restraint.setForceConstant(infinity);
+      },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Force constant must be finite; observed " + std::to_string(infinity));
+
+  CheckApoCharmmError(
+      [&restraint]() -> void { restraint.setForceConstant(-1.0); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Force constant must be non-negative; observed " + std::to_string(-1.0));
+
+  CHECK_NOTHROW(restraint.setForceConstant(0.0));
+  CHECK_NOTHROW(restraint.setForceConstant(1.0));
+
+  CheckApoCharmmError(
+      [&restraint]() -> void { restraint.setForceConstants({1.0, 2.0}); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Force-constant array size mismatch; expected 3, observed 2");
+
+  CheckApoCharmmError(
+      [&restraint]() -> void {
+        restraint.setForceConstants({1.0, 2.0, 3.0, 4.0});
+      },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Force-constant array size mismatch; expected 3, observed 4");
+
+  CheckApoCharmmError(
+      [&restraint, infinity]() -> void {
+        restraint.setForceConstants({1.0, infinity, 3.0});
+      },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Force constant at index 1 must be finite; observed " +
+          std::to_string(infinity));
+
+  CheckApoCharmmError(
+      [&restraint]() -> void { restraint.setForceConstants({1.0, 2.0, -1.0}); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Force constant at index 2 must be non-negative; observed " +
+          std::to_string(-1.0));
+
+  CHECK_NOTHROW(restraint.setForceConstants({0.0, 1.0, 2.0}));
+}
+
+TEST_CASE("HarmonicRestraintForceReferenceCoordinateAndMassValidation") {
+  HarmonicRestraintForce<long long int, float> restraint(NUM_ATOMS);
+  const double infinity = std::numeric_limits<double>::infinity();
+
+  CheckApoCharmmError(
+      [&restraint]() -> void {
         restraint.setReferenceCoordinates(std::vector<double3>{
-            make_double3(0.0, 0.0, 0.0), make_double3(0.0, 0.0, 0.0)}),
-        std::invalid_argument);
-    CHECK_NOTHROW(restraint.setReferenceCoordinates(std::vector<double3>{
-        make_double3(0.0, 0.0, 0.0), make_double3(0.0, 0.0, 0.0),
-        make_double3(0.0, 0.0, 0.0)}));
-    CHECK_THROWS_AS(
+            make_double3(0.0, 0.0, 0.0), make_double3(0.0, 0.0, 0.0)});
+      },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Reference-coordinate array size mismatch; expected 3, observed 2");
+
+  CheckApoCharmmError(
+      [&restraint]() -> void {
+        restraint.setReferenceCoordinates(
+            std::vector<std::vector<double>>{{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}});
+      },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Reference-coordinate array size mismatch; expected 3, observed 2");
+
+  CheckApoCharmmError(
+      [&restraint]() -> void {
+        restraint.setReferenceCoordinates(std::vector<std::vector<double>>{
+            {0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0, 0.0}});
+      },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Reference coordinate at atom index 1 has invalid size; expected 3, "
+      "observed 2");
+
+  CheckApoCharmmError(
+      [&restraint, infinity]() -> void {
         restraint.setReferenceCoordinates(std::vector<double3>{
-            make_double3(0.0, 0.0, 0.0), make_double3(0.0, 0.0, 0.0),
-            make_double3(0.0, 0.0, 0.0), make_double3(0.0, 0.0, 0.0)}),
-        std::invalid_argument);
-  }
+            make_double3(0.0, 0.0, 0.0), make_double3(0.0, infinity, 0.0),
+            make_double3(0.0, 0.0, 0.0)});
+      },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Reference coordinate at atom index 1, Y component must be finite; "
+      "observed " +
+          std::to_string(infinity));
 
-  SECTION("MassSizeMustMatch") {
-    CHECK_THROWS_AS(restraint.setMasses({1.0, 2.0}), std::invalid_argument);
-    CHECK_NOTHROW(restraint.setMasses({1.0, 2.0, 3.0}));
-    CHECK_THROWS_AS(restraint.setMasses({1.0, 2.0, 3.0, 4.0}),
-                    std::invalid_argument);
-  }
+  CheckApoCharmmError(
+      [&restraint, infinity]() -> void {
+        restraint.setReferenceCoordinates(std::vector<std::vector<double>>{
+            {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, infinity}});
+      },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Reference coordinate at atom index 2, Z component must be finite; "
+      "observed " +
+          std::to_string(infinity));
 
-  SECTION("InitializeValidatesAtomCountAndBoxDimensions") {
-    CHECK_NOTHROW(restraint.initialize(NUM_ATOMS, BOX_DIMENSIONS));
-    CHECK_THROWS_AS(restraint.initialize(NUM_ATOMS + 1, BOX_DIMENSIONS),
-                    std::runtime_error);
-    CHECK_THROWS_AS(restraint.setBoxDimensions({1.0, 2.0}),
-                    std::invalid_argument);
-    CHECK_THROWS_AS(restraint.setBoxDimensions({50.0, -1.0, 50.0}),
-                    std::invalid_argument);
-    CHECK_THROWS_AS(restraint.setBoxDimensions(
-                        {50.0, std::numeric_limits<double>::infinity(), 50.0}),
-                    std::invalid_argument);
-  }
+  CHECK_NOTHROW(
+      restraint.setReferenceCoordinates(std::vector<std::vector<double>>{
+          {0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}, {2.0, 2.0, 2.0}}));
+
+  CheckApoCharmmError(
+      [&restraint]() -> void { restraint.setMasses({1.0, 2.0}); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Mass array size mismatch; expected 3, observed 2");
+
+  CheckApoCharmmError(
+      [&restraint, infinity]() -> void {
+        restraint.setMasses({1.0, infinity, 3.0});
+      },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Mass at index 1 must be finite; observed " + std::to_string(infinity));
+
+  CheckApoCharmmError(
+      [&restraint]() -> void { restraint.setMasses({1.0, -1.0, 3.0}); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Mass at index 1 must be non-negative; observed " + std::to_string(-1.0));
+
+  CHECK_NOTHROW(restraint.setMasses({0.0, 1.0, 2.0}));
+}
+
+TEST_CASE("HarmonicRestraintForceBoxDimensionValidation") {
+  HarmonicRestraintForce<long long int, float> restraint(NUM_ATOMS);
+  const double infinity = std::numeric_limits<double>::infinity();
+
+  CheckApoCharmmError(
+      [&restraint]() -> void { restraint.setBoxDimensions({50.0, 50.0}); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Box-dimension array size mismatch; expected 3, observed 2");
+
+  CheckApoCharmmError(
+      [&restraint]() -> void {
+        restraint.setBoxDimensions({50.0, 50.0, 50.0, 50.0});
+      },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Box-dimension array size mismatch; expected 3, observed 4");
+
+  CheckApoCharmmError(
+      [&restraint, infinity]() -> void {
+        restraint.setBoxDimensions({50.0, infinity, 50.0});
+      },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Box dimension at index 1 must be finite; observed " +
+          std::to_string(infinity));
+
+  CheckApoCharmmError(
+      [&restraint]() -> void { restraint.setBoxDimensions({50.0, 0.0, 50.0}); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Box dimension at index 1 must be positive; observed " +
+          std::to_string(0.0));
+
+  CheckApoCharmmError(
+      [&restraint]() -> void {
+        restraint.setBoxDimensions({50.0, -1.0, 50.0});
+      },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Box dimension at index 1 must be positive; observed " +
+          std::to_string(-1.0));
+
+  CHECK_NOTHROW(restraint.setBoxDimensions(BOX_DIMENSIONS));
+}
+
+TEST_CASE("HarmonicRestraintForceForceManagerSubscriptionValidation") {
+  ForceManager forceManager;
+  auto restraint =
+      std::make_shared<HarmonicRestraintForce<long long int, float>>(NUM_ATOMS);
+
+  CheckApoCharmmError(
+      [&forceManager, &restraint]() -> void {
+        forceManager.subscribe(restraint, "", restraint->getStream(),
+                               restraint->getForce(),
+                               restraint->getEnergyVirial());
+      },
+      ApoCharmmErrorCode::InvalidArgument, "Force tag must not be empty");
+
+  CHECK_NOTHROW(forceManager.subscribe(
+      restraint, "harm", restraint->getStream(), restraint->getForce(),
+      restraint->getEnergyVirial()));
+
+  CheckApoCharmmError(
+      [&forceManager, &restraint]() -> void {
+        forceManager.subscribe(restraint, "harm", restraint->getStream(),
+                               restraint->getForce(),
+                               restraint->getEnergyVirial());
+      },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Force is already subscribed to this ForceManager");
+
+  CHECK_NOTHROW(forceManager.unsubscribe(restraint));
+
+  CheckApoCharmmError(
+      [&forceManager, &restraint]() -> void {
+        forceManager.unsubscribe(restraint);
+      },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Force is not subscribed to this ForceManager");
 }
 
 TEST_CASE("HarmonicRestraintForceCalculatesForceAndEnergy") {

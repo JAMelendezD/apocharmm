@@ -241,7 +241,9 @@ class ForceManager(_ApoObject):
         if force_tag is not None and not isinstance(force_tag, str):
             raise TypeError("force_tag must be a str")
 
-        if force_tag == "":
+        is_native_force: bool = isinstance(force, _ApoObject)
+
+        if force_tag == "" and not is_native_force:
             raise ValueError("force_tag must not be empty")
 
         subscribe_method = getattr(force, "_subscribe_to_force_manager", None)
@@ -250,7 +252,9 @@ class ForceManager(_ApoObject):
                 "ForceManager.subscribe expects an object with _subscribe_to_force_manager(force_manager, force_tag)"
             )
 
-        if any(existing_force is force for existing_force in self._subscribed_forces):
+        if not is_native_force and any(
+            existing_force is force for existing_force in self._subscribed_forces
+        ):
             raise ValueError("force is already subscribed to this ForceManager")
 
         subscribable_force: _SubscribableForce = cast(_SubscribableForce, force)
@@ -262,6 +266,8 @@ class ForceManager(_ApoObject):
 
     def unsubscribe(self, force: _SubscribableForce) -> None:
         _initialize_prototypes()
+
+        is_native_force: bool = isinstance(force, _ApoObject)
 
         unsubscribe_method = getattr(force, "_unsubscribe_from_force_manager", None)
         if not callable(unsubscribe_method):
@@ -275,13 +281,14 @@ class ForceManager(_ApoObject):
                 index_to_remove = index
                 break
 
-        if index_to_remove is None:
+        if index_to_remove is None and not is_native_force:
             raise ValueError("force is not subscribed to this ForceManager")
 
         subscribable_force: _SubscribableForce = cast(_SubscribableForce, force)
         subscribable_force._unsubscribe_from_force_manager(self)
 
-        del self._subscribed_forces[index_to_remove]
+        if index_to_remove is not None:
+            del self._subscribed_forces[index_to_remove]
 
         return
 

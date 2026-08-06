@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "ApoCharmmError.h"
 #include "CharmmPSF.h"
 #include "CharmmParameters.h"
 #include "CudaBondedForce.h"
@@ -440,22 +441,52 @@ public:
                  std::shared_ptr<cudaStream_t> forceStream,
                  std::shared_ptr<Force<long long int>> forceValues,
                  std::shared_ptr<CudaEnergyVirial> energyVirial) {
+    APOCHARMM_REQUIRE(force != nullptr, ApoCharmmErrorCode::InvalidArgument,
+                      "Subscribed force must not be null");
+
+    APOCHARMM_REQUIRE(!forceTag.empty(), ApoCharmmErrorCode::InvalidArgument,
+                      "Force tag must not be empty");
+
+    APOCHARMM_REQUIRE(forceStream != nullptr,
+                      ApoCharmmErrorCode::InvalidArgument,
+                      "Subscribed force stream must not be null");
+
+    APOCHARMM_REQUIRE(forceValues != nullptr,
+                      ApoCharmmErrorCode::InvalidArgument,
+                      "Subscribed force storage must not be null");
+
+    APOCHARMM_REQUIRE(energyVirial != nullptr,
+                      ApoCharmmErrorCode::InvalidArgument,
+                      "Subscribed energy-virial storage must not be null");
+
+    for (const std::shared_ptr<void> &subscribedForce : m_ForcePtrs) {
+      APOCHARMM_REQUIRE(subscribedForce.get() !=
+                            static_cast<void *>(force.get()),
+                        ApoCharmmErrorCode::InvalidArgument,
+                        "Force is already subscribed to this ForceManager");
+    }
+
+    if (m_IsInitialized == true) {
+      force->initialize(m_Psf->getNumAtoms(), {static_cast<double>(m_BoxX),
+                                               static_cast<double>(m_BoxY),
+                                               static_cast<double>(m_BoxZ)});
+    }
+
     m_ForcePtrs.push_back(static_cast<std::shared_ptr<void>>(force));
     m_ForceViews.push_back(ForceView(force.get()));
     m_ForceTags.push_back(forceTag);
     m_ForceStreams.push_back(forceStream);
     m_ForceValues.push_back(forceValues);
     m_EnergyVirials.push_back(energyVirial);
-    if (m_IsInitialized == true) {
-      force->initialize(m_Psf->getNumAtoms(), {static_cast<double>(m_BoxX),
-                                               static_cast<double>(m_BoxY),
-                                               static_cast<double>(m_BoxZ)});
-    }
+
     return;
   }
 
   template <typename ForceType>
   void unsubscribe(std::shared_ptr<ForceType> force) {
+    APOCHARMM_REQUIRE(force != nullptr, ApoCharmmErrorCode::InvalidArgument,
+                      "Subscribed force must not be null");
+
     for (std::size_t i = 0; i < m_ForceViews.size(); i++) {
       if (static_cast<void *>(force.get()) ==
           static_cast<void *>(m_ForcePtrs[i].get())) {
@@ -465,9 +496,13 @@ public:
         m_ForceStreams.erase(m_ForceStreams.begin() + i);
         m_ForceValues.erase(m_ForceValues.begin() + i);
         m_EnergyVirials.erase(m_EnergyVirials.begin() + i);
-        break;
+        return;
       }
     }
+
+    APOCHARMM_THROW(ApoCharmmErrorCode::InvalidArgument,
+                    "Force is not subscribed to this ForceManager");
+
     return;
   }
 

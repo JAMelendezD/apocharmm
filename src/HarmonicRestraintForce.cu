@@ -10,6 +10,7 @@
 
 #include "HarmonicRestraintForce.h"
 
+#include "ApoCharmmError.h"
 #include "cuda_utils.h"
 #include "gpu_utils.h"
 
@@ -20,10 +21,17 @@
 
 template <typename AT, typename CT>
 HarmonicRestraintForce<AT, CT>::HarmonicRestraintForce(const int numAtoms)
-    : m_NumAtoms(numAtoms), m_ForceConstants(numAtoms),
-      m_ReferenceCoordinates(numAtoms), m_BoxDimensions(3),
-      m_Selection(numAtoms, AtomSelection::InitialValue::ALL),
+    : m_NumAtoms(numAtoms), m_ForceConstants(), m_ReferenceCoordinates(),
+      m_BoxDimensions(3), m_Selection(0, AtomSelection::InitialValue::ALL),
       m_EnergyVirial(nullptr), m_Forces(nullptr), m_Stream(nullptr) {
+  APOCHARMM_REQUIRE(numAtoms > 0, ApoCharmmErrorCode::InvalidArgument,
+                    "Atom count must be positive; observed " +
+                        std::to_string(numAtoms));
+
+  m_ForceConstants.resize(static_cast<std::size_t>(numAtoms));
+  m_ReferenceCoordinates.resize(static_cast<std::size_t>(numAtoms));
+  m_Selection.setNumAtoms(numAtoms, AtomSelection::InitialValue::ALL);
+
   m_ForceConstants.set(0.0);
 
   m_ReferenceCoordinates.set(make_double4(0.0, 0.0, 0.0, 1.0));
@@ -51,8 +59,11 @@ HarmonicRestraintForce<AT, CT>::~HarmonicRestraintForce(void) noexcept {
 template <typename AT, typename CT>
 void HarmonicRestraintForce<AT, CT>::setSelection(
     const AtomSelection &selection) {
-  if (selection.getNumAtoms() != m_NumAtoms)
-    throw std::invalid_argument("Selection has incorrect number of atoms");
+  APOCHARMM_REQUIRE(selection.getNumAtoms() == m_NumAtoms,
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Selection atom count mismatch; expected " +
+                        std::to_string(m_NumAtoms) + ", observed " +
+                        std::to_string(selection.getNumAtoms()));
 
   m_Selection = selection;
 
@@ -68,15 +79,14 @@ void HarmonicRestraintForce<AT, CT>::setSelection(
 template <typename AT, typename CT>
 void HarmonicRestraintForce<AT, CT>::setForceConstant(
     const double forceConstant) {
-  if (!std::isfinite(forceConstant)) {
-    throw std::invalid_argument(
-        "HarmonicRestraintForce force constant must be finite");
-  }
+  APOCHARMM_REQUIRE(std::isfinite(forceConstant),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Force constant must be finite; observed " +
+                        std::to_string(forceConstant));
 
-  if (forceConstant < 0.0) {
-    throw std::invalid_argument(
-        "HarmonicRestraintForce force constant must be positive");
-  }
+  APOCHARMM_REQUIRE(forceConstant >= 0.0, ApoCharmmErrorCode::InvalidArgument,
+                    "Force constant must be non-negative; observed " +
+                        std::to_string(forceConstant));
 
   m_ForceConstants.set(0.0);
 
@@ -91,22 +101,29 @@ void HarmonicRestraintForce<AT, CT>::setForceConstant(
 template <typename AT, typename CT>
 void HarmonicRestraintForce<AT, CT>::setForceConstants(
     const std::vector<double> &forceConstants) {
-  if (forceConstants.size() != static_cast<std::size_t>(m_NumAtoms)) {
-    std::string msg = "ERROR: HarmonicRestraintForce::setForceConstants(const "
-                      "std::vector<double> &): Size of input vector must match "
-                      "the total number of atoms\n";
-    msg += "                NATOM = " + std::to_string(m_NumAtoms) + "\n";
-    msg += "forceConstants.size() = " + std::to_string(forceConstants.size()) +
-           "\n";
-    if (m_NumAtoms == -1)
-      msg += "HINT: Try calling initialize(numAtoms, boxDimensions) first\n";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(forceConstants.size() ==
+                        static_cast<std::size_t>(m_NumAtoms),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Force-constant array size mismatch; expected " +
+                        std::to_string(m_NumAtoms) + ", observed " +
+                        std::to_string(forceConstants.size()));
 
   m_ForceConstants.set(0.0);
 
-  for (const int i : m_Selection.getAtomIndices())
+  for (const int i : m_Selection.getAtomIndices()) {
+    APOCHARMM_REQUIRE(
+        std::isfinite(forceConstants[i]), ApoCharmmErrorCode::InvalidArgument,
+        "Force constant at index " + std::to_string(i) +
+            " must be finite; observed " + std::to_string(forceConstants[i]));
+
+    APOCHARMM_REQUIRE(forceConstants[i] >= 0.0,
+                      ApoCharmmErrorCode::InvalidArgument,
+                      "Force constant at index " + std::to_string(i) +
+                          " must be non-negative; observed " +
+                          std::to_string(forceConstants[i]));
+
     m_ForceConstants[i] = forceConstants[i];
+  }
 
   m_ForceConstants.transferToDevice();
 
@@ -116,20 +133,35 @@ void HarmonicRestraintForce<AT, CT>::setForceConstants(
 template <typename AT, typename CT>
 void HarmonicRestraintForce<AT, CT>::setReferenceCoordinates(
     const std::vector<double3> &referenceCoordinates) {
-  if (referenceCoordinates.size() != static_cast<std::size_t>(m_NumAtoms)) {
-    std::string msg =
-        "ERROR: HarmonicRestraintForce::setReferenceCoordinates(const "
-        "std::vector<double4> &): Size of input vector must match "
-        "the total number of atoms\n";
-    msg += "                      NATOM = " + std::to_string(m_NumAtoms) + "\n";
-    msg += "referenceCoordinates.size() = " +
-           std::to_string(referenceCoordinates.size()) + "\n";
-    if (m_NumAtoms == -1)
-      msg += "HINT: Try calling initialize(numAtoms, boxDimensions) first\n";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(referenceCoordinates.size() ==
+                        static_cast<std::size_t>(m_NumAtoms),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Reference-coordinate array size mismatch; expected " +
+                        std::to_string(m_NumAtoms) + ", observed " +
+                        std::to_string(referenceCoordinates.size()));
 
   for (int i = 0; i < m_NumAtoms; i++) {
+    APOCHARMM_REQUIRE(std::isfinite(referenceCoordinates[i].x),
+                      ApoCharmmErrorCode::InvalidArgument,
+                      "Reference coordinate at atom index " +
+                          std::to_string(i) +
+                          ", X component must be finite; observed " +
+                          std::to_string(referenceCoordinates[i].x));
+
+    APOCHARMM_REQUIRE(std::isfinite(referenceCoordinates[i].y),
+                      ApoCharmmErrorCode::InvalidArgument,
+                      "Reference coordinate at atom index " +
+                          std::to_string(i) +
+                          ", Y component must be finite; observed " +
+                          std::to_string(referenceCoordinates[i].y));
+
+    APOCHARMM_REQUIRE(std::isfinite(referenceCoordinates[i].z),
+                      ApoCharmmErrorCode::InvalidArgument,
+                      "Reference coordinate at atom index " +
+                          std::to_string(i) +
+                          ", Z component must be finite; observed " +
+                          std::to_string(referenceCoordinates[i].z));
+
     m_ReferenceCoordinates[i].x = referenceCoordinates[i].x;
     m_ReferenceCoordinates[i].y = referenceCoordinates[i].y;
     m_ReferenceCoordinates[i].z = referenceCoordinates[i].z;
@@ -142,25 +174,29 @@ void HarmonicRestraintForce<AT, CT>::setReferenceCoordinates(
 template <typename AT, typename CT>
 void HarmonicRestraintForce<AT, CT>::setReferenceCoordinates(
     const std::vector<std::vector<double>> &referenceCoordinates) {
-  if (referenceCoordinates.size() != static_cast<std::size_t>(m_NumAtoms)) {
-    std::string msg =
-        "ERROR: HarmonicRestraintForce::setReferenceCoordinates(const "
-        "std::vector<double4> &): Size of input vector must match "
-        "the total number of atoms\n";
-    msg += "                      NATOM = " + std::to_string(m_NumAtoms) + "\n";
-    msg += "referenceCoordinates.size() = " +
-           std::to_string(referenceCoordinates.size()) + "\n";
-    if (m_NumAtoms == -1)
-      msg += "HINT: Try calling initialize(numAtoms, boxDimensions) first\n";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(referenceCoordinates.size() ==
+                        static_cast<std::size_t>(m_NumAtoms),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Reference-coordinate array size mismatch; expected " +
+                        std::to_string(m_NumAtoms) + ", observed " +
+                        std::to_string(referenceCoordinates.size()));
+
+  std::vector<double3> convertedCoordinates(referenceCoordinates.size());
 
   for (int i = 0; i < m_NumAtoms; i++) {
-    m_ReferenceCoordinates[i].x = referenceCoordinates[i][0];
-    m_ReferenceCoordinates[i].y = referenceCoordinates[i][1];
-    m_ReferenceCoordinates[i].z = referenceCoordinates[i][2];
+    APOCHARMM_REQUIRE(referenceCoordinates[i].size() == 3,
+                      ApoCharmmErrorCode::InvalidArgument,
+                      "Reference coordinate at atom index " +
+                          std::to_string(i) +
+                          " has invalid size; expected 3, observed " +
+                          std::to_string(referenceCoordinates[i].size()));
+
+    convertedCoordinates[i] =
+        make_double3(referenceCoordinates[i][0], referenceCoordinates[i][1],
+                     referenceCoordinates[i][2]);
   }
-  m_ReferenceCoordinates.transferToDevice();
+
+  this->setReferenceCoordinates(convertedCoordinates);
 
   return;
 }
@@ -168,20 +204,25 @@ void HarmonicRestraintForce<AT, CT>::setReferenceCoordinates(
 template <typename AT, typename CT>
 void HarmonicRestraintForce<AT, CT>::setMasses(
     const std::vector<double> &masses) {
-  if (masses.size() != static_cast<std::size_t>(m_NumAtoms)) {
-    std::string msg =
-        "ERROR: HarmonicRestraintForce::setReferenceCoordinates(const "
-        "std::vector<double4> &): Size of input vector must match "
-        "the total number of atoms\n";
-    msg += "        NATOM = " + std::to_string(m_NumAtoms) + "\n";
-    msg += "masses.size() = " + std::to_string(masses.size()) + "\n";
-    if (m_NumAtoms == -1)
-      msg += "HINT: Try calling initialize(numAtoms, boxDimensions) first\n";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(masses.size() == static_cast<std::size_t>(m_NumAtoms),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Mass array size mismatch; expected " +
+                        std::to_string(m_NumAtoms) + ", observed " +
+                        std::to_string(masses.size()));
 
-  for (int i = 0; i < m_NumAtoms; i++)
+  for (int i = 0; i < m_NumAtoms; i++) {
+    APOCHARMM_REQUIRE(
+        std::isfinite(masses[i]), ApoCharmmErrorCode::InvalidArgument,
+        "Mass at index " + std::to_string(i) + " must be finite; observed " +
+            std::to_string(masses[i]));
+
+    APOCHARMM_REQUIRE(masses[i] >= 0.0, ApoCharmmErrorCode::InvalidArgument,
+                      "Mass at index " + std::to_string(i) +
+                          " must be non-negative; observed " +
+                          std::to_string(masses[i]));
+
     m_ReferenceCoordinates[i].w = masses[i];
+  }
 
   m_ReferenceCoordinates.transferToDevice();
 
@@ -196,10 +237,10 @@ std::shared_ptr<cudaStream_t> HarmonicRestraintForce<AT, CT>::getStream(void) {
 template <typename AT, typename CT>
 void HarmonicRestraintForce<AT, CT>::initialize(
     const int numAtoms, const std::vector<double> &boxDimensions) {
-  if (m_NumAtoms != numAtoms) {
-    throw std::runtime_error("HarmonicRestraintForce: Attempted to initialize "
-                             "with different atom count");
-  }
+  APOCHARMM_REQUIRE(m_NumAtoms == numAtoms, ApoCharmmErrorCode::InvalidArgument,
+                    "Initialization atom count mismatch; expected " +
+                        std::to_string(m_NumAtoms) + ", observed " +
+                        std::to_string(numAtoms));
 
   this->setBoxDimensions(boxDimensions);
 
@@ -291,33 +332,37 @@ void HarmonicRestraintForce<AT, CT>::calcForce(const float4 *xyzq,
   const int numBlocks = (m_NumAtoms + numThreads - 1) / numThreads;
 
   if ((calcEnergy == true) && (calcVirial == true)) {
-    HarmonicRestraintForceKernel<AT, CT, true, true>
+    cudaCheckLaunch(
+        HarmonicRestraintForceKernel<AT, CT, true, true>
         <<<numBlocks, numThreads, 0, *m_Stream>>>(
             m_Forces->xyz(), m_Forces->stride(),
             m_EnergyVirial->getEnergyPointer("harm"),
             m_ForceConstants.getDeviceArray().data(), xyzq,
-            m_ReferenceCoordinates.getDeviceArray().data(), m_NumAtoms);
+            m_ReferenceCoordinates.getDeviceArray().data(), m_NumAtoms));
   } else if ((calcEnergy == true) && (calcVirial == false)) {
-    HarmonicRestraintForceKernel<AT, CT, true, false>
+    cudaCheckLaunch(
+        HarmonicRestraintForceKernel<AT, CT, true, false>
         <<<numBlocks, numThreads, 0, *m_Stream>>>(
             m_Forces->xyz(), m_Forces->stride(),
             m_EnergyVirial->getEnergyPointer("harm"),
             m_ForceConstants.getDeviceArray().data(), xyzq,
-            m_ReferenceCoordinates.getDeviceArray().data(), m_NumAtoms);
+            m_ReferenceCoordinates.getDeviceArray().data(), m_NumAtoms));
   } else if ((calcEnergy == false) && (calcVirial == true)) {
-    HarmonicRestraintForceKernel<AT, CT, false, true>
+    cudaCheckLaunch(
+        HarmonicRestraintForceKernel<AT, CT, false, true>
         <<<numBlocks, numThreads, 0, *m_Stream>>>(
             m_Forces->xyz(), m_Forces->stride(),
             m_EnergyVirial->getEnergyPointer("harm"),
             m_ForceConstants.getDeviceArray().data(), xyzq,
-            m_ReferenceCoordinates.getDeviceArray().data(), m_NumAtoms);
+            m_ReferenceCoordinates.getDeviceArray().data(), m_NumAtoms));
   } else if ((calcEnergy == false) && (calcVirial == false)) {
-    HarmonicRestraintForceKernel<AT, CT, false, false>
+    cudaCheckLaunch(
+        HarmonicRestraintForceKernel<AT, CT, false, false>
         <<<numBlocks, numThreads, 0, *m_Stream>>>(
             m_Forces->xyz(), m_Forces->stride(),
             m_EnergyVirial->getEnergyPointer("harm"),
             m_ForceConstants.getDeviceArray().data(), xyzq,
-            m_ReferenceCoordinates.getDeviceArray().data(), m_NumAtoms);
+            m_ReferenceCoordinates.getDeviceArray().data(), m_NumAtoms));
   }
 
   return;
@@ -326,25 +371,21 @@ void HarmonicRestraintForce<AT, CT>::calcForce(const float4 *xyzq,
 template <typename AT, typename CT>
 void HarmonicRestraintForce<AT, CT>::setBoxDimensions(
     const std::vector<double> &boxDimensions) {
-  if (boxDimensions.size() != 3) {
-    std::string msg = "ERROR: HarmonicRestraintForce::setBoxDimensions(const "
-                      "std::vector<double> &): boxDimensions must contain "
-                      "exactly 3 elements\n";
-    msg +=
-        "boxDimensions.size() = " + std::to_string(boxDimensions.size()) + "\n";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(boxDimensions.size() == 3,
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Box-dimension array size mismatch; expected 3, observed " +
+                        std::to_string(boxDimensions.size()));
 
   for (std::size_t i = 0; i < 3; i++) {
-    if (!std::isfinite(boxDimensions[i])) {
-      throw std::invalid_argument(
-          "HarmonicRestraintForce box dimensions must be finite");
-    }
+    APOCHARMM_REQUIRE(
+        std::isfinite(boxDimensions[i]), ApoCharmmErrorCode::InvalidArgument,
+        "Box dimension at index " + std::to_string(i) +
+            " must be finite; observed " + std::to_string(boxDimensions[i]));
 
-    if (boxDimensions[i] <= 0.0) {
-      throw std::invalid_argument(
-          "HarmonicRestraintForce box dimensions must be positive");
-    }
+    APOCHARMM_REQUIRE(
+        boxDimensions[i] > 0.0, ApoCharmmErrorCode::InvalidArgument,
+        "Box dimension at index " + std::to_string(i) +
+            " must be positive; observed " + std::to_string(boxDimensions[i]));
   }
 
   if ((m_BoxDimensions[0] == boxDimensions[0]) &&

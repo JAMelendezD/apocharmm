@@ -101,8 +101,8 @@ TEST_CASE("ApoCharmmErrorAccessorsAndFormatting") {
   CHECK(error.getSourceLine() == 37);
 
   const std::string expected =
-      std::string(EXPECTED_SKULL) +
-      "\napoCHARMM error [Runtime]: integration failed\n  source: "
+      "\n\n" + std::string(EXPECTED_SKULL) +
+      "\n\napoCHARMM error [Runtime]: integration failed\n  source: "
       "error_test.cpp:37\n  function: FormatTest";
   CHECK(std::string(error.what()) == expected);
 }
