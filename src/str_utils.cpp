@@ -10,8 +10,11 @@
 
 #include "str_utils.h"
 
+#include "ApoCharmmError.h"
+
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
@@ -147,4 +150,77 @@ double apo::fortSciStrToCDouble(const std::string_view str) {
   std::string s{str};
   std::replace(s.begin(), s.end(), 'D', 'e');
   return std::stod(s);
+}
+
+std::string apo::get_rst_field(const std::string &line,
+                               const std::size_t offset,
+                               const std::size_t width,
+                               const std::string_view field_name,
+                               const std::string &rst_name) {
+  APOCHARMM_REQUIRE(line.size() >= offset + width, ApoCharmmErrorCode::Runtime,
+                    "Restart field \"" + std::string(field_name) +
+                        "\" is truncated in file \"" + rst_name + "\"");
+
+  return line.substr(offset, width);
+}
+
+double apo::parse_rst_double(const std::string &line, const std::size_t offset,
+                             const std::size_t width,
+                             const std::string_view field_name,
+                             const std::string &rst_name) {
+  const std::string field =
+      get_rst_field(line, offset, width, field_name, rst_name);
+
+  double value = 0.0;
+
+  try {
+    value = apo::fortSciStrToCDouble(field);
+  } catch (const std::exception &) {
+    APOCHARMM_THROW(ApoCharmmErrorCode::Runtime,
+                    "Restart field \"" + std::string(field_name) +
+                        "\" is not a valid floating-point value in file \"" +
+                        rst_name + "\"");
+  }
+
+  APOCHARMM_REQUIRE(std::isfinite(value), ApoCharmmErrorCode::Runtime,
+                    "Restart field \"" + std::string(field_name) +
+                        "\" must be finite in file \"" + rst_name +
+                        "\"; observed " + std::to_string(value));
+
+  return value;
+}
+
+int apo::parse_rst_int(const std::string &line, const std::size_t offset,
+                       const std::size_t width,
+                       const std::string_view field_name,
+                       const std::string &rst_name) {
+  const std::string field =
+      get_rst_field(line, offset, width, field_name, rst_name);
+
+  try {
+    return std::stoi(field);
+  } catch (const std::exception &) {
+    APOCHARMM_THROW(ApoCharmmErrorCode::Runtime,
+                    "Restart field \"" + std::string(field_name) +
+                        "\" is not a valid integer value in file \"" +
+                        rst_name + "\"");
+  }
+}
+
+unsigned long long int apo::parse_rst_ull(const std::string &line,
+                                          const std::size_t offset,
+                                          const std::size_t width,
+                                          const std::string_view field_name,
+                                          const std::string &rst_name) {
+  const std::string field =
+      get_rst_field(line, offset, width, field_name, rst_name);
+
+  try {
+    return std::stoull(field);
+  } catch (const std::exception &) {
+    APOCHARMM_THROW(ApoCharmmErrorCode::Runtime,
+                    "Restart field \"" + std::string(field_name) +
+                        "\" is not a valid integer value in file \"" +
+                        rst_name + "\"");
+  }
 }

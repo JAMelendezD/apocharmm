@@ -10,6 +10,7 @@
 
 #include "CudaNoseHooverIntegrator.h"
 
+#include "ApoCharmmError.h"
 #include "Constants.h"
 #include "cuda_utils.h"
 #include "gpu_utils.h"
@@ -18,12 +19,19 @@
 #include <cstddef>
 #include <fstream>
 #include <iostream>
-#include <stdexcept>
 #include <vector>
 #include <vector_functions.h>
 
 CudaNoseHooverIntegrator::CudaNoseHooverIntegrator(const double timeStep)
     : CudaIntegrator(timeStep) {
+  APOCHARMM_REQUIRE(
+      std::isfinite(timeStep), ApoCharmmErrorCode::InvalidArgument,
+      "Time step must be finitel observed " + std::to_string(timeStep));
+
+  APOCHARMM_REQUIRE(timeStep > 0.0, ApoCharmmErrorCode::InvalidArgument,
+                    "Time step must be positive; observed " +
+                        std::to_string(timeStep));
+
   m_UsingHolonomicConstraints = true;
 
   m_ReferenceTemperature = 300.0;
@@ -59,44 +67,98 @@ CudaNoseHooverIntegrator::CudaNoseHooverIntegrator(const double timeStep)
 
 void CudaNoseHooverIntegrator::setReferenceTemperature(
     const double referenceTemperature) {
+  APOCHARMM_REQUIRE(std::isfinite(referenceTemperature),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Reference temperature must be finite; observed " +
+                        std::to_string(referenceTemperature));
+
+  APOCHARMM_REQUIRE(referenceTemperature >= 0.0,
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Reference temperature must be non-negative; observed " +
+                        std::to_string(referenceTemperature));
+
   m_ReferenceTemperature = referenceTemperature;
+
   return;
 }
 
 void CudaNoseHooverIntegrator::setNoseHooverPistonMass(
     const double noseHooverPistonMass) {
+  APOCHARMM_REQUIRE(std::isfinite(noseHooverPistonMass),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Nose-Hoover piston mass must be finite; observed " +
+                        std::to_string(noseHooverPistonMass));
+
+  APOCHARMM_REQUIRE(noseHooverPistonMass >= 0.0,
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Nose-Hoover piston mass must be non-negative; observed " +
+                        std::to_string(noseHooverPistonMass));
+
   m_NoseHooverPistonMass.setToValue(noseHooverPistonMass);
+
   return;
 }
 
 void CudaNoseHooverIntegrator::setNoseHooverPistonVelocity(
     const double noseHooverPistonVelocity) {
+  APOCHARMM_REQUIRE(std::isfinite(noseHooverPistonVelocity),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Nose-Hoover piston velocity must be finite; observed " +
+                        std::to_string(noseHooverPistonVelocity));
+
   m_NoseHooverPistonVelocity.setToValue(noseHooverPistonVelocity);
+
   return;
 }
 
 void CudaNoseHooverIntegrator::setNoseHooverPistonVelocityPrevious(
     const double noseHooverPistonVelocityPrevious) {
+  APOCHARMM_REQUIRE(
+      std::isfinite(noseHooverPistonVelocityPrevious),
+      ApoCharmmErrorCode::InvalidArgument,
+      "Previous Nose-Hoover piston velocity must be finite; observed " +
+          std::to_string(noseHooverPistonVelocityPrevious));
+
   m_NoseHooverPistonVelocityPrevious.setToValue(
       noseHooverPistonVelocityPrevious);
+
   return;
 }
 
 void CudaNoseHooverIntegrator::setNoseHooverPistonForce(
     const double noseHooverPistonForce) {
+  APOCHARMM_REQUIRE(std::isfinite(noseHooverPistonForce),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Nose-Hoover piston force must be finite; observed " +
+                        std::to_string(noseHooverPistonForce));
+
   m_NoseHooverPistonForce.setToValue(noseHooverPistonForce);
+
   return;
 }
 
 void CudaNoseHooverIntegrator::setNoseHooverPistonForcePrevious(
     const double noseHooverPistonForcePrevious) {
+  APOCHARMM_REQUIRE(
+      std::isfinite(noseHooverPistonForcePrevious),
+      ApoCharmmErrorCode::InvalidArgument,
+      "Previous Nose-Hoover piston force must be finite; observed " +
+          std::to_string(noseHooverPistonForcePrevious));
+
   m_NoseHooverPistonForcePrevious.setToValue(noseHooverPistonForcePrevious);
+
   return;
 }
 
 void CudaNoseHooverIntegrator::setMaxPredictorCorrectorIterations(
     const int maxPredictorCorrectorIterations) {
+  APOCHARMM_REQUIRE(
+      maxPredictorCorrectorIterations > 0, ApoCharmmErrorCode::InvalidArgument,
+      "Maximum predictor-corrector iterations must be positive; observed " +
+          std::to_string(maxPredictorCorrectorIterations));
+
   m_MaxPredictorCorrectorIterations = maxPredictorCorrectorIterations;
+
   return;
 }
 
@@ -192,6 +254,10 @@ CudaContainer<double> &CudaNoseHooverIntegrator::getAverageTemperature(void) {
 }
 
 double CudaNoseHooverIntegrator::getInstantaneousTemperature(void) {
+  APOCHARMM_REQUIRE(
+      m_Context != nullptr, ApoCharmmErrorCode::NotInitialized,
+      "CharmmContext must be set before querying instantaneous temperature");
+
   const double ndegf = static_cast<double>(m_Context->getNumDegreesOfFreedom());
   m_KineticEnergy.transferToHost();
   if (m_UsingOldTemperature)
@@ -282,6 +348,10 @@ BackStepInitializationKernel2(double4 *__restrict__ coordsCharges,
 }
 
 void CudaNoseHooverIntegrator::initialize(void) {
+  APOCHARMM_REQUIRE(m_Context != nullptr, ApoCharmmErrorCode::NotInitialized,
+                    "CharmmContext must be set before initializing the "
+                    "Nose-Hoover integrator");
+
   const int numAtoms = m_Context->getNumAtoms();
   constexpr int numThreads = 256;
   const int numBlocks = (numAtoms + numThreads - 1) / numThreads;
@@ -290,7 +360,7 @@ void CudaNoseHooverIntegrator::initialize(void) {
   m_KineticEnergyPartialSums.resize(numBlocks * 2);
 
   if (m_NoseHooverPistonMass[0] == -9999.9999)
-    m_NoseHooverPistonMass.setToValue(this->computeNoseHooverPistonMass());
+    this->setNoseHooverPistonMass(this->computeNoseHooverPistonMass());
 
   double4 *coordsCharges =
       m_Context->getCoordinatesChargesDP().getDeviceArray().data();
@@ -303,10 +373,10 @@ void CudaNoseHooverIntegrator::initialize(void) {
     m_HolonomicConstraint->handleHolonomicConstraints(
         m_CoordsRef.getDeviceArray().data());
 
-    UpdateSinglePrecisionCoordinatesKernel<<<numBlocks, numThreads, 0,
-                                             *m_IntegratorStream>>>(
-        xyzq, coordsCharges, numAtoms);
-    cudaCheck(cudaGetLastError());
+    cudaCheckLaunch(
+        UpdateSinglePrecisionCoordinatesKernel<<<numBlocks, numThreads, 0,
+                                                 *m_IntegratorStream>>>(
+            xyzq, coordsCharges, numAtoms));
 
     copy_DtoD_async<double4>(coordsCharges, m_CoordsRef.getDeviceArray().data(),
                              numAtoms, *m_IntegratorStream);
@@ -321,26 +391,25 @@ void CudaNoseHooverIntegrator::initialize(void) {
   double *forces = m_Context->getForces()->xyz();
   const int forceStride = m_Context->getForceStride();
 
-  InitializationKernel<<<numBlocks, numThreads, 0, *m_IntegratorStream>>>(
-      m_CoordsDelta.getDeviceArray().data(),
-      m_CoordsDeltaPrevious.getDeviceArray().data(), velMass, numAtoms, forces,
-      forceStride, m_TimeStep);
-  cudaCheck(cudaGetLastError());
+  cudaCheckLaunch(
+      InitializationKernel<<<numBlocks, numThreads, 0, *m_IntegratorStream>>>(
+          m_CoordsDelta.getDeviceArray().data(),
+          m_CoordsDeltaPrevious.getDeviceArray().data(), velMass, numAtoms,
+          forces, forceStride, m_TimeStep));
 
   if (m_UsingHolonomicConstraints) {
-    BackStepInitializationKernel1<<<numBlocks, numThreads, 0,
-                                    *m_IntegratorStream>>>(
-        coordsCharges, m_CoordsDeltaPrevious.getDeviceArray().data(), numAtoms);
-    cudaCheck(cudaGetLastError());
+    cudaCheckLaunch(BackStepInitializationKernel1<<<numBlocks, numThreads, 0,
+                                                    *m_IntegratorStream>>>(
+        coordsCharges, m_CoordsDeltaPrevious.getDeviceArray().data(),
+        numAtoms));
 
     m_HolonomicConstraint->handleHolonomicConstraints(
         m_CoordsRef.getDeviceArray().data());
 
-    BackStepInitializationKernel2<<<numBlocks, numThreads, 0,
-                                    *m_IntegratorStream>>>(
+    cudaCheckLaunch(BackStepInitializationKernel2<<<numBlocks, numThreads, 0,
+                                                    *m_IntegratorStream>>>(
         coordsCharges, m_CoordsDeltaPrevious.getDeviceArray().data(),
-        m_CoordsRef.getDeviceArray().data(), numAtoms);
-    cudaCheck(cudaGetLastError());
+        m_CoordsRef.getDeviceArray().data(), numAtoms));
   }
 
   cudaCheck(cudaStreamSynchronize(*m_IntegratorStream));
@@ -350,15 +419,13 @@ void CudaNoseHooverIntegrator::initialize(void) {
 
 void CudaNoseHooverIntegrator::initializeFromRestartFile(
     const std::string &rstFileName) {
-  // Ensure that the CharmmContext has been set before we try to initialize
-  if (m_Context == nullptr) {
-    throw std::runtime_error(
-        "CharmmContext must be set before initializing from a restart file");
-  }
+  APOCHARMM_REQUIRE(
+      m_Context != nullptr, ApoCharmmErrorCode::NotInitialized,
+      "CharmmContext must be set before initializing from a restart file");
 
   std::ifstream fin(rstFileName);
-  if (!fin.is_open())
-    throw std::runtime_error("Could not open file \"" + rstFileName + "\"");
+  APOCHARMM_REQUIRE(fin.is_open(), ApoCharmmErrorCode::Runtime,
+                    "Could not open file \"" + rstFileName + "\"");
 
   std::string line = "";
   bool foundSection = false;
@@ -372,8 +439,9 @@ void CudaNoseHooverIntegrator::initializeFromRestartFile(
       break;
     }
   }
-  if (!foundSection)
-    throw std::runtime_error("Could not find !CRYSTAL PARAMETERS section");
+
+  APOCHARMM_REQUIRE(foundSection, ApoCharmmErrorCode::Runtime,
+                    "Could not find !CRYSTAL PARAMETERS section");
 
   // Parse CRYSTAL PARAMETERS section
   std::vector<double> XTLABC(6, 0.0);
@@ -385,14 +453,14 @@ void CudaNoseHooverIntegrator::initializeFromRestartFile(
 
   line.clear();
   std::getline(fin, line);
-  XTLABC[0] = apo::fortSciStrToCDouble(line.substr(0, 22));
-  XTLABC[1] = apo::fortSciStrToCDouble(line.substr(22, 22));
-  XTLABC[2] = apo::fortSciStrToCDouble(line.substr(44, 22));
+  XTLABC[0] = apo::parse_rst_double(line, 0, 22, "XTALABC[0]", rstFileName);
+  XTLABC[1] = apo::parse_rst_double(line, 22, 22, "XTALABC[1]", rstFileName);
+  XTLABC[2] = apo::parse_rst_double(line, 44, 22, "XTALABC[2]", rstFileName);
   line.clear();
   std::getline(fin, line);
-  XTLABC[3] = apo::fortSciStrToCDouble(line.substr(0, 22));
-  XTLABC[4] = apo::fortSciStrToCDouble(line.substr(22, 22));
-  XTLABC[5] = apo::fortSciStrToCDouble(line.substr(44, 22));
+  XTLABC[3] = apo::parse_rst_double(line, 0, 22, "XTALABC[3]", rstFileName);
+  XTLABC[4] = apo::parse_rst_double(line, 22, 22, "XTALABC[4]", rstFileName);
+  XTLABC[5] = apo::parse_rst_double(line, 44, 22, "XTALABC[5]", rstFileName);
 
   // Not needed for Nose-Hoover thermostat
   line.clear();
@@ -408,9 +476,10 @@ void CudaNoseHooverIntegrator::initializeFromRestartFile(
 
   line.clear();
   std::getline(fin, line);
-  // PNH = apo::fortSciStrToCDouble(line.substr(0, 22)); // Not needed for NHT
-  PNHV = apo::fortSciStrToCDouble(line.substr(22, 22));
-  PNHF = apo::fortSciStrToCDouble(line.substr(44, 22));
+  // PNH = apo::parse_rst_double(line, 0, 22, "PNH", rstFileName); // Not needed
+  // for NHT
+  PNHV = apo::parse_rst_double(line, 22, 22, "PNHV", rstFileName);
+  PNHF = apo::parse_rst_double(line, 44, 22, "PNHF", rstFileName);
 
   // Not needed for Nose-Hoover thermostat
   line.clear();
@@ -472,11 +541,8 @@ void CudaNoseHooverIntegrator::initializeFromRestartFile(
 
   m_Context->setBoxDimensions({XTLABC[0], XTLABC[2], XTLABC[5]});
 
-  m_NoseHooverPistonVelocity[0] = PNHV;
-  m_NoseHooverPistonVelocity.transferToDevice();
-
-  m_NoseHooverPistonForce[0] = PNHF;
-  m_NoseHooverPistonForce.transferToDevice();
+  this->setNoseHooverPistonVelocity(PNHV);
+  this->setNoseHooverPistonForce(PNHF);
 
   // Find integer section
   foundSection = false;
@@ -488,11 +554,10 @@ void CudaNoseHooverIntegrator::initializeFromRestartFile(
       break;
     }
   }
-  if (!foundSection) {
-    throw std::runtime_error(
-        "Could not find !NATOM,NPRIV,NSTEP,NSAVC,NSAVV,JHSTRT,NDEGF,SEED,NSAVL "
-        "section");
-  }
+  APOCHARMM_REQUIRE(
+      foundSection, ApoCharmmErrorCode::Runtime,
+      "Could not find !NATOM,NPRIV,NSTEP,NSAVC,NSAVV,JHSTRT,NDEGF,SEED,NSAVL "
+      "section");
 
   int NATOM = 0;
   unsigned long long int NPRIV = 0;
@@ -506,20 +571,20 @@ void CudaNoseHooverIntegrator::initializeFromRestartFile(
 
   line.clear();
   std::getline(fin, line);
-  NATOM = std::stoi(line.substr(0, 12));
-  NPRIV = std::stoull(line.substr(12, 12));
-  NSTEP = std::stoi(line.substr(24, 12));
-  // NSAVC = std::stoi(line.substr(36, 12));
-  // NSAVV = std::stoi(line.substr(48, 12));
-  // JHSTRT = std::stoi(line.substr(60, 12));
-  NDEGF = std::stoi(line.substr(72, 12));
-  // SEED = std::stoull(line.substr(84, 22));
+  NATOM = apo::parse_rst_int(line, 0, 12, "NATOM", rstFileName);
+  NPRIV = apo::parse_rst_ull(line, 12, 12, "NPRIV", rstFileName);
+  NSTEP = apo::parse_rst_int(line, 24, 12, "NSTEP", rstFileName);
+  // NSAVC = apo::parse_rst_int(line, 36, 12, "NSAVC", rstFileName);
+  // NSAVV = apo::parse_rst_int(line, 48, 12, "NSAVV", rstFileName);
+  // JHSTRT = apo::parse_rst_int(line, 60, 12, "JHSTRT", rstFileName);
+  NDEGF = apo::parse_rst_int(line, 72, 12, "NDEGF", rstFileName);
+  // SEED = apo::parse_rst_ull(line, 84, 22, "SEED", rstFileName);
   // RNGSTATE = line.substr(106, std::string::npos);
 
-  if (NATOM != m_Context->getNumAtoms()) {
-    throw std::invalid_argument("NATOM mismatch in restart file \"" +
-                                rstFileName + "\"");
-  }
+  APOCHARMM_REQUIRE(NATOM == m_Context->getNumAtoms(),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "NATOM mismatch in restart file \"" + rstFileName + "\"");
+
   m_TotNumSteps = NPRIV;
   m_NumSteps = NSTEP;
   m_CurrentPropagatedStep = CudaIntegrator::wrapCurrentPropagatedStep(NPRIV);
@@ -542,17 +607,20 @@ void CudaNoseHooverIntegrator::initializeFromRestartFile(
       break;
     }
   }
-  if (!foundSection)
-    throw std::runtime_error("Could not find !XOLD, YOLD, ZOLD section");
+  APOCHARMM_REQUIRE(foundSection, ApoCharmmErrorCode::Runtime,
+                    "Could not find !XOLD, YOLD, ZOLD section");
 
   // Parse XOLD, YOLD, ZOLD section
   std::vector<double> XOLD(NATOM), YOLD(NATOM), ZOLD(NATOM);
   for (int i = 0; i < NATOM; i++) {
     line.clear();
     std::getline(fin, line);
-    XOLD[i] = apo::fortSciStrToCDouble(line.substr(0, 22));
-    YOLD[i] = apo::fortSciStrToCDouble(line.substr(22, 22));
-    ZOLD[i] = apo::fortSciStrToCDouble(line.substr(44, 22));
+    XOLD[i] = apo::parse_rst_double(
+        line, 0, 22, "XOLD[" + std::to_string(i) + "]", rstFileName);
+    YOLD[i] = apo::parse_rst_double(
+        line, 22, 22, "YOLD[" + std::to_string(i) + "]", rstFileName);
+    ZOLD[i] = apo::parse_rst_double(
+        line, 44, 22, "ZOLD[" + std::to_string(i) + "]", rstFileName);
   }
 
   // Find VX, VY, VZ section
@@ -565,17 +633,20 @@ void CudaNoseHooverIntegrator::initializeFromRestartFile(
       break;
     }
   }
-  if (!foundSection)
-    throw std::runtime_error("Could not find !VX, VY, VZ section");
+  APOCHARMM_REQUIRE(foundSection, ApoCharmmErrorCode::Runtime,
+                    "Could not find !VX, VY, VZ section");
 
   // Parse VX, VY, VZ section
   std::vector<double> VX(NATOM), VY(NATOM), VZ(NATOM);
   for (int i = 0; i < NATOM; i++) {
     line.clear();
     std::getline(fin, line);
-    VX[i] = apo::fortSciStrToCDouble(line.substr(0, 22));
-    VY[i] = apo::fortSciStrToCDouble(line.substr(22, 22));
-    VZ[i] = apo::fortSciStrToCDouble(line.substr(44, 22));
+    VX[i] = apo::parse_rst_double(line, 0, 22, "VX[" + std::to_string(i) + "]",
+                                  rstFileName);
+    VY[i] = apo::parse_rst_double(line, 22, 22, "VY[" + std::to_string(i) + "]",
+                                  rstFileName);
+    VZ[i] = apo::parse_rst_double(line, 44, 22, "VZ[" + std::to_string(i) + "]",
+                                  rstFileName);
   }
 
   // Find X, Y, Z section
@@ -588,17 +659,20 @@ void CudaNoseHooverIntegrator::initializeFromRestartFile(
       break;
     }
   }
-  if (!foundSection)
-    throw std::runtime_error("Could not find !X, Y, Z section");
+  APOCHARMM_REQUIRE(foundSection, ApoCharmmErrorCode::Runtime,
+                    "Could not find !X, Y, Z section");
 
   // Parse X, Y, Z section
   std::vector<double> X(NATOM), Y(NATOM), Z(NATOM);
   for (int i = 0; i < NATOM; i++) {
     line.clear();
     std::getline(fin, line);
-    X[i] = apo::fortSciStrToCDouble(line.substr(0, 22));
-    Y[i] = apo::fortSciStrToCDouble(line.substr(22, 22));
-    Z[i] = apo::fortSciStrToCDouble(line.substr(44, 22));
+    X[i] = apo::parse_rst_double(line, 0, 22, "X[" + std::to_string(i) + "]",
+                                 rstFileName);
+    Y[i] = apo::parse_rst_double(line, 22, 22, "Y[" + std::to_string(i) + "]",
+                                 rstFileName);
+    Z[i] = apo::parse_rst_double(line, 44, 22, "Z[" + std::to_string(i) + "]",
+                                 rstFileName);
   }
 
   for (int i = 0; i < NATOM; i++) {
@@ -619,13 +693,13 @@ void CudaNoseHooverIntegrator::initializeFromRestartFile(
   {
     constexpr int numThreads = 256;
     const int numBlocks = (NATOM + numThreads - 1) / numThreads;
-    UpdateSinglePrecisionCoordinatesKernel<<<numBlocks, numThreads, 0,
-                                             *m_IntegratorStream>>>(
+    cudaCheckLaunch(UpdateSinglePrecisionCoordinatesKernel<<<
+                        numBlocks, numThreads, 0, *m_IntegratorStream>>>(
         m_Context->getCoordinatesChargesSP().getDeviceArray().data(),
-        m_Context->getCoordinatesChargesDP().getDeviceArray().data(), NATOM);
-    cudaCheck(cudaGetLastError());
-    cudaCheck(cudaStreamSynchronize(*m_IntegratorStream));
+        m_Context->getCoordinatesChargesDP().getDeviceArray().data(), NATOM));
   }
+
+  cudaCheck(cudaStreamSynchronize(*m_IntegratorStream));
 
   return;
 }
@@ -864,6 +938,10 @@ UpdateAverageTemperatureKernel(double *__restrict__ averageTemperature,
 }
 
 void CudaNoseHooverIntegrator::propagateOneStep(void) {
+  APOCHARMM_REQUIRE(
+      m_Context != nullptr, ApoCharmmErrorCode::NotInitialized,
+      "CharmmContext must be set before propagating one Nose-Hoover step");
+
   const int numDegreesOfFreedom = m_Context->getNumDegreesOfFreedom();
   const double referenceKineticEnergy =
       0.5 * static_cast<double>(numDegreesOfFreedom) *
@@ -893,11 +971,10 @@ void CudaNoseHooverIntegrator::propagateOneStep(void) {
 
       constexpr int numThreads = 256;
       const int numBlocks = (numGroups + numThreads - 1) / numThreads;
-      InvertDeltaAsymmetricKernel<<<numBlocks, numThreads, 0,
-                                    *m_IntegratorStream>>>(
+      cudaCheckLaunch(InvertDeltaAsymmetricKernel<<<numBlocks, numThreads, 0,
+                                                    *m_IntegratorStream>>>(
           m_CoordsDeltaPrevious.getDeviceArray().data(), xyzq, groups,
-          numGroups, boxDimX);
-      cudaCheck(cudaGetLastError());
+          numGroups, boxDimX));
       cudaCheck(cudaStreamSynchronize(*m_IntegratorStream));
     }
     m_Context->resetNeighborList();
@@ -930,11 +1007,11 @@ void CudaNoseHooverIntegrator::propagateOneStep(void) {
   constexpr int numThreads = 256;
   const int numBlocks = (numAtoms + numThreads - 1) / numThreads;
 
-  HalfStepVelocityKernel<<<numBlocks, numThreads, 0, *m_IntegratorStream>>>(
-      coordsCharges, m_CoordsDelta.getDeviceArray().data(),
-      m_CoordsDeltaPrevious.getDeviceArray().data(), velMass, numAtoms, forces,
-      forceStride, m_TimeStep);
-  cudaCheck(cudaGetLastError());
+  cudaCheckLaunch(
+      HalfStepVelocityKernel<<<numBlocks, numThreads, 0, *m_IntegratorStream>>>(
+          coordsCharges, m_CoordsDelta.getDeviceArray().data(),
+          m_CoordsDeltaPrevious.getDeviceArray().data(), velMass, numAtoms,
+          forces, forceStride, m_TimeStep));
 
   if (m_UsingHolonomicConstraints) {
     // JEG250506: Need sync here, otherwise race condition? I don't get it
@@ -944,11 +1021,10 @@ void CudaNoseHooverIntegrator::propagateOneStep(void) {
     m_HolonomicConstraint->handleHolonomicConstraints(
         m_CoordsRef.getDeviceArray().data());
 
-    UpdateCoordsDeltaAfterHolonomicConstraintKernel<<<numBlocks, numThreads, 0,
-                                                      *m_IntegratorStream>>>(
+    cudaCheckLaunch(UpdateCoordsDeltaAfterHolonomicConstraintKernel<<<
+                        numBlocks, numThreads, 0, *m_IntegratorStream>>>(
         m_CoordsDelta.getDeviceArray().data(), coordsCharges,
-        m_CoordsRef.getDeviceArray().data(), numAtoms);
-    cudaCheck(cudaGetLastError());
+        m_CoordsRef.getDeviceArray().data(), numAtoms));
   }
 
   copy_DtoD_async<double4>(m_CoordsDelta.getDeviceArray().data(),
@@ -956,85 +1032,83 @@ void CudaNoseHooverIntegrator::propagateOneStep(void) {
                            numAtoms, *m_IntegratorStream);
 
   for (int iter = 0; iter < m_MaxPredictorCorrectorIterations; iter++) {
-    ComputeKineticEnergyPartialSumsKernel<<<numBlocks, numThreads, 0,
-                                            *m_IntegratorStream>>>(
+    cudaCheckLaunch(ComputeKineticEnergyPartialSumsKernel<<<
+                        numBlocks, numThreads, 0, *m_IntegratorStream>>>(
         m_KineticEnergyPartialSums.getDeviceArray().data(), velMass,
         m_CoordsDelta.getDeviceArray().data(),
-        m_CoordsDeltaPrevious.getDeviceArray().data(), numAtoms, m_TimeStep);
-    cudaCheck(cudaGetLastError());
+        m_CoordsDeltaPrevious.getDeviceArray().data(), numAtoms, m_TimeStep));
 
-    UpdateKineticEnergyAndNoseHooverPistonKernel<<<1, numThreads, 0,
-                                                   *m_IntegratorStream>>>(
-        m_KineticEnergy.getDeviceArray().data(),
-        m_NoseHooverPistonForce.getDeviceArray().data(),
-        m_NoseHooverPistonForcePrevious.getDeviceArray().data(),
-        m_NoseHooverPistonVelocity.getDeviceArray().data(),
-        m_NoseHooverPistonVelocityPrevious.getDeviceArray().data(),
-        m_NoseHooverPistonMass.getDeviceArray().data(),
-        m_KineticEnergyPartialSums.getDeviceArray().data(), numBlocks,
-        referenceKineticEnergy, m_UsingOldTemperature, m_TimeStep);
-    cudaCheck(cudaGetLastError());
+    cudaCheckLaunch(
+        UpdateKineticEnergyAndNoseHooverPistonKernel<<<1, numThreads, 0,
+                                                       *m_IntegratorStream>>>(
+            m_KineticEnergy.getDeviceArray().data(),
+            m_NoseHooverPistonForce.getDeviceArray().data(),
+            m_NoseHooverPistonForcePrevious.getDeviceArray().data(),
+            m_NoseHooverPistonVelocity.getDeviceArray().data(),
+            m_NoseHooverPistonVelocityPrevious.getDeviceArray().data(),
+            m_NoseHooverPistonMass.getDeviceArray().data(),
+            m_KineticEnergyPartialSums.getDeviceArray().data(), numBlocks,
+            referenceKineticEnergy, m_UsingOldTemperature, m_TimeStep));
 
-    PredictorCorrectorKernel<<<numBlocks, numThreads, 0, *m_IntegratorStream>>>(
+    cudaCheckLaunch(PredictorCorrectorKernel<<<numBlocks, numThreads, 0,
+                                               *m_IntegratorStream>>>(
         coordsCharges, velMass, m_CoordsDeltaPredicted.getDeviceArray().data(),
         m_CoordsDelta.getDeviceArray().data(),
         m_CoordsDeltaPrevious.getDeviceArray().data(),
         m_CoordsRef.getDeviceArray().data(), numAtoms,
-        m_NoseHooverPistonVelocity.getDeviceArray().data(), m_TimeStep);
-    cudaCheck(cudaGetLastError());
+        m_NoseHooverPistonVelocity.getDeviceArray().data(), m_TimeStep));
   }
 
   if (m_UsingHolonomicConstraints) {
     m_HolonomicConstraint->handleHolonomicConstraints(
         m_CoordsRef.getDeviceArray().data());
 
-    UpdateCoordsDeltaAfterHolonomicConstraintKernel<<<numBlocks, numThreads, 0,
-                                                      *m_IntegratorStream>>>(
+    cudaCheckLaunch(UpdateCoordsDeltaAfterHolonomicConstraintKernel<<<
+                        numBlocks, numThreads, 0, *m_IntegratorStream>>>(
         m_CoordsDeltaPredicted.getDeviceArray().data(), coordsCharges,
-        m_CoordsRef.getDeviceArray().data(), numAtoms);
-    cudaCheck(cudaGetLastError());
+        m_CoordsRef.getDeviceArray().data(), numAtoms));
   }
 
   copy_DtoD_async<double4>(m_CoordsDeltaPredicted.getDeviceArray().data(),
                            m_CoordsDelta.getDeviceArray().data(), numAtoms,
                            *m_IntegratorStream);
 
-  OnStepVelocityKernel<<<numBlocks, numThreads, 0, *m_IntegratorStream>>>(
-      velMass, m_CoordsDelta.getDeviceArray().data(),
-      m_CoordsDeltaPrevious.getDeviceArray().data(), numAtoms, m_TimeStep);
-  cudaCheck(cudaGetLastError());
+  cudaCheckLaunch(
+      OnStepVelocityKernel<<<numBlocks, numThreads, 0, *m_IntegratorStream>>>(
+          velMass, m_CoordsDelta.getDeviceArray().data(),
+          m_CoordsDeltaPrevious.getDeviceArray().data(), numAtoms, m_TimeStep));
 
-  ComputeKineticEnergyPartialSumsKernel<<<numBlocks, numThreads, 0,
-                                          *m_IntegratorStream>>>(
-      m_KineticEnergyPartialSums.getDeviceArray().data(), velMass,
-      m_CoordsDelta.getDeviceArray().data(),
-      m_CoordsDeltaPrevious.getDeviceArray().data(), numAtoms, m_TimeStep);
-  cudaCheck(cudaGetLastError());
+  cudaCheckLaunch(
+      ComputeKineticEnergyPartialSumsKernel<<<numBlocks, numThreads, 0,
+                                              *m_IntegratorStream>>>(
+          m_KineticEnergyPartialSums.getDeviceArray().data(), velMass,
+          m_CoordsDelta.getDeviceArray().data(),
+          m_CoordsDeltaPrevious.getDeviceArray().data(), numAtoms, m_TimeStep));
 
-  UpdateKineticEnergyAndNoseHooverPistonKernel<<<1, numThreads, 0,
-                                                 *m_IntegratorStream>>>(
-      m_KineticEnergy.getDeviceArray().data(),
-      m_NoseHooverPistonForce.getDeviceArray().data(),
-      m_NoseHooverPistonForcePrevious.getDeviceArray().data(),
-      m_NoseHooverPistonVelocity.getDeviceArray().data(),
-      m_NoseHooverPistonVelocityPrevious.getDeviceArray().data(),
-      m_NoseHooverPistonMass.getDeviceArray().data(),
-      m_KineticEnergyPartialSums.getDeviceArray().data(), numBlocks,
-      referenceKineticEnergy, m_UsingOldTemperature, m_TimeStep);
-  cudaCheck(cudaGetLastError());
+  cudaCheckLaunch(
+      UpdateKineticEnergyAndNoseHooverPistonKernel<<<1, numThreads, 0,
+                                                     *m_IntegratorStream>>>(
+          m_KineticEnergy.getDeviceArray().data(),
+          m_NoseHooverPistonForce.getDeviceArray().data(),
+          m_NoseHooverPistonForcePrevious.getDeviceArray().data(),
+          m_NoseHooverPistonVelocity.getDeviceArray().data(),
+          m_NoseHooverPistonVelocityPrevious.getDeviceArray().data(),
+          m_NoseHooverPistonMass.getDeviceArray().data(),
+          m_KineticEnergyPartialSums.getDeviceArray().data(), numBlocks,
+          referenceKineticEnergy, m_UsingOldTemperature, m_TimeStep));
 
-  UpdateAverageTemperatureKernel<<<1, 32, 0, *m_IntegratorStream>>>(
-      m_AverageTemperature.getDeviceArray().data(),
-      m_KineticEnergy.getDeviceArray().data(), numDegreesOfFreedom,
-      charmm::constants::kBoltz, m_AverageWindowSize);
-  cudaCheck(cudaGetLastError());
+  cudaCheckLaunch(
+      UpdateAverageTemperatureKernel<<<1, 32, 0, *m_IntegratorStream>>>(
+          m_AverageTemperature.getDeviceArray().data(),
+          m_KineticEnergy.getDeviceArray().data(), numDegreesOfFreedom,
+          charmm::constants::kBoltz, m_AverageWindowSize));
 
   m_AverageWindowSize++;
 
-  UpdateSinglePrecisionCoordinatesKernel<<<numBlocks, numThreads, 0,
-                                           *m_IntegratorStream>>>(
-      xyzq, coordsCharges, numAtoms);
-  cudaCheck(cudaGetLastError());
+  cudaCheckLaunch(
+      UpdateSinglePrecisionCoordinatesKernel<<<numBlocks, numThreads, 0,
+                                               *m_IntegratorStream>>>(
+          xyzq, coordsCharges, numAtoms));
 
   copy_DtoD_async<double4>(m_CoordsDelta.getDeviceArray().data(),
                            m_CoordsDeltaPrevious.getDeviceArray().data(),
@@ -1046,8 +1120,9 @@ void CudaNoseHooverIntegrator::propagateOneStep(void) {
 }
 
 double CudaNoseHooverIntegrator::computeNoseHooverPistonMass(void) {
-  if (m_Context == nullptr)
-    return -9999.9999;
+  APOCHARMM_REQUIRE(
+      m_Context != nullptr, ApoCharmmErrorCode::NotInitialized,
+      "CharmmContext must be set before computing the Nose-Hoover piston mass");
 
   CudaContainer<double4> velMass = m_Context->getVelocitiesInverseMasses();
   velMass.transferToHost();
@@ -1060,6 +1135,10 @@ double CudaNoseHooverIntegrator::computeNoseHooverPistonMass(void) {
 }
 
 void CudaNoseHooverIntegrator::removeCenterOfMassMotion(void) {
+  APOCHARMM_REQUIRE(
+      m_Context != nullptr, ApoCharmmErrorCode::NotInitialized,
+      "CharmmContext must be set before removing center-of-mass motion");
+
   cudaCheck(cudaStreamSynchronize(*m_IntegratorStream));
 
   const PBC pbc = m_Context->getForceManager()->getPeriodicBoundaryCondition();

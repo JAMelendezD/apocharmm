@@ -46,4 +46,24 @@ std::string cDoubleToFortSciStr(const double val, const int prec);
 
 double fortSciStrToCDouble(const std::string_view str);
 
+std::string get_rst_field(const std::string &line, const std::size_t offset,
+                          const std::size_t width,
+                          const std::string_view field_name,
+                          const std::string &rst_name);
+
+double parse_rst_double(const std::string &line, const std::size_t offset,
+                        const std::size_t width,
+                        const std::string_view field_name,
+                        const std::string &rst_name);
+
+int parse_rst_int(const std::string &line, const std::size_t offset,
+                  const std::size_t width, const std::string_view field_name,
+                  const std::string &rst_name);
+
+unsigned long long int parse_rst_ull(const std::string &line,
+                                     const std::size_t offset,
+                                     const std::size_t width,
+                                     const std::string_view field_name,
+                                     const std::string &rst_name);
+
 } // namespace apo

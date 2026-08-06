@@ -10,7 +10,7 @@
 import ctypes
 
 from ._lib import lib
-from .error import check_status
+from .error import configure_status_function
 from .cuda_integrator import CudaIntegrator
 
 _prototypes_initialized: bool = False
@@ -22,79 +22,68 @@ def _initialize_prototypes() -> None:
     if _prototypes_initialized:
         return
 
-    lib().apo_cuda_nose_hoover_integrator_create.argtypes = [
-        ctypes.POINTER(ctypes.c_void_p),
-        ctypes.c_double,
-    ]
-    lib().apo_cuda_nose_hoover_integrator_create.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_nose_hoover_integrator_create,
+        [ctypes.POINTER(ctypes.c_void_p), ctypes.c_double],
+        "CudaNoseHooverIntegrator construction",
+    )
 
     lib().apo_cuda_nose_hoover_integrator_destroy.argtypes = [ctypes.c_void_p]
     lib().apo_cuda_nose_hoover_integrator_destroy.restype = None
 
-    lib().apo_cuda_nose_hoover_integrator_set_reference_temperature.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_double,
-    ]
-    lib().apo_cuda_nose_hoover_integrator_set_reference_temperature.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_nose_hoover_integrator_set_reference_temperature,
+        [ctypes.c_void_p, ctypes.c_double],
+        "CudaNoseHooverIntegrator.setReferenceTemperature(temperature)",
     )
 
-    lib().apo_cuda_nose_hoover_integrator_set_nose_hoover_piston_mass.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_double,
-    ]
-    lib().apo_cuda_nose_hoover_integrator_set_nose_hoover_piston_mass.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_nose_hoover_integrator_set_nose_hoover_piston_mass,
+        [ctypes.c_void_p, ctypes.c_double],
+        "CudaNoseHooverIntegrator.setNoseHooverPistonMass(mass)",
     )
 
-    lib().apo_cuda_nose_hoover_integrator_use_old_temperature.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_bool,
-    ]
-    lib().apo_cuda_nose_hoover_integrator_use_old_temperature.restype = ctypes.c_int
-
-    lib().apo_cuda_nose_hoover_integrator_reset_average_temperature.argtypes = [
-        ctypes.c_void_p
-    ]
-    lib().apo_cuda_nose_hoover_integrator_reset_average_temperature.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_nose_hoover_integrator_use_old_temperature,
+        [ctypes.c_void_p, ctypes.c_bool],
+        "CudaNoseHooverIntegrator.useOldTemperature(flag)",
     )
 
-    lib().apo_cuda_nose_hoover_integrator_get_reference_temperature.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_nose_hoover_integrator_get_reference_temperature.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_nose_hoover_integrator_reset_average_temperature,
+        [ctypes.c_void_p],
+        "CudaNoseHooverIntegrator.resetAverageTemperature()",
     )
 
-    lib().apo_cuda_nose_hoover_integrator_get_nose_hoover_piston_mass.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_nose_hoover_integrator_get_nose_hoover_piston_mass.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_nose_hoover_integrator_get_reference_temperature,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_void_p],
+        "CudaNoseHooverIntegrator.getReferenceTemperature()",
     )
 
-    lib().apo_cuda_nose_hoover_integrator_get_average_temperature.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_nose_hoover_integrator_get_average_temperature.restype = ctypes.c_int
-
-    lib().apo_cuda_nose_hoover_integrator_get_instantaneous_temperature.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_nose_hoover_integrator_get_instantaneous_temperature.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_nose_hoover_integrator_get_nose_hoover_piston_mass,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_void_p],
+        "CudaNoseHooverIntegrator.getNoseHooverPistonMass()",
     )
 
-    lib().apo_cuda_nose_hoover_integrator_as_cuda_integrator.argtypes = [
-        ctypes.POINTER(ctypes.c_void_p),
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_nose_hoover_integrator_as_cuda_integrator.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_nose_hoover_integrator_get_average_temperature,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_void_p],
+        "CudaNoseHooverIntegrator.getAverageTemperature()",
+    )
+
+    configure_status_function(
+        lib().apo_cuda_nose_hoover_integrator_get_instantaneous_temperature,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_void_p],
+        "CudaNoseHooverIntegrator.getInstantaneousTemperature()",
+    )
+
+    configure_status_function(
+        lib().apo_cuda_nose_hoover_integrator_as_cuda_integrator,
+        [ctypes.POINTER(ctypes.c_void_p), ctypes.c_void_p],
+        "CudaNoseHooverIntegrator base-integrator coversion",
+    )
 
     _prototypes_initialized = True
 
@@ -111,11 +100,7 @@ class CudaNoseHooverIntegrator(CudaIntegrator):
         handle: ctypes.c_void_p = ctypes.c_void_p()
         c_time_step: ctypes.c_double = ctypes.c_double(time_step)
 
-        status = lib().apo_cuda_nose_hoover_integrator_create(
-            ctypes.byref(handle), c_time_step
-        )
-
-        check_status(status, "CudaNoseHooverIntegrator construction failed")
+        lib().apo_cuda_nose_hoover_integrator_create(ctypes.byref(handle), c_time_step)
 
         if handle.value is None:
             raise RuntimeError(
@@ -126,12 +111,8 @@ class CudaNoseHooverIntegrator(CudaIntegrator):
 
         integrator_handle: ctypes.c_void_p = ctypes.c_void_p()
 
-        status = lib().apo_cuda_nose_hoover_integrator_as_cuda_integrator(
+        lib().apo_cuda_nose_hoover_integrator_as_cuda_integrator(
             ctypes.byref(integrator_handle), self.handle
-        )
-
-        check_status(
-            status, "CudaNoseHooverIntegrator base-integrator conversion failed"
         )
 
         if integrator_handle.value is None:
@@ -148,13 +129,8 @@ class CudaNoseHooverIntegrator(CudaIntegrator):
 
         c_temperature: ctypes.c_double = ctypes.c_double(temperature)
 
-        status = lib().apo_cuda_nose_hoover_integrator_set_reference_temperature(
+        lib().apo_cuda_nose_hoover_integrator_set_reference_temperature(
             self.handle, c_temperature
-        )
-
-        check_status(
-            status,
-            "CudaNoseHooverIntegrator.setReferenceTemperature(temperature) failed",
         )
 
         return
@@ -164,13 +140,8 @@ class CudaNoseHooverIntegrator(CudaIntegrator):
 
         c_mass: ctypes.c_double = ctypes.c_double(mass)
 
-        status = lib().apo_cuda_nose_hoover_integrator_set_nose_hoover_piston_mass(
+        lib().apo_cuda_nose_hoover_integrator_set_nose_hoover_piston_mass(
             self.handle, c_mass
-        )
-
-        check_status(
-            status,
-            "CudaNoseHooverIntegrator.setNoseHooverPistonMass(mass) failed",
         )
 
         return
@@ -180,25 +151,14 @@ class CudaNoseHooverIntegrator(CudaIntegrator):
 
         c_flag: ctypes.c_bool = ctypes.c_bool(flag)
 
-        status = lib().apo_cuda_nose_hoover_integrator_use_old_temperature(
-            self.handle, c_flag
-        )
-
-        check_status(status, "CudaNoseHooverIntegrator.useOldTemperature(flag) failed")
+        lib().apo_cuda_nose_hoover_integrator_use_old_temperature(self.handle, c_flag)
 
         return
 
     def resetAverageTemperature(self) -> None:
         _initialize_prototypes()
 
-        status = lib().apo_cuda_nose_hoover_integrator_reset_average_temperature(
-            self.handle
-        )
-
-        check_status(
-            status,
-            "CudaNoseHooverIntegrator.resetAverageTemperature() failed",
-        )
+        lib().apo_cuda_nose_hoover_integrator_reset_average_temperature(self.handle)
 
         return
 
@@ -207,13 +167,8 @@ class CudaNoseHooverIntegrator(CudaIntegrator):
 
         c_temperature = ctypes.c_double()
 
-        status = lib().apo_cuda_nose_hoover_integrator_get_reference_temperature(
+        lib().apo_cuda_nose_hoover_integrator_get_reference_temperature(
             ctypes.byref(c_temperature), self.handle
-        )
-
-        check_status(
-            status,
-            "CudaNoseHooverIntegrator.getReferenceTemperature() failed",
         )
 
         return float(c_temperature.value)
@@ -223,13 +178,8 @@ class CudaNoseHooverIntegrator(CudaIntegrator):
 
         c_mass = ctypes.c_double()
 
-        status = lib().apo_cuda_nose_hoover_integrator_get_nose_hoover_piston_mass(
+        lib().apo_cuda_nose_hoover_integrator_get_nose_hoover_piston_mass(
             ctypes.byref(c_mass), self.handle
-        )
-
-        check_status(
-            status,
-            "CudaNoseHooverIntegrator.getNoseHooverPistonMass() failed",
         )
 
         return float(c_mass.value)
@@ -239,11 +189,9 @@ class CudaNoseHooverIntegrator(CudaIntegrator):
 
         c_temperature = ctypes.c_double()
 
-        status = lib().apo_cuda_nose_hoover_integrator_get_average_temperature(
+        lib().apo_cuda_nose_hoover_integrator_get_average_temperature(
             ctypes.byref(c_temperature), self.handle
         )
-
-        check_status(status, "CudaNoseHooverIntegrator.getAverageTemperature() failed")
 
         return float(c_temperature.value)
 
@@ -252,13 +200,8 @@ class CudaNoseHooverIntegrator(CudaIntegrator):
 
         c_temperature = ctypes.c_double()
 
-        status = lib().apo_cuda_nose_hoover_integrator_get_instantaneous_temperature(
+        lib().apo_cuda_nose_hoover_integrator_get_instantaneous_temperature(
             ctypes.byref(c_temperature), self.handle
-        )
-
-        check_status(
-            status,
-            "CudaNoseHooverIntegrator.getInstantaneousTemperature() failed",
         )
 
         return float(c_temperature.value)

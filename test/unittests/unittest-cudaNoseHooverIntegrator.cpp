@@ -8,6 +8,7 @@
 //
 // ENDLICENSE
 
+#include "ApoCharmmError.h"
 #include "CharmmContext.h"
 #include "CharmmCrd.h"
 #include "CharmmPSF.h"
@@ -368,8 +369,19 @@ TEST_CASE("CudaNoseHooverIntegratorDeterministicTrajectory") {
 TEST_CASE("CudaNoseHooverIntegratorRestartValidation") {
   CudaNoseHooverIntegrator integrator(TIME_STEP);
 
-  CHECK_THROWS_AS(integrator.initializeFromRestartFile("missing.rst"),
-                  std::runtime_error);
+  bool caughtMissingContext = false;
+
+  try {
+    integrator.initializeFromRestartFile("missing.rst");
+  } catch (const ApoCharmmError &error) {
+    caughtMissingContext = true;
+
+    CHECK(error.getCode() == ApoCharmmErrorCode::NotInitialized);
+    CHECK(error.getMessage() ==
+          "CharmmContext must be set before initializing from a restart file");
+  }
+
+  CHECK(caughtMissingContext == true);
 
   const std::string dataPath = getDataPath();
 
@@ -387,6 +399,16 @@ TEST_CASE("CudaNoseHooverIntegratorRestartValidation") {
 
   integrator.setCharmmContext(ctx);
 
-  CHECK_THROWS_AS(integrator.initializeFromRestartFile("missing.rst"),
-                  std::runtime_error);
+  bool caughtMissingFile = false;
+
+  try {
+    integrator.initializeFromRestartFile("missing.rst");
+  } catch (const ApoCharmmError &error) {
+    caughtMissingFile = true;
+
+    CHECK(error.getCode() == ApoCharmmErrorCode::Runtime);
+    CHECK(error.getMessage() == "Could not open file \"missing.rst\"");
+  }
+
+  CHECK(caughtMissingFile == true);
 }
