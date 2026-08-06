@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "ApoCharmmError.h"
 #include "CudaContainer.h"
 #include "DeviceVector.h"
 #include "catch.hpp"
@@ -466,6 +467,27 @@ void CheckVectorsClose2D(const std::vector<std::vector<T>> &observed,
             Approx(static_cast<double>(expected[i][j])).margin(tolerance));
     }
   }
+
+  return;
+}
+
+template <typename Function>
+void CheckApoCharmmError(Function action, const ApoCharmmErrorCode expectedCode,
+                         const std::string_view expectedMessage) {
+  bool caught = false;
+
+  try {
+    action();
+  } catch (const ApoCharmmError &error) {
+    caught = true;
+
+    CHECK(error.getCode() == expectedCode);
+    CHECK(error.getMessage() == expectedMessage);
+    CHECK(error.getMessage().find("ERROR:") == std::string_view::npos);
+    CHECK((error.getMessage().empty() || error.getMessage().back() != '\n'));
+  }
+
+  CHECK(caught == true);
 
   return;
 }

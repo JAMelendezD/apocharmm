@@ -10,21 +10,14 @@
 
 #include "AtomSelection.h"
 
-#include <stdexcept>
+#include "ApoCharmmError.h"
+
 #include <string>
 
 AtomSelection::AtomSelection(const int numAtoms,
                              const InitialValue initialValue)
-    : m_NumAtoms(numAtoms),
-      m_Words(AtomSelection::getWordCount(numAtoms),
-              (initialValue == InitialValue::ALL) ? ~std::uint64_t{0}
-                                                  : std::uint64_t{0}) {
-  if (numAtoms < 0) {
-    throw std::invalid_argument(
-        "AtomSelection cannot have negative atom count");
-  }
-
-  this->maskUnusedBits();
+    : m_NumAtoms(0), m_Words() {
+  this->setNumAtoms(numAtoms, initialValue);
 }
 
 AtomSelection::AtomSelection(const AtomSelection &other)
@@ -88,11 +81,17 @@ std::vector<int> AtomSelection::getAtomIndices(void) const {
 
 void AtomSelection::setNumAtoms(const int numAtoms,
                                 const InitialValue initialValue) {
-  m_NumAtoms = numAtoms;
-  m_Words.assign(AtomSelection::getWordCount(numAtoms),
-                 (initialValue == InitialValue::ALL) ? ~std::uint64_t{0}
-                                                     : std::uint64_t{0});
+  APOCHARMM_REQUIRE(numAtoms >= 0, ApoCharmmErrorCode::InvalidArgument,
+                    "Atom count must be non-negative; observed " +
+                        std::to_string(numAtoms));
 
+  std::vector<std::uint64_t> words(AtomSelection::getWordCount(numAtoms),
+                                   (initialValue == InitialValue::ALL)
+                                       ? ~std::uint64_t{0}
+                                       : std::uint64_t{0});
+
+  m_NumAtoms = numAtoms;
+  m_Words.swap(words);
   this->maskUnusedBits();
 
   return;
@@ -135,7 +134,8 @@ void AtomSelection::fill(void) {
 }
 
 std::size_t AtomSelection::getWordCount(const int numAtoms) {
-  return static_cast<std::size_t>((numAtoms + 63) / 64);
+  return (static_cast<std::size_t>((numAtoms) + std::size_t{63}) /
+          std::size_t{64});
 }
 
 int AtomSelection::countBits(std::uint64_t word) {
@@ -150,18 +150,19 @@ int AtomSelection::countBits(std::uint64_t word) {
 }
 
 void AtomSelection::checkIndex(const int atomIndex) const {
-  if ((atomIndex < 0) || (atomIndex >= m_NumAtoms)) {
-    throw std::invalid_argument("AtomSelection atom index " +
-                                std::to_string(atomIndex) + " is out of range");
-  }
+  APOCHARMM_REQUIRE((atomIndex >= 0) && (atomIndex < m_NumAtoms),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Atom index is out of range; expected [0, " +
+                        std::to_string(m_NumAtoms) + "), observed " +
+                        std::to_string(atomIndex));
   return;
 }
 
 void AtomSelection::checkCompatible(const AtomSelection &other) const {
-  if (m_NumAtoms != other.m_NumAtoms) {
-    throw std::invalid_argument(
-        "Cannot combine AtomSelection objects with different atom counts");
-  }
+  APOCHARMM_REQUIRE(
+      m_NumAtoms == other.m_NumAtoms, ApoCharmmErrorCode::InvalidArgument,
+      "Selection atom count mismatch; expected " + std::to_string(m_NumAtoms) +
+          ", observed " + std::to_string(other.m_NumAtoms));
   return;
 }
 

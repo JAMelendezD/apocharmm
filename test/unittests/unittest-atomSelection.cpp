@@ -8,11 +8,16 @@
 //
 // ENDLICENSE
 
+#include "ApoCharmmError.h"
 #include "AtomSelection.h"
 #include "AtomSelector.h"
 #include "CharmmPSF.h"
 #include "apo_test_helpers.h"
 #include "catch.hpp"
+
+#include <limits>
+#include <string>
+#include <string_view>
 
 namespace {
 
@@ -174,24 +179,68 @@ TEST_CASE("AtomSelectionBitsetBehavior") {
   }
 
   SECTION("RejectsInvalidConstructionAndIndices") {
-    CHECK_THROWS_AS(AtomSelection(-1), std::invalid_argument);
+    apo_test::CheckApoCharmmError(
+        []() -> void { (void)AtomSelection(-1); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Atom count must be non-negative; observed -1");
+
+    const int minimumAtomCount = std::numeric_limits<int>::min();
+    apo_test::CheckApoCharmmError(
+        [minimumAtomCount]() -> void { (void)AtomSelection(minimumAtomCount); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Atom count must be non-negative; observed " +
+            std::to_string(minimumAtomCount));
 
     AtomSelection selection(4);
+    selection.set(2);
 
-    CHECK_THROWS_AS(selection.contains(-1), std::invalid_argument);
-    CHECK_THROWS_AS(selection.contains(4), std::invalid_argument);
-    CHECK_THROWS_AS(selection.set(-1), std::invalid_argument);
-    CHECK_THROWS_AS(selection.set(4), std::invalid_argument);
+    apo_test::CheckApoCharmmError(
+        [&selection]() -> void {
+          selection.setNumAtoms(-1, AtomSelection::InitialValue::ALL);
+        },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Atom count must be non-negative; observed -1");
+    CheckSelection(selection, 4, {2});
+
+    apo_test::CheckApoCharmmError(
+        [&selection]() -> void { (void)selection.contains(-1); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Atom index is out of range; expected [0, 4), observed -1");
+    apo_test::CheckApoCharmmError(
+        [&selection]() -> void { (void)selection.contains(4); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Atom index is out of range; expected [0, 4), observed 4");
+    apo_test::CheckApoCharmmError(
+        [&selection]() -> void { selection.set(-1); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Atom index is out of range; expected [0, 4), observed -1");
+    apo_test::CheckApoCharmmError(
+        [&selection]() -> void { selection.set(4); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Atom index is out of range; expected [0, 4), observed 4");
+    CheckSelection(selection, 4, {2});
   }
 
   SECTION("RejectsIncompatibleLogicalOperations") {
     AtomSelection left(4);
     AtomSelection right(5);
 
-    CHECK_THROWS_AS(left &= right, std::invalid_argument);
-    CHECK_THROWS_AS(left |= right, std::invalid_argument);
-    CHECK_THROWS_AS(left & right, std::invalid_argument);
-    CHECK_THROWS_AS(left | right, std::invalid_argument);
+    apo_test::CheckApoCharmmError(
+        [&left, &right]() -> void { left &= right; },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Selection atom count mismatch; expected 4, observed 5");
+    apo_test::CheckApoCharmmError(
+        [&left, &right]() -> void { left |= right; },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Selection atom count mismatch; expected 4, observed 5");
+    apo_test::CheckApoCharmmError(
+        [&left, &right]() -> void { (void)(left & right); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Selection atom count mismatch; expected 4, observed 5");
+    apo_test::CheckApoCharmmError(
+        [&left, &right]() -> void { (void)(left | right); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Selection atom count mismatch; expected 4, observed 5");
   }
 }
 
@@ -204,8 +253,7 @@ TEST_CASE("AtomSelectorSelectionLanguage") {
 
   SECTION("BasicSelections") {
     CheckSelection(selector.select("none"), 10, {});
-    CheckSelection(selector.select("all"), 10,
-                   apo_test::MakeRange(0, 10));
+    CheckSelection(selector.select("all"), 10, apo_test::MakeRange(0, 10));
 
     CheckSelection(selector.select("bynum 2:4"), 10, {1, 2, 3});
     CheckSelection(selector.select("bynu 4:2"), 10, {1, 2, 3});

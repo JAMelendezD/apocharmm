@@ -12,7 +12,6 @@
 #include "apocharmm_c/detail/ErrorInternal.h"
 #include "apocharmm_c/detail/Validation.h"
 
-#include <string>
 #include <vector>
 
 extern "C" void apo_atom_selection_destroy(apo_atom_selection *selection) {
@@ -42,15 +41,7 @@ apo_atom_selection_get_num_atoms(size_t *num_atoms,
             apocharmm_c::require_handle_object<apo_atom_selection>(
                 selection, function_name, "AtomSelection"));
 
-        const int n = selection->object->getNumAtoms();
-
-        if (n < 0) {
-          return apocharmm_c::set_last_error(
-              APO_STATUS_RUNTIME_ERROR, function_name,
-              "AtomSelection returned a negative atom count");
-        }
-
-        *num_atoms = static_cast<size_t>(n);
+        *num_atoms = static_cast<size_t>(selection->object->getNumAtoms());
 
         return APO_STATUS_OK;
       },
@@ -73,16 +64,8 @@ apo_atom_selection_get_num_selected(size_t *num_selected,
             apocharmm_c::require_handle_object<apo_atom_selection>(
                 selection, function_name, "AtomSelection"));
 
-        const int n = selection->object->getNumSelected();
-
-        if (n < 0) {
-          return apocharmm_c::set_last_error(
-              APO_STATUS_RUNTIME_ERROR,
-              "apo_atom_selection_get_num_selected: AtomSelection returned a "
-              "negative selected atom count");
-        }
-
-        *num_selected = static_cast<size_t>(n);
+        *num_selected =
+            static_cast<size_t>(selection->object->getNumSelected());
 
         return APO_STATUS_OK;
       },
@@ -130,13 +113,6 @@ apo_atom_selection_contains(bool *is_selected,
         APOCHARMM_C_RETURN_IF_ERROR(
             apocharmm_c::require_handle_object<apo_atom_selection>(
                 selection, function_name, "AtomSelection"));
-
-        const int num_atoms = selection->object->getNumAtoms();
-
-        if ((atom_index < 0) || (atom_index >= num_atoms)) {
-          return apocharmm_c::invalid_argument(function_name,
-                                               "atom_index is out of range");
-        }
 
         *is_selected = selection->object->contains(atom_index);
 

@@ -34,6 +34,7 @@ set(SOURCES_UNITTESTS_TESTS
 
 set(SOURCES_CAPI_TESTS
   unittest-capiError.cpp
+  unittest-capiAtomSelection.cpp
 )
 
 ###################################################

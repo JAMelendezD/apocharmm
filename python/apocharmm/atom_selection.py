@@ -11,7 +11,7 @@ import ctypes
 
 from ._base import _ApoObject
 from ._lib import lib
-from .error import check_status
+from .error import configure_status_function
 
 _prototypes_initialized: bool = False
 
@@ -25,31 +25,29 @@ def _initialize_prototypes() -> None:
     lib().apo_atom_selection_destroy.argtypes = [ctypes.c_void_p]
     lib().apo_atom_selection_destroy.restype = None
 
-    lib().apo_atom_selection_get_num_atoms.argtypes = [
-        ctypes.POINTER(ctypes.c_size_t),
-        ctypes.c_void_p,
-    ]
-    lib().apo_atom_selection_get_num_atoms.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_atom_selection_get_num_atoms,
+        [ctypes.POINTER(ctypes.c_size_t), ctypes.c_void_p],
+        "AtomSelection.getNumAtoms()",
+    )
 
-    lib().apo_atom_selection_get_num_selected.argtypes = [
-        ctypes.POINTER(ctypes.c_size_t),
-        ctypes.c_void_p,
-    ]
-    lib().apo_atom_selection_get_num_selected.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_atom_selection_get_num_selected,
+        [ctypes.POINTER(ctypes.c_size_t), ctypes.c_void_p],
+        "AtomSelection.getNumSelected()",
+    )
 
-    lib().apo_atom_selection_get_atom_indices.argtypes = [
-        ctypes.POINTER(ctypes.c_int),
-        ctypes.c_size_t,
-        ctypes.c_void_p,
-    ]
-    lib().apo_atom_selection_get_atom_indices.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_atom_selection_get_atom_indices,
+        [ctypes.POINTER(ctypes.c_int), ctypes.c_size_t, ctypes.c_void_p],
+        "AtomSelection.getAtomIndices()",
+    )
 
-    lib().apo_atom_selection_contains.argtypes = [
-        ctypes.POINTER(ctypes.c_bool),
-        ctypes.c_void_p,
-        ctypes.c_int,
-    ]
-    lib().apo_atom_selection_contains.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_atom_selection_contains,
+        [ctypes.POINTER(ctypes.c_bool), ctypes.c_void_p, ctypes.c_int],
+        "AtomSelection.contains(atom_index)",
+    )
 
     _prototypes_initialized = True
 
@@ -78,11 +76,7 @@ class AtomSelection(_ApoObject):
 
         c_num_atoms: ctypes.c_size_t = ctypes.c_size_t()
 
-        status = lib().apo_atom_selection_get_num_atoms(
-            ctypes.byref(c_num_atoms), self.handle
-        )
-
-        check_status(status, "AtomSelection.getNumAtoms() failed")
+        lib().apo_atom_selection_get_num_atoms(ctypes.byref(c_num_atoms), self.handle)
 
         return int(c_num_atoms.value)
 
@@ -91,11 +85,9 @@ class AtomSelection(_ApoObject):
 
         c_num_selected: ctypes.c_size_t = ctypes.c_size_t()
 
-        status = lib().apo_atom_selection_get_num_selected(
+        lib().apo_atom_selection_get_num_selected(
             ctypes.byref(c_num_selected), self.handle
         )
-
-        check_status(status, "AtomSelection.getNumSelected() failed")
 
         return int(c_num_selected.value)
 
@@ -108,11 +100,7 @@ class AtomSelection(_ApoObject):
         c_buffer = c_buffer_type()
         c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(num_selected)
 
-        status = lib().apo_atom_selection_get_atom_indices(
-            c_buffer, c_buffer_len, self.handle
-        )
-
-        check_status(status, "AtomSelection.getAtomIndices() failed")
+        lib().apo_atom_selection_get_atom_indices(c_buffer, c_buffer_len, self.handle)
 
         atom_indices: list[int] = []
         for i in range(num_selected):
@@ -126,16 +114,14 @@ class AtomSelection(_ApoObject):
         if not isinstance(atom_index, int) or isinstance(atom_index, bool):
             raise TypeError("atom_index must be an int")
 
-        if atom_index < 0 or atom_index > 2**31 - 1:
-            raise ValueError("atom_index must fit in non-negative int")
+        if atom_index < -(2**31) or atom_index > 2**31 - 1:
+            raise ValueError("atom_index must fit in int")
 
         c_is_selected: ctypes.c_bool = ctypes.c_bool()
         c_atom_index: ctypes.c_int = ctypes.c_int(atom_index)
 
-        status = lib().apo_atom_selection_contains(
+        lib().apo_atom_selection_contains(
             ctypes.byref(c_is_selected), self.handle, c_atom_index
         )
-
-        check_status(status, "AtomSelection.contains(atom_index) failed")
 
         return bool(c_is_selected.value)

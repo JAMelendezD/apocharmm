@@ -9,12 +9,18 @@
 
 from __future__ import annotations
 
+import ctypes
 from pathlib import Path
 import sys
 
 import apocharmm as apo
 
-from python_api_test_helpers import remove_if_exists, assert_equal, expect_exception
+from python_api_test_helpers import (
+    remove_if_exists,
+    assert_equal,
+    expect_exception,
+    expect_invalid_argument,
+)
 
 NUM_ATOMS: int = 10
 TEST_PSF_TEXT: str = """PSF
@@ -148,9 +154,14 @@ def check_validation(psf: apo.CharmmPsf, selector: apo.AtomSelector) -> None:
     print("Checking AtomSelector and AtomSelection validation...")
 
     expect_exception(
-        "AtomSelector rejects non-CharmmPsf construction",
+        "AtomSelector rejects non-handle construction",
         TypeError,
-        lambda: apo.AtomSelector(object()),
+        lambda: apo.AtomSelector(object()),  # type: ignore[arg-type]
+    )
+    expect_exception(
+        "AtomSelector rejects NULL-handle construction",
+        TypeError,
+        lambda: apo.AtomSelector(ctypes.c_void_p()),
     )
     expect_exception(
         "AtomSelector.select rejects non-string selection",
@@ -191,15 +202,46 @@ def check_validation(psf: apo.CharmmPsf, selector: apo.AtomSelector) -> None:
         TypeError,
         lambda: selection.contains(1.0),
     )
-    expect_exception(
+    expect_invalid_argument(
         "AtomSelection.contains rejects negative atom index",
-        ValueError,
         lambda: selection.contains(-1),
+        f"Atom index is out of range; expected [0, {NUM_ATOMS}), observed -1",
     )
     expect_exception(
+        "AtomSelection.contains rejects atom index below int range",
+        ValueError,
+        lambda: selection.contains(-(2**31) - 1),
+    )
+    expect_exception(
+        "AtomSelection.contains rejects atom index above int range",
+        ValueError,
+        lambda: selection.contains(2**31),
+    )
+
+    contains_error = expect_invalid_argument(
         "AtomSelection.contains reports out-of-range atom index",
-        apo.ApoCharmmError,
         lambda: selection.contains(psf.getNumAtoms()),
+        f"Atom index is out of range; expected [0, {NUM_ATOMS}), observed {NUM_ATOMS}",
+    )
+    assert_equal(
+        "AtomSelection.contains Python operation context",
+        contains_error.context,
+        "AtomSelection.contains(atom_index)",
+    )
+    assert_equal(
+        "AtomSelection.contains rendered context occurrence count",
+        contains_error.message.count(contains_error.context),
+        1,
+    )
+    assert_equal(
+        "AtomSelection.contains rendered native function occurrence count",
+        contains_error.message.count("apo_atom_selection_contains"),
+        1,
+    )
+    assert_equal(
+        "AtomSelection.contains rendered failed text count",
+        contains_error.message.count("failed"),
+        0,
     )
 
     return
@@ -208,7 +250,7 @@ def check_validation(psf: apo.CharmmPsf, selector: apo.AtomSelector) -> None:
 def main(argc: int, argv: list[str]) -> int:
     repo_root: Path = Path(argv[1]) if argc > 1 else Path(".")
     output_dir: Path = repo_root / "test/pytest"
-    output_dir.mkdir(parents=True,exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     psf_path: Path = output_dir / "tmp_python_api_atom_selector.psf"
     remove_if_exists(psf_path)
