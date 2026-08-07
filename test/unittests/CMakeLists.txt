@@ -41,6 +41,9 @@ set(SOURCES_CAPI_TESTS
 
   # Object tests
   unittest-capiAtomSelection.cpp
+
+  # Subscriber tests
+  unittest-capiRestartSubscriber.cpp
 )
 
 ###################################################

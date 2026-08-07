@@ -8,6 +8,7 @@
 //
 // ENDLICENSE
 
+#include "ApoCharmmError.h"
 #include "CharmmContext.h"
 #include "CharmmCrd.h"
 #include "CharmmPSF.h"
@@ -25,7 +26,9 @@
 #include <cstdint>
 #include <fstream>
 #include <memory>
+#include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace {
@@ -335,6 +338,43 @@ void CheckLangevinPistonStateMatches(
   return;
 }
 
+void CheckRestartSubscriberUpdateError(RestartSubscriber &subscriber,
+                                       const ApoCharmmErrorCode expectedCode,
+                                       const std::string_view expectedMessage) {
+  const std::string_view expectedCodeName =
+      GetApoCharmmErrorCodeName(expectedCode);
+
+  INFO("Expected ApoCharmmError code: " << expectedCodeName);
+  INFO("Expected ApoCharmmError message: " << expectedMessage);
+
+  try {
+    subscriber.update();
+  } catch (const ApoCharmmError &error) {
+    INFO("Observed ApoCharmmError code: "
+         << GetApoCharmmErrorCodeName(error.getCode()));
+    INFO("Observed ApoCharmmError message: " << error.getMessage());
+    INFO("Observed ApoCharmmError source: " << error.getSourceFile() << ':'
+                                            << error.getSourceLine());
+    INFO("Observed ApoCharmmError function: " << error.getSourceFunction());
+
+    CHECK(error.getCode() == expectedCode);
+    CHECK(error.getMessage() == expectedMessage);
+    CHECK(error.getMessage().find("ERROR:") == std::string_view::npos);
+    CHECK((error.getMessage().empty() || error.getMessage().back() != '\n'));
+
+    return;
+  } catch (const std::exception &error) {
+    FAIL(
+        "Expected ApoCharmmError, but caught another std::exception\n  what(): "
+        << error.what());
+    return;
+  }
+
+  FAIL_CHECK("Expected ApoCharmmError, but no exception was thrown");
+
+  return;
+}
+
 } // namespace
 
 TEST_CASE("RestartSubscriberConstructionAndReportFrequency") {
@@ -382,6 +422,142 @@ TEST_CASE("RestartSubscriberConstructionAndReportFrequency") {
   }
 }
 
+TEST_CASE("RestartSubscriberUpdateValidatesRequiredState") {
+  SECTION("RequiresOutputFile") {
+    auto ctx = CreateContext(true);
+    auto integrator = CreateNoseHooverIntegrator(ctx);
+
+    RestartSubscriber rst;
+    rst.setCharmmContext(ctx);
+    rst.setIntegrator(integrator);
+
+    CheckRestartSubscriberUpdateError(
+        rst, ApoCharmmErrorCode::NotInitialized,
+        "RestartSubscriber requires an output file before update");
+  }
+
+  SECTION("RequiresCharmmContext") {
+    const std::string fileName = "tmpRestartSubscriberMissingContext.rst";
+    apo_test::RemoveIfExists(fileName);
+
+    auto ctx = CreateContext(true);
+    auto integrator = CreateNoseHooverIntegrator(ctx);
+
+    RestartSubscriber rst(fileName, REPORT_FREQUENCY);
+    rst.setIntegrator(integrator);
+
+    CheckRestartSubscriberUpdateError(
+        rst, ApoCharmmErrorCode::NotInitialized,
+        "RestartSubscriber requires a CharmmContext before update");
+
+    apo_test::RemoveIfExists(fileName);
+  }
+
+  SECTION("RequiresIntegrator") {
+    const std::string fileName = "tmpRestartSubscriberMissingIntegrator.rst";
+    apo_test::RemoveIfExists(fileName);
+
+    auto ctx = CreateContext(true);
+
+    RestartSubscriber rst(fileName, REPORT_FREQUENCY);
+    rst.setCharmmContext(ctx);
+
+    CheckRestartSubscriberUpdateError(
+        rst, ApoCharmmErrorCode::NotInitialized,
+        "RestartSubscriber requires an integrator before update");
+
+    apo_test::RemoveIfExists(fileName);
+  }
+
+  SECTION("RequiresIntegratorCharmmContext") {
+    const std::string fileName =
+        "tmpRestartSubscriberMissingIntegratorContext.rst";
+    apo_test::RemoveIfExists(fileName);
+
+    auto ctx = CreateContext(true);
+    auto integrator = std::make_shared<CudaNoseHooverIntegrator>(TIME_STEP);
+
+    RestartSubscriber rst(fileName, REPORT_FREQUENCY);
+    rst.setCharmmContext(ctx);
+    rst.setIntegrator(integrator);
+
+    CheckRestartSubscriberUpdateError(
+        rst, ApoCharmmErrorCode::NotInitialized,
+        "RestartSubscriber integrator has no CharmmContext");
+
+    apo_test::RemoveIfExists(fileName);
+  }
+
+  SECTION("RequiresMatchingCharmmContext") {
+    const std::string fileName =
+        "tmpRestartSubscriberMismatchedIntegratorContext.rst";
+    apo_test::RemoveIfExists(fileName);
+
+    auto ctx = CreateContext(true);
+    auto integratorContext = CreateContext(true);
+    auto integrator = CreateNoseHooverIntegrator(integratorContext);
+
+    RestartSubscriber rst(fileName, REPORT_FREQUENCY);
+    rst.setCharmmContext(ctx);
+    rst.setIntegrator(integrator);
+
+    CheckRestartSubscriberUpdateError(rst, ApoCharmmErrorCode::Runtime,
+                                      "RestartSubscriber CharmmContext does "
+                                      "not match the integrator CharmmContext");
+
+    apo_test::RemoveIfExists(fileName);
+  }
+
+  SECTION("RequiresBoxDimensions") {
+    const std::string fileName = "tmpRestartSubscriberMissingBoxDimensions.rst";
+    apo_test::RemoveIfExists(fileName);
+
+    auto ctx = CreateContext(true);
+    auto integrator = CreateNoseHooverIntegrator(ctx);
+    ctx->getBoxDimensions().clear();
+
+    RestartSubscriber rst(fileName, REPORT_FREQUENCY);
+    rst.setCharmmContext(ctx);
+    rst.setIntegrator(integrator);
+
+    CheckRestartSubscriberUpdateError(
+        rst, ApoCharmmErrorCode::NotInitialized,
+        "RestartSubscriber requires three positive box dimensions before "
+        "update");
+
+    apo_test::RemoveIfExists(fileName);
+  }
+}
+
+TEST_CASE("RestartSubscriberUpdateReportsOutputOpenFailure") {
+  auto ctx = CreateContext(true);
+  auto integrator = CreateNoseHooverIntegrator(ctx);
+
+  RestartSubscriber rst(".", REPORT_FREQUENCY);
+  rst.setCharmmContext(ctx);
+  rst.setIntegrator(integrator);
+
+  CheckRestartSubscriberUpdateError(
+      rst, ApoCharmmErrorCode::Runtime,
+      "Failed to open restart file for writing: .");
+}
+
+#if defined(__linux__)
+TEST_CASE("RestartSubscriberUpdateReportsOutputWriteFailure") {
+  constexpr const char *FILE_NAME = "/dev/full";
+
+  auto ctx = CreateContext(true);
+  auto integrator = CreateNoseHooverIntegrator(ctx);
+
+  RestartSubscriber rst(FILE_NAME, REPORT_FREQUENCY);
+  rst.setCharmmContext(ctx);
+  rst.setIntegrator(integrator);
+
+  CheckRestartSubscriberUpdateError(rst, ApoCharmmErrorCode::Runtime,
+                                    "Failed to write restart file: /dev/full");
+}
+#endif
+
 TEST_CASE("RestartSubscriberRejectsUnsupportedIntegrator") {
   const std::string fileName = "tmpUnsupportedRestartSubscriber.rst";
   apo_test::RemoveIfExists(fileName);
@@ -393,7 +569,10 @@ TEST_CASE("RestartSubscriberRejectsUnsupportedIntegrator") {
   rst.setCharmmContext(ctx);
   rst.setIntegrator(integrator);
 
-  CHECK_THROWS_AS(rst.update(), std::runtime_error);
+  CheckRestartSubscriberUpdateError(
+      rst, ApoCharmmErrorCode::NotImplemented,
+      "RestartSubscriber supports only CudaNoseHooverIntegrator, "
+      "CudaLangevinPistonIntegrator, and CudaLangevinThermostatIntegrator");
 
   apo_test::RemoveIfExists(fileName);
 }

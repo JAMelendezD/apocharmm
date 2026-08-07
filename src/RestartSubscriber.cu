@@ -10,6 +10,7 @@
 
 #include "RestartSubscriber.h"
 
+#include "ApoCharmmError.h"
 #include "CharmmContext.h"
 #include "CudaLangevinPistonIntegrator.h"
 #include "CudaLangevinThermostatIntegrator.h"
@@ -21,7 +22,6 @@
 #include <iomanip>
 #include <ios>
 #include <memory>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -35,16 +35,22 @@ RestartSubscriber::RestartSubscriber(const std::string &fileName,
     : Subscriber(fileName, reportFrequency) {}
 
 void RestartSubscriber::update(void) {
+  APOCHARMM_REQUIRE(!m_FileName.empty(), ApoCharmmErrorCode::NotInitialized,
+                    "RestartSubscriber requires an output file before update");
+
+  APOCHARMM_REQUIRE(m_CharmmContext != nullptr,
+                    ApoCharmmErrorCode::NotInitialized,
+                    "RestartSubscriber requires a CharmmContext before update");
+
+  APOCHARMM_REQUIRE(m_Integrator != nullptr, ApoCharmmErrorCode::NotInitialized,
+                    "RestartSubscriber requires an integrator before update");
+
   constexpr int rstDoubleWidth = 22;
   constexpr int rstDoublePrecision = 15;
   constexpr int VERSION = 50;
   constexpr int LENENP = 60;
   constexpr int LENENT = 128;
   constexpr int LENENV = 50;
-
-  if (m_FileStream.is_open())
-    m_FileStream.close();
-  m_FileStream.open(m_FileName, std::ios::out);
 
   // Attempt to cast to supported integrators to determine how we set some
   // values
@@ -55,18 +61,40 @@ void RestartSubscriber::update(void) {
       std::dynamic_pointer_cast<CudaLangevinThermostatIntegrator>(m_Integrator);
 
   // Ensure that the integrator is at least one of the supported types
-  if ((nh == nullptr) && (lp == nullptr) && (lt == nullptr)) {
-    std::string msg =
-        "Attempted to write a restart file for an unsupported integrator type. "
-        "Currently the only supported integrators are:\n";
-    msg += "  1.) CudaNoseHooverThermostatIntegrator\n";
-    msg += "  2.) CudaLangevinPistonIntegrator\n";
-    msg += "  3.) CudaLangevinThermostatIntegrator";
-    throw std::runtime_error(msg);
-  }
+  APOCHARMM_REQUIRE(
+      (nh != nullptr) || (lp != nullptr) || (lt != nullptr),
+      ApoCharmmErrorCode::NotImplemented,
+      "RestartSubscriber supports only CudaNoseHooverIntegrator, "
+      "CudaLangevinPistonIntegrator, and CudaLangevinThermostatIntegrator");
+
+  const std::vector<double> boxDimensions = m_CharmmContext->getBoxDimensions();
+
+  APOCHARMM_REQUIRE(m_Integrator->getCharmmContext() != nullptr,
+                    ApoCharmmErrorCode::NotInitialized,
+                    "RestartSubscriber integrator has no CharmmContext");
+
+  APOCHARMM_REQUIRE(m_Integrator->getCharmmContext() == m_CharmmContext,
+                    ApoCharmmErrorCode::Runtime,
+                    "RestartSubscriber CharmmContext does not match the "
+                    "integrator CharmmContext");
+
+  APOCHARMM_REQUIRE(
+      (boxDimensions.size() == 3) && (boxDimensions[0] > 0.0) &&
+          (boxDimensions[1] > 0.0) && (boxDimensions[2] > 0.0),
+      ApoCharmmErrorCode::NotInitialized,
+      "RestartSubscriber requires three positive box dimensions before update");
+
+  if (m_FileStream.is_open())
+    m_FileStream.close();
+
+  m_FileStream.clear();
+  m_FileStream.open(m_FileName, std::ios::out);
+
+  APOCHARMM_REQUIRE(m_FileStream.is_open() && m_FileStream.good(),
+                    ApoCharmmErrorCode::Runtime,
+                    "Failed to open restart file for writing: " + m_FileName);
 
   std::string crystalString = "NONE";
-  const std::vector<double> boxDimensions = m_CharmmContext->getBoxDimensions();
 
   if ((nh != nullptr) || (lt != nullptr)) {
     // JEG260330: Get box dimensions and compare lengths to determine crystal
@@ -407,6 +435,9 @@ void RestartSubscriber::update(void) {
   }
 
   m_FileStream.close();
+
+  APOCHARMM_REQUIRE(!m_FileStream.fail(), ApoCharmmErrorCode::Runtime,
+                    "Failed to write restart file: " + m_FileName);
 
   return;
 }

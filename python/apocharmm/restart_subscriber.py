@@ -11,7 +11,7 @@ import ctypes
 
 from ._lib import encode_path, lib
 from ._types import FilePath
-from .error import check_status
+from .error import configure_status_function
 from .subscriber import Subscriber
 
 _prototypes_initialized: bool = False
@@ -23,27 +23,26 @@ def _initialize_prototypes() -> None:
     if _prototypes_initialized:
         return
 
-    lib().apo_restart_subscriber_create.argtypes = [
-        ctypes.POINTER(ctypes.c_void_p),
-        ctypes.c_char_p,
-    ]
-    lib().apo_restart_subscriber_create.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_restart_subscriber_create,
+        [ctypes.POINTER(ctypes.c_void_p), ctypes.c_char_p],
+        "RestartSubscriber construction",
+    )
 
-    lib().apo_restart_subscriber_create_with_report_frequency.argtypes = [
-        ctypes.POINTER(ctypes.c_void_p),
-        ctypes.c_char_p,
-        ctypes.c_int,
-    ]
-    lib().apo_restart_subscriber_create_with_report_frequency.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_restart_subscriber_create_with_report_frequency,
+        [ctypes.POINTER(ctypes.c_void_p), ctypes.c_char_p, ctypes.c_int],
+        "RestartSubscriber construction",
+    )
 
     lib().apo_restart_subscriber_destroy.argtypes = [ctypes.c_void_p]
     lib().apo_restart_subscriber_destroy.restype = None
 
-    lib().apo_restart_subscriber_as_subscriber.argtypes = [
-        ctypes.POINTER(ctypes.c_void_p),
-        ctypes.c_void_p,
-    ]
-    lib().apo_restart_subscriber_as_subscriber.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_restart_subscriber_as_subscriber,
+        [ctypes.POINTER(ctypes.c_void_p), ctypes.c_void_p],
+        "RestartSubscriber base-subscriber conversion",
+    )
 
     _prototypes_initialized = True
 
@@ -63,8 +62,8 @@ class RestartSubscriber(Subscriber):
         c_path: ctypes.c_char_p = ctypes.c_char_p(encoded_path)
 
         if report_frequency is None:
-            status = lib().apo_restart_subscriber_create(ctypes.byref(handle), c_path)
-            function_name = "apo_restart_subscriber_create"
+            create_function_name: str = "apo_restart_subscriber_create"
+            lib().apo_restart_subscriber_create(ctypes.byref(handle), c_path)
         else:
             if (
                 isinstance(report_frequency, bool)
@@ -75,27 +74,28 @@ class RestartSubscriber(Subscriber):
 
             c_report_frequency: ctypes.c_int = ctypes.c_int(report_frequency)
 
-            status = lib().apo_restart_subscriber_create_with_report_frequency(
+            create_function_name: str = (
+                "apo_restart_subscriber_create_with_report_frequency"
+            )
+
+            lib().apo_restart_subscriber_create_with_report_frequency(
                 ctypes.byref(handle), c_path, c_report_frequency
             )
-            function_name = "apo_restart_subscriber_create_with_report_frequency"
-
-        check_status(status, "RestartSubscriber construction failed")
 
         if handle.value is None:
             raise RuntimeError(
-                "{} returned success but produced a NULL handle".format(function_name)
+                "{} returned success but produced a NULL handle".format(
+                    create_function_name
+                )
             )
 
         self._handle = handle
 
         subscriber_handle: ctypes.c_void_p = ctypes.c_void_p()
 
-        status = lib().apo_restart_subscriber_as_subscriber(
+        lib().apo_restart_subscriber_as_subscriber(
             ctypes.byref(subscriber_handle), self.handle
         )
-
-        check_status(status, "RestartSubscriber base-subscriber conversion failed")
 
         if subscriber_handle.value is None:
             raise RuntimeError(
