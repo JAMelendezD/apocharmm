@@ -16,7 +16,6 @@
 
 #include <cmath>
 #include <iostream>
-#include <stdexcept>
 #include <string>
 
 ForceManager::ForceManager(void) {
@@ -70,6 +69,8 @@ ForceManager::ForceManager(void) {
   m_TotalVirial.setToValue(0.0);
 
   m_ClearGraphCreated = false;
+  m_ClearGraph = nullptr;
+  m_ClearGraphInstance = nullptr;
 
   m_ComputeDirectSpaceForces = true;
 
@@ -81,13 +82,15 @@ ForceManager::ForceManager(void) {
 ForceManager::ForceManager(std::shared_ptr<CharmmPSF> psf,
                            std::shared_ptr<CharmmParameters> prm)
     : ForceManager() {
-  m_Psf = psf;
-  m_Prm = prm;
+  this->setPsf(psf);
+  this->setPrm(prm);
 }
 
 ForceManager::ForceManager(const ForceManager &other) : ForceManager() {
-  m_Psf = std::make_shared<CharmmPSF>(*other.m_Psf);
-  m_Prm = std::make_shared<CharmmParameters>(*other.m_Prm);
+  if (other.m_Psf != nullptr)
+    m_Psf = std::make_shared<CharmmPSF>(*other.m_Psf);
+  if (other.m_Prm != nullptr)
+    m_Prm = std::make_shared<CharmmParameters>(*other.m_Prm);
 
   m_BoxX = other.m_BoxX;
   m_BoxY = other.m_BoxY;
@@ -127,8 +130,8 @@ void ForceManager::setContext(std::shared_ptr<CharmmContext> ctx) {
 }
 
 void ForceManager::setPsf(std::shared_ptr<CharmmPSF> psf) {
-  if (psf == nullptr)
-    throw std::invalid_argument("ForceManager::setPsf: psf == nullptr");
+  APOCHARMM_REQUIRE(psf != nullptr, ApoCharmmErrorCode::InvalidArgument,
+                    "CharmmPSF must not be null");
 
   m_Psf = psf;
   // If changing the CharmmPSF, set "initialized" flag to FALSE
@@ -138,8 +141,8 @@ void ForceManager::setPsf(std::shared_ptr<CharmmPSF> psf) {
 }
 
 void ForceManager::setPrm(std::shared_ptr<CharmmParameters> prm) {
-  if (prm == nullptr)
-    throw std::invalid_argument("ForceManager::setPrm: prm == nullptr");
+  APOCHARMM_REQUIRE(prm != nullptr, ApoCharmmErrorCode::InvalidArgument,
+                    "CharmmParameters must not be null");
 
   m_Prm = prm;
   // If changing the CharmmPSF, set "initialized" flag to FALSE
@@ -190,35 +193,86 @@ void ForceManager::setBoxDimensions(const std::vector<double> &boxDimensions) {
 }
 
 void ForceManager::setKappa(const float kappa) {
+  APOCHARMM_REQUIRE(std::isfinite(kappa), ApoCharmmErrorCode::InvalidArgument,
+                    "Kappa must be finite; observed " + std::to_string(kappa));
+
+  APOCHARMM_REQUIRE(kappa >= 0.0f, ApoCharmmErrorCode::InvalidArgument,
+                    "Kappa must be non-negative; observed " +
+                        std::to_string(kappa));
+
   m_Kappa = kappa;
+
   return;
 }
 
 void ForceManager::setCutoff(const float cutoff) {
+  APOCHARMM_REQUIRE(std::isfinite(cutoff), ApoCharmmErrorCode::InvalidArgument,
+                    "Cutoff must be finite; observed " +
+                        std::to_string(cutoff));
+
+  APOCHARMM_REQUIRE(cutoff > 0.0f, ApoCharmmErrorCode::InvalidArgument,
+                    "Cutoff must be positive; observed " +
+                        std::to_string(cutoff));
+
   m_Cutoff = cutoff;
+
   return;
 }
 
 void ForceManager::setCtonnb(const float ctonnb) {
+  APOCHARMM_REQUIRE(std::isfinite(ctonnb), ApoCharmmErrorCode::InvalidArgument,
+                    "Ctonnb must be finite; observed " +
+                        std::to_string(ctonnb));
+
+  APOCHARMM_REQUIRE(ctonnb > 0.0f, ApoCharmmErrorCode::InvalidArgument,
+                    "Ctonnb must be positive; observed " +
+                        std::to_string(ctonnb));
+
   m_Ctonnb = ctonnb;
+
   return;
 }
 
 void ForceManager::setCtofnb(const float ctofnb) {
+  APOCHARMM_REQUIRE(std::isfinite(ctofnb), ApoCharmmErrorCode::InvalidArgument,
+                    "Ctofnb must be finite; observed " +
+                        std::to_string(ctofnb));
+
+  APOCHARMM_REQUIRE(ctofnb > 0.0f, ApoCharmmErrorCode::InvalidArgument,
+                    "Ctofnb must be positive; observed " +
+                        std::to_string(ctofnb));
+
   m_Ctofnb = ctofnb;
+
   return;
 }
 
 void ForceManager::setFFTGrid(const int nfftx, const int nffty,
                               const int nfftz) {
+  APOCHARMM_REQUIRE(nfftx > 0, ApoCharmmErrorCode::InvalidArgument,
+                    "NFFTX must be positive; observed " +
+                        std::to_string(nfftx));
+  APOCHARMM_REQUIRE(nffty > 0, ApoCharmmErrorCode::InvalidArgument,
+                    "NFFTY must be positive; observed " +
+                        std::to_string(nffty));
+  APOCHARMM_REQUIRE(nfftz > 0, ApoCharmmErrorCode::InvalidArgument,
+                    "NFFTZ must be positive; observed " +
+                        std::to_string(nfftz));
+
   m_NfftX = nfftx;
   m_NfftY = nffty;
   m_NfftZ = nfftz;
+
   return;
 }
 
 void ForceManager::setPmeSplineOrder(const int pmeSplineOrder) {
+  APOCHARMM_REQUIRE(pmeSplineOrder > 0, ApoCharmmErrorCode::InvalidArgument,
+                    "PME spline order must be positive; observed " +
+                        std::to_string(pmeSplineOrder));
+
   m_PmeSplineOrder = pmeSplineOrder;
+
   return;
 }
 
@@ -230,7 +284,13 @@ void ForceManager::setPeriodicBoundaryCondition(const PBC pbc) {
 }
 
 void ForceManager::setVdwType(const int vdwType) {
+  APOCHARMM_REQUIRE((vdwType >= VDW_VSH) && (vdwType <= VDW_DBEXP),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Van der Waals type must be in [1, 6]; observed " +
+                        std::to_string(vdwType));
+
   m_VdwType = vdwType;
+
   return;
 }
 
@@ -241,10 +301,12 @@ void ForceManager::setPrintEnergyDecomposition(
 }
 
 void ForceManager::addForceManager(std::shared_ptr<ForceManager> fm) {
-  if (fm == nullptr)
-    throw std::invalid_argument("ForceManager::addForceManager, fm == nullptr");
-  throw std::invalid_argument("ERROR: Cannot add ForceManager to ForceManager");
-  return;
+  // JEG260802: This check is done to prevent irrelevant compiler warnings,
+  // since the function does nothing but throw an error.
+  APOCHARMM_REQUIRE(fm != nullptr, ApoCharmmErrorCode::InvalidArgument,
+                    "Child ForceManager must not be null");
+  APOCHARMM_THROW(ApoCharmmErrorCode::Runtime,
+                  "ForceManager does not support child ForceManagers");
 }
 
 std::shared_ptr<CharmmContext> ForceManager::getContext(void) {
@@ -255,7 +317,12 @@ bool ForceManager::hasCharmmContext(void) const { return !m_Context.expired(); }
 
 std::shared_ptr<CharmmPSF> ForceManager::getPsf(void) { return m_Psf; }
 
-int ForceManager::getNumAtoms(void) const { return m_Psf->getNumAtoms(); }
+int ForceManager::getNumAtoms(void) const {
+  APOCHARMM_REQUIRE(m_Psf != nullptr, ApoCharmmErrorCode::NotInitialized,
+                    "CharmmPSF is not set");
+
+  return m_Psf->getNumAtoms();
+}
 
 std::shared_ptr<CharmmParameters> ForceManager::getPrm(void) { return m_Prm; }
 
@@ -300,6 +367,8 @@ CudaEnergyVirial &ForceManager::getDirectEnergyVirial(void) {
 }
 
 std::map<std::string, double> ForceManager::getEnergyComponents(void) {
+  this->checkInitialized();
+
   std::map<std::string, double> energyDecompositionMap;
 
   energyDecompositionMap["bond"] = m_BondedEnergyVirial.getEnergy("bond");
@@ -335,29 +404,35 @@ std::shared_ptr<cudaStream_t> ForceManager::getForceManagerStream(void) {
 }
 
 std::shared_ptr<Force<long long int>> ForceManager::getBondedForcevalues(void) {
+  this->checkInitialized();
   cudaCheck(cudaStreamSynchronize(*m_ForceManagerStream));
   return m_BondedForceValues;
 }
 std::shared_ptr<Force<long long int>>
 ForceManager::getReciprocalForcevalues(void) {
+  this->checkInitialized();
   cudaCheck(cudaStreamSynchronize(*m_ForceManagerStream));
   return m_ReciprocalForceValues;
 }
 std::shared_ptr<Force<long long int>> ForceManager::getDirectForcevalues(void) {
+  this->checkInitialized();
   cudaCheck(cudaStreamSynchronize(*m_ForceManagerStream));
   return m_DirectForceValues;
 }
 std::shared_ptr<Force<double>> ForceManager::getTotalForcevalues(void) {
+  this->checkInitialized();
   cudaCheck(cudaStreamSynchronize(*m_ForceManagerStream));
   return m_TotalForceValues;
 }
 
 std::shared_ptr<Force<double>> ForceManager::getForces(void) {
+  this->checkInitialized();
   cudaCheck(cudaStreamSynchronize(*m_ForceManagerStream));
   return m_TotalForceValues;
 }
 
 int ForceManager::getForceStride(void) const {
+  this->checkInitialized();
   return m_TotalForceValues->stride();
 }
 
@@ -386,10 +461,12 @@ int ForceManager::getPmeSplineOrder(void) const { return m_PmeSplineOrder; }
 PBC ForceManager::getPeriodicBoundaryCondition(void) const { return m_Pbc; }
 
 CudaContainer<double> &ForceManager::getPotentialEnergy(void) {
+  this->checkInitialized();
   return m_TotalPotentialEnergy;
 }
 
 float ForceManager::getPotentialEnergies(void) {
+  this->checkInitialized();
   // TODO : Don't do this
   // Pb : this should not be done on the Host side
   // Copy every energy-virial to host
@@ -417,6 +494,8 @@ float ForceManager::getPotentialEnergies(void) {
 }
 
 CudaContainer<double> &ForceManager::getVirial(void) {
+  this->checkInitialized();
+
   m_BondedEnergyVirial.getVirial(m_BondedVirial);
   m_ReciprocalEnergyVirial.getVirial(m_ReciprocalVirial);
   m_DirectEnergyVirial.getVirial(m_DirectVirial);
@@ -473,26 +552,35 @@ std::vector<std::shared_ptr<ForceManager>> &ForceManager::getChildren(void) {
 
 void ForceManager::initialize(void) {
   // Some sanity checks before starting
-  if ((m_BoxX == -9999.9999f) || (m_BoxY == -9999.9999f) ||
-      (m_BoxZ == -9999.9999f)) {
-    throw std::invalid_argument("Error: Box dimension was not set");
-  }
+  APOCHARMM_REQUIRE(m_Psf != nullptr, ApoCharmmErrorCode::NotInitialized,
+                    "CharmmPSF must be set before initializing ForceManager");
+  APOCHARMM_REQUIRE(
+      m_Prm != nullptr, ApoCharmmErrorCode::NotInitialized,
+      "CharmmParameters must be set before initializing ForceManager");
+  APOCHARMM_REQUIRE(
+      (m_BoxX != -9999.9999f) && (m_BoxY != -9999.9999f) &&
+          (m_BoxZ != -9999.9999f),
+      ApoCharmmErrorCode::NotInitialized,
+      "Box dimensions must be set before initializing ForceManager");
 
-  if ((m_Cutoff <= 0.0f) || (m_Cutoff > m_BoxX / 2.0f)) {
-    throw std::invalid_argument(
-        "Error: Cutoff value (" + std::to_string(m_Cutoff) +
-        ") not valid (boxx: " + std::to_string(m_BoxX) + ")");
-  }
+  APOCHARMM_REQUIRE((m_Cutoff > 0.0f) && (m_Cutoff <= m_BoxX / 2.0f),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Cutoff must be positive and not exceed half the X box "
+                    "dimension; cutoff " +
+                        std::to_string(m_Cutoff) + ", X box dimension " +
+                        std::to_string(m_BoxX));
 
   // If nfft not given, use values via truncating
   if ((m_NfftX <= 0) || (m_NfftY <= 0) || (m_NfftZ <= 0)) {
     std::vector<int> nfft = this->computeFFTGridSize();
-    if ((nfft[0] <= 0) || (nfft[1] <= 0) || (nfft[2] <= 0))
-      throw std::runtime_error("Error: Computed FFT grid size not valid");
     this->setFFTGrid(nfft[0], nfft[1], nfft[2]);
   }
 
   const int numAtoms = m_Psf->getNumAtoms();
+
+  APOCHARMM_REQUIRE(numAtoms > 0, ApoCharmmErrorCode::Runtime,
+                    "CharmmPSF atom count must be positive; observed " +
+                        std::to_string(numAtoms));
 
   // Bonded
   m_BondedStream = std::make_shared<cudaStream_t>();
@@ -593,20 +681,18 @@ void ForceManager::initialize(void) {
 }
 
 void ForceManager::resetNeighborList(const float4 *xyzq) {
+  // JEG260802: Did not add error checking here because this function is called
+  // frequently. i.e. Did not want to slow dynamics down. Users should not be
+  // calling this function themselves.
   m_DirectForcePtr->resetNeighborList(xyzq, m_Psf->getNumAtoms());
   return;
 }
 
 void ForceManager::calcForcePart1(const bool reset, const bool calcEnergy,
                                   const bool calcVirial) {
-  if (reset) {
-    /* FOR FUTURE USE
-    // forces_[1].resetNeighborList(xyzq, numAtoms, directStream);
-    // throw std::invalid_argument("calc_force reset option not implemented\n");
-    */
-  } else {
-    // updateSortedKernel();
-  }
+  APOCHARMM_REQUIRE(
+      !reset, ApoCharmmErrorCode::NotImplemented,
+      "Force \"reset\" is not implemented (JEG260807: deprecate in future)");
 
   if (!m_ClearGraphCreated) {
     cudaCheck(cudaStreamBeginCapture(*m_ForceManagerStream,
@@ -615,11 +701,11 @@ void ForceManager::calcForcePart1(const bool reset, const bool calcEnergy,
     m_ReciprocalForceValues->clear(*m_ForceManagerStream);
     m_DirectForceValues->clear(*m_ForceManagerStream);
     cudaCheck(cudaStreamEndCapture(*m_ForceManagerStream, &m_ClearGraph));
-    cudaCheck(cudaGraphInstantiate(&m_CleargraphInstance, m_ClearGraph, NULL,
+    cudaCheck(cudaGraphInstantiate(&m_ClearGraphInstance, m_ClearGraph, NULL,
                                    NULL, 0));
     m_ClearGraphCreated = true;
   }
-  cudaCheck(cudaGraphLaunch(m_CleargraphInstance, *m_ForceManagerStream));
+  cudaCheck(cudaGraphLaunch(m_ClearGraphInstance, *m_ForceManagerStream));
 
   // Clear the virials and energy
   if ((calcEnergy == true) && (calcVirial == true)) {
@@ -646,6 +732,9 @@ void ForceManager::calcForcePart1(const bool reset, const bool calcEnergy,
 
 void ForceManager::calcForcePart2(const float4 *xyzq, const bool calcEnergy,
                                   const bool calcVirial) {
+  // JEG260802: Did not add error checking here because this function is called
+  // frequently. i.e. Did not want to slow dynamics down. Users should not be
+  // calling this function themselves.
   gpu_range_start("bonded");
   m_BondedForcePtr->calc_force(xyzq, calcEnergy, calcVirial);
   gpu_range_stop();
@@ -708,6 +797,9 @@ UpdatePotentialEnergyKernel2(double *__restrict__ pe,
 
 void ForceManager::calcForcePart3(const float4 *xyzq, const bool calcEnergy,
                                   const bool calcVirial) {
+  // JEG260802: Did not add error checking here because this function is called
+  // frequently. i.e. Did not want to slow dynamics down. Users should not be
+  // calling this function themselves.
   m_TotalForceValues->clear(*m_ForceManagerStream);
 
   cudaCheck(cudaStreamSynchronize(*m_BondedStream));
@@ -751,10 +843,11 @@ void ForceManager::calcForcePart3(const float4 *xyzq, const bool calcEnergy,
     }
 
     const int numAtoms = m_Psf->getNumAtoms();
+    const int forceStride = m_TotalForceValues->stride();
 
     m_BondedEnergyVirial.calcVirial(
         numAtoms, xyzq, m_BoxDimensions[0], m_BoxDimensions[1],
-        m_BoxDimensions[2], this->getForceStride(),
+        m_BoxDimensions[2], forceStride,
         reinterpret_cast<double *>(m_BondedForceValues->xyz()),
         *m_BondedStream);
     // Reciprocal space virial has already been calculated in the scalar_sum
@@ -765,14 +858,14 @@ void ForceManager::calcForcePart3(const float4 *xyzq, const bool calcEnergy,
     //     *m_ReciprocalStream);
     m_DirectEnergyVirial.calcVirial(
         numAtoms, xyzq, m_BoxDimensions[0], m_BoxDimensions[1],
-        m_BoxDimensions[2], this->getForceStride(),
+        m_BoxDimensions[2], forceStride,
         reinterpret_cast<double *>(m_DirectForceValues->xyz()),
         *m_DirectStream);
     for (std::size_t i = 0; i < m_ForceViews.size(); i++) {
       if (m_ForceViews[i].contributesVirial()) {
         m_EnergyVirials[i]->calcVirial(
             numAtoms, xyzq, m_BoxDimensions[0], m_BoxDimensions[1],
-            m_BoxDimensions[2], this->getForceStride(),
+            m_BoxDimensions[2], forceStride,
             reinterpret_cast<double *>(m_ForceValues[i]->xyz()),
             *m_ForceStreams[i]);
       }
@@ -808,6 +901,9 @@ void ForceManager::calcForcePart3(const float4 *xyzq, const bool calcEnergy,
     //                        reciprocalEnergyVirial.getEnergy("ewks") +
     //                        reciprocalEnergyVirial.getEnergy("ewse");
 
+    // JEG260802: Did not add error checking here because this function is
+    // called frequently. i.e. Did not want to slow dynamics down. Users should
+    // not be calling this function themselves.
     UpdatePotentialEnergyKernel<<<1, 32, 0, *m_ForceManagerStream>>>(
         m_TotalPotentialEnergy.getDeviceArray().data(),
         m_BondedEnergyVirial.getEnergyPointer("bond"),
@@ -825,6 +921,9 @@ void ForceManager::calcForcePart3(const float4 *xyzq, const bool calcEnergy,
     // single energy component. This CudaEnergyVirial interface is not very
     // flexibile. Should be overhauled at some point.
     for (std::size_t i = 0; i < m_ForceViews.size(); i++) {
+      // JEG260802: Did not add error checking here because this function is
+      // called frequently. i.e. Did not want to slow dynamics down. Users
+      // should not be calling this function themselves.
       UpdatePotentialEnergyKernel2<<<1, 32, 0, *m_ForceManagerStream>>>(
           m_TotalPotentialEnergy.getDeviceArray().data(),
           m_EnergyVirials[i]->getEnergyPointer());
@@ -873,6 +972,9 @@ void ForceManager::calcForcePart3(const float4 *xyzq, const bool calcEnergy,
 
 void ForceManager::calcForce(const float4 *xyzq, bool reset, bool calcEnergy,
                              bool calcVirial) {
+  // JEG260802: Did not add error checking here because this function is called
+  // frequently. i.e. Did not want to slow dynamics down. Users should not be
+  // calling this function themselves.
   this->calcForcePart1(reset, calcEnergy, calcVirial);
   this->calcForcePart2(xyzq, calcEnergy, calcVirial);
   this->calcForcePart3(xyzq, calcEnergy, calcVirial);
@@ -881,13 +983,13 @@ void ForceManager::calcForce(const float4 *xyzq, bool reset, bool calcEnergy,
 
 CudaContainer<double>
 ForceManager::computeAllChildrenPotentialEnergy(const float4 *xyzq) {
-  if (xyzq == nullptr) {
-    throw std::invalid_argument(
-        "ForceManager::computeAllChildrenPotentialEnergy, xyzq == nullptr");
-  }
-  throw std::invalid_argument(
-      "ERROR: computeAllChildrenPotential cannot be called from ForceManager");
-  return;
+  // JEG260802: This check is done to prevent irrelevant compiler warnings,
+  // since the function does nothing but throw an error.
+  APOCHARMM_REQUIRE(xyzq != nullptr, ApoCharmmErrorCode::InvalidArgument,
+                    "Coordinate-charge array must not be null");
+  APOCHARMM_THROW(
+      ApoCharmmErrorCode::Runtime,
+      "ForceManager does not support child potential-energy evaluation");
 }
 
 inline bool isHydrogen(const std::string &atomType) {
@@ -998,20 +1100,28 @@ std::vector<int> ForceManager::computeFFTGridSize(void) {
 
 void ForceManager::checkBoxDimensions(
     const std::vector<double> &boxDimensions) {
-  if (boxDimensions.size() != 3) {
-    throw std::invalid_argument(
-        "Box dimensions must contain exactly 3 elements");
+  APOCHARMM_REQUIRE(boxDimensions.size() == 3,
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Box-dimension array size mismatch; expected 3, observed " +
+                        std::to_string(boxDimensions.size()));
+
+  for (std::size_t i = 0; i < 3; i++) {
+    APOCHARMM_REQUIRE(
+        std::isfinite(boxDimensions[i]), ApoCharmmErrorCode::InvalidArgument,
+        "Box dimension at index " + std::to_string(i) +
+            " must be finite; observed " + std::to_string(boxDimensions[i]));
+    APOCHARMM_REQUIRE(
+        boxDimensions[i] > 0.0, ApoCharmmErrorCode::InvalidArgument,
+        "Box dimension at index " + std::to_string(i) +
+            " must be positive; observed " + std::to_string(boxDimensions[i]));
   }
 
-  for (const double dim : boxDimensions) {
-    if ((!std::isfinite(dim)) || (dim <= 0.0)) {
-      throw std::invalid_argument(
-          "Box dimensions: " + std::to_string(boxDimensions[0]) + " x " +
-          std::to_string(boxDimensions[1]) + " x " +
-          std::to_string(boxDimensions[2]) + " are NOT valid");
-    }
-  }
+  return;
+}
 
+void ForceManager::checkInitialized(void) const {
+  APOCHARMM_REQUIRE(m_IsInitialized, ApoCharmmErrorCode::NotInitialized,
+                    "ForceManager must be initialized before this operation");
   return;
 }
 
@@ -1035,6 +1145,18 @@ void ForceManager::dealloc(void) noexcept {
     destroy_cuda_stream_noexcept(m_ForceManagerStream.get());
     m_ForceManagerStream.reset();
   }
+
+  if (m_ClearGraph != nullptr) {
+    (void)cudaGraphDestroy(m_ClearGraph);
+    m_ClearGraph = nullptr;
+  }
+
+  if (m_ClearGraphInstance != nullptr) {
+    (void)cudaGraphExecDestroy(m_ClearGraphInstance);
+    m_ClearGraphInstance = nullptr;
+  }
+
+  m_ClearGraphCreated = false;
 
   return;
 }

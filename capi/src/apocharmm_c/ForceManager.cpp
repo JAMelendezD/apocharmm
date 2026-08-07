@@ -15,8 +15,8 @@
 #include "apocharmm_c/detail/ForceManagerHandle.h"
 #include "apocharmm_c/detail/Validation.h"
 
-#include <cmath>
 #include <memory>
+#include <string>
 #include <vector>
 
 extern "C" apo_status
@@ -103,11 +103,6 @@ apo_force_manager_set_kappa(apo_force_manager *force_manager,
             apocharmm_c::require_handle_object<apo_force_manager>(
                 force_manager, function_name, "ForceManager"));
 
-        if (!std::isfinite(kappa) || kappa < 0.0) {
-          return apocharmm_c::invalid_argument(
-              function_name, "kappa must be finite and nonnegative");
-        }
-
         force_manager->object->setKappa(static_cast<float>(kappa));
 
         return APO_STATUS_OK;
@@ -125,11 +120,6 @@ apo_force_manager_set_cutoff(apo_force_manager *force_manager,
         APOCHARMM_C_RETURN_IF_ERROR(
             apocharmm_c::require_handle_object<apo_force_manager>(
                 force_manager, function_name, "ForceManager"));
-
-        if (!std::isfinite(cutoff) || cutoff <= 0.0) {
-          return apocharmm_c::invalid_argument(
-              function_name, "cutoff must be finite and positive");
-        }
 
         force_manager->object->setCutoff(static_cast<float>(cutoff));
 
@@ -149,11 +139,6 @@ apo_force_manager_set_ctonnb(apo_force_manager *force_manager,
             apocharmm_c::require_handle_object<apo_force_manager>(
                 force_manager, function_name, "ForceManager"));
 
-        if (!std::isfinite(ctonnb) || ctonnb <= 0.0) {
-          return apocharmm_c::invalid_argument(
-              function_name, "ctonnb must be finite and positive");
-        }
-
         force_manager->object->setCtonnb(static_cast<float>(ctonnb));
 
         return APO_STATUS_OK;
@@ -171,11 +156,6 @@ apo_force_manager_set_ctofnb(apo_force_manager *force_manager,
         APOCHARMM_C_RETURN_IF_ERROR(
             apocharmm_c::require_handle_object<apo_force_manager>(
                 force_manager, function_name, "ForceManager"));
-
-        if (!std::isfinite(ctofnb) || ctofnb <= 0.0) {
-          return apocharmm_c::invalid_argument(
-              function_name, "ctofnb must be finite and positive");
-        }
 
         force_manager->object->setCtofnb(static_cast<float>(ctofnb));
 
@@ -221,11 +201,6 @@ apo_force_manager_set_pme_spline_order(apo_force_manager *force_manager,
             apocharmm_c::require_handle_object<apo_force_manager>(
                 force_manager, function_name, "ForceManager"));
 
-        if (order <= 0) {
-          return apocharmm_c::invalid_argument(function_name,
-                                               "order must be positive");
-        }
-
         force_manager->object->setPmeSplineOrder(order);
 
         return APO_STATUS_OK;
@@ -266,11 +241,6 @@ apo_force_manager_set_vdw_type(apo_force_manager *force_manager,
             apocharmm_c::require_handle_object<apo_force_manager>(
                 force_manager, function_name, "ForceManager"));
 
-        if ((vdw_type < 1) || (vdw_type > 6)) {
-          return apocharmm_c::invalid_argument(function_name,
-                                               "vdw_type must be [1, 6]");
-        }
-
         force_manager->object->setVdwType(vdw_type);
 
         return APO_STATUS_OK;
@@ -297,13 +267,13 @@ extern "C" apo_status apo_force_manager_set_print_energy_decomposition(
 }
 
 extern "C" apo_status
-apo_force_manager_get_num_atoms(size_t *num_atoms,
+apo_force_manager_get_num_atoms(int *num_atoms,
                                 const apo_force_manager *force_manager) {
   const char *function_name = "apo_force_manager_get_num_atoms";
 
   return apocharmm_c::guard(
       [&](void) -> apo_status {
-        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<size_t>(
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<int>(
             num_atoms, function_name, "num_atoms"));
 
         *num_atoms = 0;
@@ -312,16 +282,7 @@ apo_force_manager_get_num_atoms(size_t *num_atoms,
             apocharmm_c::require_handle_object<apo_force_manager>(
                 force_manager, function_name, "ForceManager"));
 
-        const int n = force_manager->object->getNumAtoms();
-
-        if (n < 0) {
-          return apocharmm_c::set_last_error(
-              APO_STATUS_RUNTIME_ERROR,
-              "apo_force_manager_get_num_atoms: ForceManager returned a "
-              "negative atom count");
-        }
-
-        *num_atoms = static_cast<size_t>(n);
+        *num_atoms = force_manager->object->getNumAtoms();
 
         return APO_STATUS_OK;
       },
@@ -361,15 +322,8 @@ apo_force_manager_get_box_dimensions(double *box_dimensions,
             apocharmm_c::require_handle_object<apo_force_manager>(
                 force_manager, function_name, "ForceManager"));
 
-        std::vector<double> box_dims =
+        const std::vector<double> box_dims =
             force_manager->object->getBoxDimensions();
-
-        if (box_dims.size() != 3) {
-          return apocharmm_c::set_last_error(
-              APO_STATUS_RUNTIME_ERROR,
-              "apo_force_manager_get_box_dimensions: ForceManager did not "
-              "return exactly 3 box dimensions");
-        }
 
         APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_output_buffer<double>(
             box_dimensions, box_dimensions_len, 3, function_name,
@@ -478,14 +432,7 @@ apo_force_manager_get_fft_grid(int *grid, const size_t grid_len,
             apocharmm_c::require_handle_object<apo_force_manager>(
                 force_manager, function_name, "ForceManager"));
 
-        std::vector<int> fft_grid = force_manager->object->getFFTGrid();
-
-        if (fft_grid.size() != 3) {
-          return apocharmm_c::set_last_error(
-              APO_STATUS_RUNTIME_ERROR,
-              "apo_force_manager_get_fft_grid: ForceManager did not return "
-              "exactly 3 FFT grid dimensions");
-        }
+        const std::vector<int> fft_grid = force_manager->object->getFFTGrid();
 
         APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_output_buffer<int>(
             grid, grid_len, 3, function_name, "FFT grid buffer"));

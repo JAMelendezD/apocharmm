@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <exception>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
@@ -474,20 +475,36 @@ void CheckVectorsClose2D(const std::vector<std::vector<T>> &observed,
 template <typename Function>
 void CheckApoCharmmError(Function action, const ApoCharmmErrorCode expectedCode,
                          const std::string_view expectedMessage) {
-  bool caught = false;
+  const std::string_view expectedCodeName =
+      GetApoCharmmErrorCodeName(expectedCode);
+
+  INFO("Expected ApoCharmmError code: " << expectedCodeName);
+  INFO("Expected ApoCharmmError message: " << expectedMessage);
 
   try {
     action();
   } catch (const ApoCharmmError &error) {
-    caught = true;
+    INFO("Observed ApoCharmmError code: "
+         << GetApoCharmmErrorCodeName(error.getCode()));
+    INFO("Observed ApoCharmmError message: " << error.getMessage());
+    INFO("Observed ApoCharmmError source: " << error.getSourceFile() << ':'
+                                            << error.getSourceLine());
+    INFO("Observed ApoCharmmError function: " << error.getSourceFunction());
 
     CHECK(error.getCode() == expectedCode);
     CHECK(error.getMessage() == expectedMessage);
     CHECK(error.getMessage().find("ERROR:") == std::string_view::npos);
     CHECK((error.getMessage().empty() || error.getMessage().back() != '\n'));
+
+    return;
+  } catch (const std::exception &error) {
+    FAIL(
+        "Expected ApoCharmmError, but caught another std::exception\n  what(): "
+        << error.what());
+    return;
   }
 
-  CHECK(caught == true);
+  FAIL_CHECK("Expected ApoCharmmError, but no exception was thrown");
 
   return;
 }

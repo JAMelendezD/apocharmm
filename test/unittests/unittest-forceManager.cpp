@@ -7,6 +7,9 @@
 //
 // ENDLICENSE
 
+#include "ApoCharmmError.h"
+#include "CharmmContext.h"
+#include "CharmmCrd.h"
 #include "CharmmPSF.h"
 #include "CharmmParameters.h"
 #include "CudaDirectForceTypes.h"
@@ -18,9 +21,9 @@
 #include "catch.hpp"
 #include "test_paths.h"
 
+#include <cmath>
 #include <limits>
 #include <memory>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -126,6 +129,37 @@ TEST_CASE("ForceManagerDefaultConstructor") {
   CHECK(fm.getVdwType() == VDW_VFSW);
 }
 
+TEST_CASE("ForceManagerRejectsNullTopologyAndParameters") {
+  const std::string dataPath = getDataPath();
+  auto prm =
+      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
+  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
+  std::shared_ptr<CharmmPSF> nullPsf;
+  std::shared_ptr<CharmmParameters> nullPrm;
+
+  apo_test::CheckApoCharmmError(
+      [&nullPsf, &prm](void) { (void)ForceManager(nullPsf, prm); },
+      ApoCharmmErrorCode::InvalidArgument, "CharmmPSF must not be null");
+  apo_test::CheckApoCharmmError(
+      [&psf, &nullPrm](void) { (void)ForceManager(psf, nullPrm); },
+      ApoCharmmErrorCode::InvalidArgument, "CharmmParameters must not be null");
+
+  ForceManager fm;
+  apo_test::CheckApoCharmmError([&fm, &nullPsf](void) { fm.setPsf(nullPsf); },
+                                ApoCharmmErrorCode::InvalidArgument,
+                                "CharmmPSF must not be null");
+  apo_test::CheckApoCharmmError([&fm, &nullPrm](void) { fm.setPrm(nullPrm); },
+                                ApoCharmmErrorCode::InvalidArgument,
+                                "CharmmParameters must not be null");
+  apo_test::CheckApoCharmmError([&fm](void) { (void)fm.getNumAtoms(); },
+                                ApoCharmmErrorCode::NotInitialized,
+                                "CharmmPSF is not set");
+
+  auto uninitializedPsf = std::make_shared<CharmmPSF>();
+  fm.setPsf(uninitializedPsf);
+  CHECK(fm.getNumAtoms() == -1);
+}
+
 TEST_CASE("ForceManagerConstructsFromTopologyAndParameters") {
   const std::string dataPath = getDataPath();
   auto prm =
@@ -140,7 +174,9 @@ TEST_CASE("ForceManagerConstructsFromTopologyAndParameters") {
   CHECK(fm.isInitialized() == false);
   CHECK(fm.isComposite() == false);
 
-  CHECK_THROWS_AS(fm.initialize(), std::invalid_argument);
+  apo_test::CheckApoCharmmError(
+      [&fm](void) { fm.initialize(); }, ApoCharmmErrorCode::NotInitialized,
+      "Box dimensions must be set before initializing ForceManager");
 }
 
 TEST_CASE("ForceManagerSettersAndGetters") {
@@ -178,36 +214,147 @@ TEST_CASE("ForceManagerSettersAndGetters") {
   }
 }
 
+TEST_CASE("ForceManagerRejectsInvalidNonbondedParameters") {
+  auto fm = CreateForceManager();
+  const float nan = std::numeric_limits<float>::quiet_NaN();
+
+  apo_test::CheckApoCharmmError([&fm, nan](void) { fm.setKappa(nan); },
+                                ApoCharmmErrorCode::InvalidArgument,
+                                "Kappa must be finite; observed " +
+                                    std::to_string(nan));
+  apo_test::CheckApoCharmmError(
+      [&fm](void) { fm.setKappa(-1.0f); }, ApoCharmmErrorCode::InvalidArgument,
+      "Kappa must be non-negative; observed -1.000000");
+
+  apo_test::CheckApoCharmmError([&fm, nan](void) { fm.setCutoff(nan); },
+                                ApoCharmmErrorCode::InvalidArgument,
+                                "Cutoff must be finite; observed " +
+                                    std::to_string(nan));
+  apo_test::CheckApoCharmmError([&fm](void) { fm.setCutoff(0.0f); },
+                                ApoCharmmErrorCode::InvalidArgument,
+                                "Cutoff must be positive; observed 0.000000");
+
+  apo_test::CheckApoCharmmError([&fm, nan](void) { fm.setCtonnb(nan); },
+                                ApoCharmmErrorCode::InvalidArgument,
+                                "Ctonnb must be finite; observed " +
+                                    std::to_string(nan));
+  apo_test::CheckApoCharmmError([&fm](void) { fm.setCtonnb(0.0f); },
+                                ApoCharmmErrorCode::InvalidArgument,
+                                "Ctonnb must be positive; observed 0.000000");
+
+  apo_test::CheckApoCharmmError([&fm, nan](void) { fm.setCtofnb(nan); },
+                                ApoCharmmErrorCode::InvalidArgument,
+                                "Ctofnb must be finite; observed " +
+                                    std::to_string(nan));
+  apo_test::CheckApoCharmmError([&fm](void) { fm.setCtofnb(0.0f); },
+                                ApoCharmmErrorCode::InvalidArgument,
+                                "Ctofnb must be positive; observed 0.000000");
+
+  apo_test::CheckApoCharmmError(
+      [&fm](void) { fm.setPmeSplineOrder(0); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "PME spline order must be positive; observed 0");
+  apo_test::CheckApoCharmmError(
+      [&fm](void) { fm.setVdwType(0); }, ApoCharmmErrorCode::InvalidArgument,
+      "Van der Waals type must be in [1, 6]; observed 0");
+  apo_test::CheckApoCharmmError(
+      [&fm](void) { fm.setVdwType(7); }, ApoCharmmErrorCode::InvalidArgument,
+      "Van der Waals type must be in [1, 6]; observed 7");
+}
+
 TEST_CASE("ForceManagerRejectsInvalidBoxDimensions") {
   auto fm = CreateForceManager();
+  const double nan = std::numeric_limits<double>::quiet_NaN();
 
-  CHECK_THROWS_AS(fm.setBoxDimensions({20.0, 20.0}), std::invalid_argument);
-  CHECK_THROWS_AS(fm.setBoxDimensions({20.0, 20.0, 20.0, 20.0}),
-                  std::invalid_argument);
-  CHECK_THROWS_AS(fm.setBoxDimensions({20.0, 0.0, 20.0}),
-                  std::invalid_argument);
-  CHECK_THROWS_AS(fm.setBoxDimensions({20.0, -1.0, 20.0}),
-                  std::invalid_argument);
-  CHECK_THROWS_AS(fm.setBoxDimensions(
-                      {20.0, std::numeric_limits<double>::quiet_NaN(), 20.0}),
-                  std::invalid_argument);
+  apo_test::CheckApoCharmmError(
+      [&fm](void) { fm.setBoxDimensions({20.0, 20.0}); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Box-dimension array size mismatch; expected 3, observed 2");
+  apo_test::CheckApoCharmmError(
+      [&fm](void) { fm.setBoxDimensions({20.0, 20.0, 20.0, 20.0}); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Box-dimension array size mismatch; expected 3, observed 4");
+  apo_test::CheckApoCharmmError(
+      [&fm, nan](void) { fm.setBoxDimensions({20.0, nan, 20.0}); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Box dimension at index 1 must be finite; observed " +
+          std::to_string(nan));
+  apo_test::CheckApoCharmmError(
+      [&fm](void) { fm.setBoxDimensions({20.0, 0.0, 20.0}); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Box dimension at index 1 must be positive; observed 0.000000");
+  apo_test::CheckApoCharmmError(
+      [&fm](void) { fm.setBoxDimensions({20.0, -1.0, 20.0}); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Box dimension at index 1 must be positive; observed -1.000000");
 }
 
 TEST_CASE("ForceManagerRejectsInvalidInitializationInputs") {
-  auto fm = CreateForceManager();
+  const std::string dataPath = getDataPath();
+  auto prm =
+      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
+  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
 
-  SECTION("MissingBoxDimensionsBeforeInitialize") {
-    CHECK_THROWS_AS(fm.initialize(), std::invalid_argument);
+  SECTION("MissingCharmmPsf") {
+    ForceManager fm;
+    apo_test::CheckApoCharmmError(
+        [&fm](void) { fm.initialize(); }, ApoCharmmErrorCode::NotInitialized,
+        "CharmmPSF must be set before initializing ForceManager");
   }
 
-  SECTION("CutoffLargerThanHalfOfBoxXBeforeInitialize") {
+  SECTION("MissingCharmmParameters") {
+    ForceManager fm;
+    fm.setPsf(psf);
+    apo_test::CheckApoCharmmError(
+        [&fm](void) { fm.initialize(); }, ApoCharmmErrorCode::NotInitialized,
+        "CharmmParameters must be set before initializing ForceManager");
+  }
+
+  SECTION("MissingBoxDimensions") {
+    ForceManager fm(psf, prm);
+    apo_test::CheckApoCharmmError(
+        [&fm](void) { fm.initialize(); }, ApoCharmmErrorCode::NotInitialized,
+        "Box dimensions must be set before initializing ForceManager");
+  }
+
+  SECTION("CutoffLargerThanHalfOfBoxX") {
+    ForceManager fm(psf, prm);
     fm.setBoxDimensions({20.0, 20.0, 20.0});
     fm.setCutoff(11.0f);
-    CHECK_THROWS_AS(fm.initialize(), std::invalid_argument);
+    apo_test::CheckApoCharmmError(
+        [&fm](void) { fm.initialize(); }, ApoCharmmErrorCode::InvalidArgument,
+        "Cutoff must be positive and not exceed half the X box dimension; "
+        "cutoff 11.000000, X box dimension 20.000000");
+  }
+
+  SECTION("UninitializedAtomCount") {
+    auto uninitializedPsf = std::make_shared<CharmmPSF>();
+    ForceManager fm(uninitializedPsf, prm);
+    fm.setBoxDimensions({20.0, 20.0, 20.0});
+    fm.setCutoff(9.0f);
+    apo_test::CheckApoCharmmError(
+        [&fm](void) { fm.initialize(); }, ApoCharmmErrorCode::Runtime,
+        "CharmmPSF atom count must be positive; observed -1");
+  }
+
+  SECTION("NonpositiveAtomCount") {
+    auto emptyPsf = std::make_shared<CharmmPSF>();
+    emptyPsf->setNumAtoms(0);
+    ForceManager fm(emptyPsf, prm);
+    fm.setBoxDimensions({20.0, 20.0, 20.0});
+    fm.setCutoff(9.0f);
+    apo_test::CheckApoCharmmError(
+        [&fm](void) { fm.initialize(); }, ApoCharmmErrorCode::Runtime,
+        "CharmmPSF atom count must be positive; observed 0");
   }
 }
 
 TEST_CASE("ForceManagerCopyConstructorCopiesConfigurationOnly") {
+  ForceManager defaultManager;
+  ForceManager defaultCopy(defaultManager);
+  CHECK(defaultCopy.getPsf() == nullptr);
+  CHECK(defaultCopy.getPrm() == nullptr);
+
   auto original = CreateForceManager();
   original.setBoxDimensions({30.0, 31.0, 32.0});
   original.setKappa(0.41f);
@@ -254,13 +401,128 @@ TEST_CASE("ForceManagerCopyConstructorCopiesConfigurationOnly") {
   CHECK(copy.getPmeSplineOrder() == 5);
 }
 
+TEST_CASE("ForceManagerRejectsOperationsBeforeInitialization") {
+  auto fm = CreateForceManager();
+  const std::string message =
+      "ForceManager must be initialized before this operation";
+
+  apo_test::CheckApoCharmmError([&fm](void) { (void)fm.getEnergyComponents(); },
+                                ApoCharmmErrorCode::NotInitialized, message);
+  apo_test::CheckApoCharmmError(
+      [&fm](void) { (void)fm.getBondedForcevalues(); },
+      ApoCharmmErrorCode::NotInitialized, message);
+  apo_test::CheckApoCharmmError(
+      [&fm](void) { (void)fm.getReciprocalForcevalues(); },
+      ApoCharmmErrorCode::NotInitialized, message);
+  apo_test::CheckApoCharmmError(
+      [&fm](void) { (void)fm.getDirectForcevalues(); },
+      ApoCharmmErrorCode::NotInitialized, message);
+  apo_test::CheckApoCharmmError([&fm](void) { (void)fm.getTotalForcevalues(); },
+                                ApoCharmmErrorCode::NotInitialized, message);
+  apo_test::CheckApoCharmmError([&fm](void) { (void)fm.getForces(); },
+                                ApoCharmmErrorCode::NotInitialized, message);
+  apo_test::CheckApoCharmmError([&fm](void) { (void)fm.getForceStride(); },
+                                ApoCharmmErrorCode::NotInitialized, message);
+  apo_test::CheckApoCharmmError([&fm](void) { (void)fm.getPotentialEnergy(); },
+                                ApoCharmmErrorCode::NotInitialized, message);
+  apo_test::CheckApoCharmmError(
+      [&fm](void) { (void)fm.getPotentialEnergies(); },
+      ApoCharmmErrorCode::NotInitialized, message);
+  apo_test::CheckApoCharmmError([&fm](void) { (void)fm.getVirial(); },
+                                ApoCharmmErrorCode::NotInitialized, message);
+}
+
+TEST_CASE("ForceManagerRejectsChildPotentialEnergyEvaluation") {
+  ForceManager fm;
+  float4 xyzq{};
+
+  apo_test::CheckApoCharmmError(
+      [&fm](void) { (void)fm.computeAllChildrenPotentialEnergy(nullptr); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Coordinate-charge array must not be null");
+  apo_test::CheckApoCharmmError(
+      [&fm, &xyzq](void) { (void)fm.computeAllChildrenPotentialEnergy(&xyzq); },
+      ApoCharmmErrorCode::Runtime,
+      "ForceManager does not support child potential-energy evaluation");
+}
+
 TEST_CASE("ForceManagerAddForceManagerRejectsChildren") {
   ForceManager fm;
 
-  CHECK_THROWS_AS(fm.addForceManager(nullptr), std::invalid_argument);
+  apo_test::CheckApoCharmmError([&fm](void) { fm.addForceManager(nullptr); },
+                                ApoCharmmErrorCode::InvalidArgument,
+                                "Child ForceManager must not be null");
 
   auto child = std::make_shared<ForceManager>();
-  CHECK_THROWS_AS(fm.addForceManager(child), std::invalid_argument);
+  apo_test::CheckApoCharmmError(
+      [&fm, &child](void) { fm.addForceManager(child); },
+      ApoCharmmErrorCode::Runtime,
+      "ForceManager does not support child ForceManagers");
+}
+
+TEST_CASE("ForceManagerSubscriptionValidation") {
+  auto fm = CreateForceManager();
+  auto force = std::make_shared<TestForce>();
+  auto stream = std::make_shared<cudaStream_t>();
+  auto forceValues = force->getForce();
+  auto energyVirial = force->getEnergyVirial();
+  std::shared_ptr<TestForce> nullForce;
+  std::shared_ptr<cudaStream_t> nullStream;
+  std::shared_ptr<Force<long long int>> nullForceValues;
+  std::shared_ptr<CudaEnergyVirial> nullEnergyVirial;
+
+  apo_test::CheckApoCharmmError(
+      [&fm, &nullForce, &stream, &forceValues, &energyVirial](void) {
+        fm.subscribe(nullForce, "test_force", stream, forceValues,
+                     energyVirial);
+      },
+      ApoCharmmErrorCode::InvalidArgument, "Subscribed force must not be null");
+  apo_test::CheckApoCharmmError(
+      [&fm, &force, &stream, &forceValues, &energyVirial](void) {
+        fm.subscribe(force, "", stream, forceValues, energyVirial);
+      },
+      ApoCharmmErrorCode::InvalidArgument, "Force tag must not be empty");
+  apo_test::CheckApoCharmmError(
+      [&fm, &force, &nullStream, &forceValues, &energyVirial](void) {
+        fm.subscribe(force, "test_force", nullStream, forceValues,
+                     energyVirial);
+      },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Subscribed force stream must not be null");
+  apo_test::CheckApoCharmmError(
+      [&fm, &force, &stream, &nullForceValues, &energyVirial](void) {
+        fm.subscribe(force, "test_force", stream, nullForceValues,
+                     energyVirial);
+      },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Subscribed force storage must not be null");
+  apo_test::CheckApoCharmmError(
+      [&fm, &force, &stream, &forceValues, &nullEnergyVirial](void) {
+        fm.subscribe(force, "test_force", stream, forceValues,
+                     nullEnergyVirial);
+      },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Subscribed energy-virial storage must not be null");
+
+  fm.subscribe(force, "test_force", stream, forceValues, energyVirial);
+
+  apo_test::CheckApoCharmmError(
+      [&fm, &force, &stream, &forceValues, &energyVirial](void) {
+        fm.subscribe(force, "test_force", stream, forceValues, energyVirial);
+      },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Force is already subscribed to this ForceManager");
+  apo_test::CheckApoCharmmError(
+      [&fm, &nullForce](void) { fm.unsubscribe(nullForce); },
+      ApoCharmmErrorCode::InvalidArgument, "Subscribed force must not be null");
+
+  auto otherForce = std::make_shared<TestForce>();
+  apo_test::CheckApoCharmmError(
+      [&fm, &otherForce](void) { fm.unsubscribe(otherForce); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Force is not subscribed to this ForceManager");
+
+  fm.unsubscribe(force);
 }
 
 TEST_CASE("ForceManagerSubscribeAndUnsubscribePropagateBoxDimensions") {
@@ -292,6 +554,14 @@ TEST_CASE("ForceManagerSubscribeAndUnsubscribePropagateBoxDimensions") {
 TEST_CASE("ForceManagerUnsubscribeByTag") {
   auto fm = CreateForceManager();
 
+  apo_test::CheckApoCharmmError([&fm](void) { fm.unsubscribe(""); },
+                                ApoCharmmErrorCode::InvalidArgument,
+                                "Force tag must not be empty");
+  apo_test::CheckApoCharmmError(
+      [&fm](void) { fm.unsubscribe("missing_force"); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Force tag is not subscribed to this ForceManager");
+
   auto force = std::make_shared<TestForce>();
   auto stream = std::make_shared<cudaStream_t>();
 
@@ -305,4 +575,38 @@ TEST_CASE("ForceManagerUnsubscribeByTag") {
   fm.setBoxDimensions({30.0, 31.0, 32.0});
 
   CHECK(force->setBoxDimensionsCalls == 1);
+
+  apo_test::CheckApoCharmmError(
+      [&fm](void) { fm.unsubscribe("test_force"); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Force tag is not subscribed to this ForceManager");
+}
+
+TEST_CASE("ForceManagerCheckedCudaLaunchesAndGraphCleanup") {
+  const std::string dataPath = getDataPath();
+  auto prm =
+      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
+  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
+  auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+
+  auto ctx = std::make_shared<CharmmContext>(psf, prm);
+  ctx->setBoxDimensions({50.0, 50.0, 50.0});
+  ctx->setCoordinates(crd);
+  ctx->useHolonomicConstraints(false);
+
+  auto fm = ctx->getForceManager();
+  REQUIRE(fm != nullptr);
+  REQUIRE(fm->isInitialized() == true);
+
+  CHECK_NOTHROW(ctx->calculateForces(false, true, false));
+
+  CudaContainer<double> &potentialEnergy = fm->getPotentialEnergy();
+  potentialEnergy.transferToHost();
+  REQUIRE(potentialEnergy.size() == 1);
+  CHECK(std::isfinite(potentialEnergy[0]));
+
+  apo_test::CheckApoCharmmError(
+      [&fm](void) { fm->calcForcePart1(true, false, false); },
+      ApoCharmmErrorCode::NotImplemented,
+      "Force \"reset\" is not implemented (JEG260807: deprecate in future)");
 }

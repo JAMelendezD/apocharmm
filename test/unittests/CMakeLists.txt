@@ -33,7 +33,13 @@ set(SOURCES_UNITTESTS_TESTS
 )
 
 set(SOURCES_CAPI_TESTS
+  # Base tests
   unittest-capiError.cpp
+
+  # Manager tests
+  unittest-capiForceManager.cpp
+
+  # Object tests
   unittest-capiAtomSelection.cpp
 )
 
@@ -159,6 +165,7 @@ if(TARGET apocharmm_c)
 
     target_compile_definitions(${name} PRIVATE
       APOCHARMM_C_TESTING
+      DATA_PATH="${PROJECT_SOURCE_DIR}/test/data/"
     )
 
     target_include_directories(${name} PRIVATE

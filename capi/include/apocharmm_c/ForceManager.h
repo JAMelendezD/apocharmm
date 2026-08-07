@@ -64,7 +64,7 @@ APOCHARMM_C_API apo_status apo_force_manager_set_print_energy_decomposition(
     apo_force_manager *force_manager, const bool flag);
 
 APOCHARMM_C_API apo_status apo_force_manager_get_num_atoms(
-    size_t *num_atoms, const apo_force_manager *force_manager);
+    int *num_atoms, const apo_force_manager *force_manager);
 
 APOCHARMM_C_API apo_status apo_force_manager_is_initialized(
     bool *flag, const apo_force_manager *force_manager);

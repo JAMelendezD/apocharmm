@@ -22,6 +22,7 @@ from python_api_test_helpers import (
     assert_close,
     assert_sequence_close,
     expect_exception,
+    expect_invalid_argument,
 )
 
 TOLERANCE: float = 1.0e-7
@@ -160,66 +161,98 @@ def check_validation() -> None:
         lambda: apo.ForceManager(psf, object()),
     )
 
-    expect_exception(
+    length_error = expect_invalid_argument(
         "ForceManager.setBoxDimensions rejects short input",
-        apo.ApoCharmmError,
         lambda: fm.setBoxDimensions([1.0, 2.0]),
+        "apo_force_manager_set_box_dimensions: box_dimensions must contain exactly 3 elements",
     )
-    expect_exception(
+    assert_equal(
+        "ForceManager.setBoxDimensions error context",
+        length_error.context,
+        "ForceManager.setBoxDimensions(box_dimensions)",
+    )
+
+    expect_invalid_argument(
         "ForceManager.setBoxDimensions rejects long input",
-        apo.ApoCharmmError,
         lambda: fm.setBoxDimensions([1.0, 2.0, 3.0, 4.0]),
+        "apo_force_manager_set_box_dimensions: box_dimensions must contain exactly 3 elements",
     )
-    expect_exception(
+    expect_invalid_argument(
         "ForceManager.setBoxDimensions rejects negative dimensions",
-        apo.ApoCharmmError,
         lambda: fm.setBoxDimensions([20.0, -1.0, 20.0]),
+        "apoCHARMM error [InvalidArgument]: Box dimension at index 1 must be positive; observed -1.000000",
     )
-    expect_exception(
+    expect_invalid_argument(
         "ForceManager.setBoxDimensions rejects zero dimensions",
-        apo.ApoCharmmError,
         lambda: fm.setBoxDimensions([20.0, 0.0, 20.0]),
+        "apoCHARMM error [InvalidArgument]: Box dimension at index 1 must be positive; observed 0.000000",
     )
-    expect_exception(
+    expect_invalid_argument(
         "ForceManager.setBoxDimensions rejects NaN",
-        apo.ApoCharmmError,
         lambda: fm.setBoxDimensions([20.0, math.nan, 20.0]),
+        "apoCHARMM error [InvalidArgument]: Box dimension at index 1 must be finite; observed nan",
     )
-    expect_exception(
+
+    kappa_error = expect_invalid_argument(
         "ForceManager.setKappa rejects NaN",
-        apo.ApoCharmmError,
         lambda: fm.setKappa(math.nan),
+        "apoCHARMM error [InvalidArgument]: Kappa must be finite; observed nan",
     )
-    expect_exception(
+    assert_equal(
+        "ForceManager.setKappa error context",
+        kappa_error.context,
+        "ForceManager.setKappa(kappa)",
+    )
+    expect_invalid_argument(
         "ForceManager.setKappa rejects negative values",
-        apo.ApoCharmmError,
         lambda: fm.setKappa(-1.0),
+        "apoCHARMM error [InvalidArgument]: Kappa must be non-negative; observed -1.000000",
     )
-    expect_exception(
+
+    expect_invalid_argument(
+        "ForceManager.setCutoff rejects NaN",
+        lambda: fm.setCutoff(math.nan),
+        "apoCHARMM error [InvalidArgument]: Cutoff must be finite; observed nan",
+    )
+    expect_invalid_argument(
         "ForceManager.setCutoff rejects zero",
-        apo.ApoCharmmError,
         lambda: fm.setCutoff(0.0),
+        "apoCHARMM error [InvalidArgument]: Cutoff must be positive; observed 0.000000",
     )
-    expect_exception(
+
+    expect_invalid_argument(
+        "ForceManager.setCtonnb rejects NaN",
+        lambda: fm.setCtonnb(math.nan),
+        "apoCHARMM error [InvalidArgument]: Ctonnb must be finite; observed nan",
+    )
+    expect_invalid_argument(
         "ForceManager.setCtonnb rejects zero",
-        apo.ApoCharmmError,
         lambda: fm.setCtonnb(0.0),
+        "apoCHARMM error [InvalidArgument]: Ctonnb must be positive; observed 0.000000",
     )
-    expect_exception(
+
+    expect_invalid_argument(
+        "ForceManager.setCtofnb rejects NaN",
+        lambda: fm.setCtofnb(math.nan),
+        "apoCHARMM error [InvalidArgument]: Ctofnb must be finite; observed nan",
+    )
+    expect_invalid_argument(
         "ForceManager.setCtofnb rejects zero",
-        apo.ApoCharmmError,
         lambda: fm.setCtofnb(0.0),
+        "apoCHARMM error [InvalidArgument]: Ctofnb must be positive; observed 0.000000",
     )
-    expect_exception(
+
+    expect_invalid_argument(
         "ForceManager.setFFTGrid rejects short input",
-        apo.ApoCharmmError,
         lambda: fm.setFFTGrid([32, 34]),
+        "apo_force_manager_set_fft_grid: grid must contain exactly 3 elements",
     )
-    expect_exception(
+    expect_invalid_argument(
         "ForceManager.setPmeSplineOrder rejects zero",
-        apo.ApoCharmmError,
         lambda: fm.setPmeSplineOrder(0),
+        "apoCHARMM error [InvalidArgument]: PME spline order must be positive; observed 0",
     )
+
     expect_exception(
         "ForceManager.setPeriodicBoundaryCondition rejects invalid enum value",
         ValueError,
@@ -230,10 +263,10 @@ def check_validation() -> None:
         ValueError,
         lambda: fm.setVdwType(99),
     )
-    expect_exception(
+    expect_invalid_argument(
         "ForceManager.setVdwType rejects VdwType.NONE through C ABI",
-        apo.ApoCharmmError,
         lambda: fm.setVdwType(apo.VdwType.NONE),
+        "apoCHARMM error [InvalidArgument]: Van der Waals type must be in [1, 6]; observed 0",
     )
 
     return

@@ -502,11 +502,12 @@ public:
 
     APOCHARMM_THROW(ApoCharmmErrorCode::InvalidArgument,
                     "Force is not subscribed to this ForceManager");
-
-    return;
   }
 
   void unsubscribe(const std::string &forceTag) {
+    APOCHARMM_REQUIRE(!forceTag.empty(), ApoCharmmErrorCode::InvalidArgument,
+                      "Force tag must not be empty");
+
     for (std::size_t i = 0; i < m_ForceTags.size(); i++) {
       if (m_ForceTags[i] == forceTag) {
         m_ForcePtrs.erase(m_ForcePtrs.begin() + i);
@@ -515,10 +516,12 @@ public:
         m_ForceStreams.erase(m_ForceStreams.begin() + i);
         m_ForceValues.erase(m_ForceValues.begin() + i);
         m_EnergyVirials.erase(m_EnergyVirials.begin() + i);
-        break;
+        return;
       }
     }
-    return;
+
+    APOCHARMM_THROW(ApoCharmmErrorCode::InvalidArgument,
+                    "Force tag is not subscribed to this ForceManager");
   }
 
   virtual CudaContainer<double>
@@ -546,6 +549,7 @@ protected:
   void checkBoxDimensions(const std::vector<double> &boxDimensions);
 
 private:
+  void checkInitialized(void) const;
   void dealloc(void) noexcept;
 
 protected:
@@ -708,7 +712,7 @@ protected:
    */
   bool m_ClearGraphCreated;
   cudaGraph_t m_ClearGraph;
-  cudaGraphExec_t m_CleargraphInstance;
+  cudaGraphExec_t m_ClearGraphInstance;
 
   std::vector<std::shared_ptr<void>> m_ForcePtrs;
   std::vector<ForceView> m_ForceViews;

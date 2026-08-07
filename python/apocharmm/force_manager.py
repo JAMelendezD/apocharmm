@@ -14,7 +14,7 @@ from typing import Protocol, cast
 from ._base import _ApoObject
 from ._lib import lib
 from .enums import PeriodicBoundaryCondition, VdwType
-from .error import check_status
+from .error import configure_status_function
 
 from .charmm_parameters import CharmmParameters
 from .charmm_psf import CharmmPsf
@@ -38,136 +38,146 @@ def _initialize_prototypes() -> None:
     if _prototypes_initialized:
         return
 
-    lib().apo_force_manager_create.argtypes = [
-        ctypes.POINTER(ctypes.c_void_p),
-        ctypes.c_void_p,
-        ctypes.c_void_p,
-    ]
-    lib().apo_force_manager_create.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_create,
+        [ctypes.POINTER(ctypes.c_void_p), ctypes.c_void_p, ctypes.c_void_p],
+        "ForceManager construction",
+    )
 
     lib().apo_force_manager_destroy.argtypes = [ctypes.c_void_p]
     lib().apo_force_manager_destroy.restype = None
 
-    lib().apo_force_manager_set_box_dimensions.argtypes = [
-        ctypes.c_void_p,
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_size_t,
-    ]
-    lib().apo_force_manager_set_box_dimensions.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_set_box_dimensions,
+        [ctypes.c_void_p, ctypes.POINTER(ctypes.c_double), ctypes.c_size_t],
+        "ForceManager.setBoxDimensions(box_dimensions)",
+    )
 
-    lib().apo_force_manager_set_kappa.argtypes = [ctypes.c_void_p, ctypes.c_double]
-    lib().apo_force_manager_set_kappa.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_set_kappa,
+        [ctypes.c_void_p, ctypes.c_double],
+        "ForceManager.setKappa(kappa)",
+    )
 
-    lib().apo_force_manager_set_cutoff.argtypes = [ctypes.c_void_p, ctypes.c_double]
-    lib().apo_force_manager_set_cutoff.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_set_cutoff,
+        [ctypes.c_void_p, ctypes.c_double],
+        "ForceManager.setCutoff(cutoff)",
+    )
 
-    lib().apo_force_manager_set_ctonnb.argtypes = [ctypes.c_void_p, ctypes.c_double]
-    lib().apo_force_manager_set_ctonnb.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_set_ctonnb,
+        [ctypes.c_void_p, ctypes.c_double],
+        "ForceManager.setCtonnb(ctonnb)",
+    )
 
-    lib().apo_force_manager_set_ctofnb.argtypes = [ctypes.c_void_p, ctypes.c_double]
-    lib().apo_force_manager_set_ctofnb.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_set_ctofnb,
+        [ctypes.c_void_p, ctypes.c_double],
+        "ForceManager.setCtofnb",
+    )
 
-    lib().apo_force_manager_set_fft_grid.argtypes = [
-        ctypes.c_void_p,
-        ctypes.POINTER(ctypes.c_int),
-        ctypes.c_size_t,
-    ]
-    lib().apo_force_manager_set_fft_grid.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_set_fft_grid,
+        [ctypes.c_void_p, ctypes.POINTER(ctypes.c_int), ctypes.c_size_t],
+        "ForceManager.setFFTGrid(grid)",
+    )
 
-    lib().apo_force_manager_set_pme_spline_order.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_int,
-    ]
-    lib().apo_force_manager_set_pme_spline_order.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_set_pme_spline_order,
+        [ctypes.c_void_p, ctypes.c_int],
+        "ForceManager.setPmeSplineOrder(order)",
+    )
 
-    lib().apo_force_manager_set_periodic_boundary_condition.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_int,
-    ]
-    lib().apo_force_manager_set_periodic_boundary_condition.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_set_periodic_boundary_condition,
+        [ctypes.c_void_p, ctypes.c_int],
+        "ForceManager.setPeriodicBoundaryCondition(pbc)",
+    )
 
-    lib().apo_force_manager_set_vdw_type.argtypes = [ctypes.c_void_p, ctypes.c_int]
-    lib().apo_force_manager_set_vdw_type.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_set_vdw_type,
+        [ctypes.c_void_p, ctypes.c_int],
+        "ForceManager.setVdwType(vdw_type)",
+    )
 
-    lib().apo_force_manager_set_print_energy_decomposition.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_bool,
-    ]
-    lib().apo_force_manager_set_print_energy_decomposition.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_set_print_energy_decomposition,
+        [ctypes.c_void_p, ctypes.c_bool],
+        "ForceManager.setPrintEnergyDecomposition(flag)",
+    )
 
-    lib().apo_force_manager_get_num_atoms.argtypes = [
-        ctypes.POINTER(ctypes.c_size_t),
-        ctypes.c_void_p,
-    ]
-    lib().apo_force_manager_get_num_atoms.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_get_num_atoms,
+        [ctypes.POINTER(ctypes.c_int), ctypes.c_void_p],
+        "ForceManager.getNumAtoms()",
+    )
 
-    lib().apo_force_manager_is_initialized.argtypes = [
-        ctypes.POINTER(ctypes.c_bool),
-        ctypes.c_void_p,
-    ]
-    lib().apo_force_manager_is_initialized.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_is_initialized,
+        [ctypes.POINTER(ctypes.c_bool), ctypes.c_void_p],
+        "ForceManager.isInitialized()",
+    )
 
-    lib().apo_force_manager_get_box_dimensions.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_size_t,
-        ctypes.c_void_p,
-    ]
-    lib().apo_force_manager_get_box_dimensions.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_get_box_dimensions,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_size_t, ctypes.c_void_p],
+        "ForceManager.getBoxDimensions()",
+    )
 
-    lib().apo_force_manager_get_kappa.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_void_p,
-    ]
-    lib().apo_force_manager_get_kappa.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_get_kappa,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_void_p],
+        "ForceManager.getKappa()",
+    )
 
-    lib().apo_force_manager_get_cutoff.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_void_p,
-    ]
-    lib().apo_force_manager_get_cutoff.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_get_cutoff,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_void_p],
+        "ForceManager.getCutoff",
+    )
 
-    lib().apo_force_manager_get_ctonnb.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_void_p,
-    ]
-    lib().apo_force_manager_get_ctonnb.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_get_ctonnb,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_void_p],
+        "ForceManager.getCtonnb",
+    )
 
-    lib().apo_force_manager_get_ctofnb.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_void_p,
-    ]
-    lib().apo_force_manager_get_ctofnb.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_get_ctofnb,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_void_p],
+        "ForceManager.getCtofnb",
+    )
 
-    lib().apo_force_manager_get_fft_grid.argtypes = [
-        ctypes.POINTER(ctypes.c_int),
-        ctypes.c_size_t,
-        ctypes.c_void_p,
-    ]
-    lib().apo_force_manager_get_fft_grid.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_get_fft_grid,
+        [ctypes.POINTER(ctypes.c_int), ctypes.c_size_t, ctypes.c_void_p],
+        "ForceManager.getFFTGrid()",
+    )
 
-    lib().apo_force_manager_get_pme_spline_order.argtypes = [
-        ctypes.POINTER(ctypes.c_int),
-        ctypes.c_void_p,
-    ]
-    lib().apo_force_manager_get_pme_spline_order.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_get_pme_spline_order,
+        [ctypes.POINTER(ctypes.c_int), ctypes.c_void_p],
+        "ForceManager.getPmeSplineOrder()",
+    )
 
-    lib().apo_force_manager_get_periodic_boundary_condition.argtypes = [
-        ctypes.POINTER(ctypes.c_int),
-        ctypes.c_void_p,
-    ]
-    lib().apo_force_manager_get_periodic_boundary_condition.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_get_periodic_boundary_condition,
+        [ctypes.POINTER(ctypes.c_int), ctypes.c_void_p],
+        "ForceManager.getPeriodicBoundaryCondition()",
+    )
 
-    lib().apo_force_manager_get_vdw_type.argtypes = [
-        ctypes.POINTER(ctypes.c_int),
-        ctypes.c_void_p,
-    ]
-    lib().apo_force_manager_get_vdw_type.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_get_vdw_type,
+        [ctypes.POINTER(ctypes.c_int), ctypes.c_void_p],
+        "ForceManager.getVdwType()",
+    )
 
-    lib().apo_force_manager_is_composite.argtypes = [
-        ctypes.POINTER(ctypes.c_bool),
-        ctypes.c_void_p,
-    ]
-    lib().apo_force_manager_is_composite.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_is_composite,
+        [ctypes.POINTER(ctypes.c_bool), ctypes.c_void_p],
+        "ForceManager.isComposite()",
+    )
 
     _prototypes_initialized = True
 
@@ -189,11 +199,9 @@ class ForceManager(_ApoObject):
 
         handle = ctypes.c_void_p()
 
-        status = lib().apo_force_manager_create(
+        lib().apo_force_manager_create(
             ctypes.byref(handle), psf.handle, parameters.handle
         )
-
-        check_status(status, "ForceManager construction failed")
 
         if handle.value is None:
             raise RuntimeError(
@@ -301,11 +309,7 @@ class ForceManager(_ApoObject):
         c_buffer = c_buffer_type(*box_values)
         c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(len(box_values))
 
-        status = lib().apo_force_manager_set_box_dimensions(
-            self.handle, c_buffer, c_buffer_len
-        )
-
-        check_status(status, "ForceManager.setBoxDimensions(box_dimensions) failed")
+        lib().apo_force_manager_set_box_dimensions(self.handle, c_buffer, c_buffer_len)
 
         return
 
@@ -314,9 +318,7 @@ class ForceManager(_ApoObject):
 
         c_kappa: ctypes.c_double = ctypes.c_double(kappa)
 
-        status = lib().apo_force_manager_set_kappa(self.handle, c_kappa)
-
-        check_status(status, "ForceManager.setKappa(kappa) failed")
+        lib().apo_force_manager_set_kappa(self.handle, c_kappa)
 
         return
 
@@ -325,9 +327,7 @@ class ForceManager(_ApoObject):
 
         c_cutoff: ctypes.c_double = ctypes.c_double(cutoff)
 
-        status = lib().apo_force_manager_set_cutoff(self.handle, c_cutoff)
-
-        check_status(status, "ForceManager.setCutoff(cutoff) failed")
+        lib().apo_force_manager_set_cutoff(self.handle, c_cutoff)
 
         return
 
@@ -336,9 +336,7 @@ class ForceManager(_ApoObject):
 
         c_ctonnb: ctypes.c_double = ctypes.c_double(ctonnb)
 
-        status = lib().apo_force_manager_set_ctonnb(self.handle, c_ctonnb)
-
-        check_status(status, "ForceManager.setCtonnb(ctonnb) failed")
+        lib().apo_force_manager_set_ctonnb(self.handle, c_ctonnb)
 
         return
 
@@ -347,9 +345,7 @@ class ForceManager(_ApoObject):
 
         c_ctofnb: ctypes.c_double = ctypes.c_double(ctofnb)
 
-        status = lib().apo_force_manager_set_ctofnb(self.handle, c_ctofnb)
-
-        check_status(status, "ForceManager.setCtofnb(ctofnb) failed")
+        lib().apo_force_manager_set_ctofnb(self.handle, c_ctofnb)
 
         return
 
@@ -362,11 +358,7 @@ class ForceManager(_ApoObject):
         c_buffer = c_buffer_type(*grid_values)
         c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(len(grid_values))
 
-        status = lib().apo_force_manager_set_fft_grid(
-            self.handle, c_buffer, c_buffer_len
-        )
-
-        check_status(status, "ForceManager.setFFTGrid(grid) failed")
+        lib().apo_force_manager_set_fft_grid(self.handle, c_buffer, c_buffer_len)
 
         return
 
@@ -375,9 +367,7 @@ class ForceManager(_ApoObject):
 
         c_order: ctypes.c_int = ctypes.c_int(order)
 
-        status = lib().apo_force_manager_set_pme_spline_order(self.handle, c_order)
-
-        check_status(status, "ForceManager.setPmeSplineOrder(order) failed")
+        lib().apo_force_manager_set_pme_spline_order(self.handle, c_order)
 
         return
 
@@ -393,14 +383,7 @@ class ForceManager(_ApoObject):
 
         c_pbc: ctypes.c_int = ctypes.c_int(int(pbc_value))
 
-        status = lib().apo_force_manager_set_periodic_boundary_condition(
-            self.handle, c_pbc
-        )
-
-        check_status(
-            status,
-            "ForceManager.setPeriodicBoundaryCondition(pbc) failed",
-        )
+        lib().apo_force_manager_set_periodic_boundary_condition(self.handle, c_pbc)
 
         return
 
@@ -414,9 +397,7 @@ class ForceManager(_ApoObject):
 
         c_vdw_type: ctypes.c_int = ctypes.c_int(int(vdw_type_value))
 
-        status = lib().apo_force_manager_set_vdw_type(self.handle, c_vdw_type)
-
-        check_status(status, "ForceManager.setVdwType(vdw_type) failed")
+        lib().apo_force_manager_set_vdw_type(self.handle, c_vdw_type)
 
         return
 
@@ -425,24 +406,16 @@ class ForceManager(_ApoObject):
 
         c_flag: ctypes.c_bool = ctypes.c_bool(flag)
 
-        status = lib().apo_force_manager_set_print_energy_decomposition(
-            self.handle, c_flag
-        )
-
-        check_status(status, "ForceManager.setPrintEnergyDecomposition(flag) failed")
+        lib().apo_force_manager_set_print_energy_decomposition(self.handle, c_flag)
 
         return
 
     def getNumAtoms(self) -> int:
         _initialize_prototypes()
 
-        c_num_atoms: ctypes.c_size_t = ctypes.c_size_t()
+        c_num_atoms: ctypes.c_int = ctypes.c_int()
 
-        status = lib().apo_force_manager_get_num_atoms(
-            ctypes.byref(c_num_atoms), self.handle
-        )
-
-        check_status(status, "ForceManager.getNumAtoms() failed")
+        lib().apo_force_manager_get_num_atoms(ctypes.byref(c_num_atoms), self.handle)
 
         return int(c_num_atoms.value)
 
@@ -451,11 +424,7 @@ class ForceManager(_ApoObject):
 
         c_flag: ctypes.c_bool = ctypes.c_bool()
 
-        status = lib().apo_force_manager_is_initialized(
-            ctypes.byref(c_flag), self.handle
-        )
-
-        check_status(status, "ForceManager.isInitialized() failed")
+        lib().apo_force_manager_is_initialized(ctypes.byref(c_flag), self.handle)
 
         return bool(c_flag.value)
 
@@ -466,11 +435,7 @@ class ForceManager(_ApoObject):
         c_buffer = c_buffer_type()
         c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(3)
 
-        status = lib().apo_force_manager_get_box_dimensions(
-            c_buffer, c_buffer_len, self.handle
-        )
-
-        check_status(status, "ForceManager.getBoxDimensions() failed")
+        lib().apo_force_manager_get_box_dimensions(c_buffer, c_buffer_len, self.handle)
 
         return (float(c_buffer[0]), float(c_buffer[1]), float(c_buffer[2]))
 
@@ -479,9 +444,7 @@ class ForceManager(_ApoObject):
 
         c_kappa: ctypes.c_double = ctypes.c_double()
 
-        status = lib().apo_force_manager_get_kappa(ctypes.byref(c_kappa), self.handle)
-
-        check_status(status, "ForceManager.getKappa() failed")
+        lib().apo_force_manager_get_kappa(ctypes.byref(c_kappa), self.handle)
 
         return float(c_kappa.value)
 
@@ -490,9 +453,7 @@ class ForceManager(_ApoObject):
 
         c_cutoff: ctypes.c_double = ctypes.c_double()
 
-        status = lib().apo_force_manager_get_cutoff(ctypes.byref(c_cutoff), self.handle)
-
-        check_status(status, "ForceManager.getCutoff() failed")
+        lib().apo_force_manager_get_cutoff(ctypes.byref(c_cutoff), self.handle)
 
         return float(c_cutoff.value)
 
@@ -501,9 +462,7 @@ class ForceManager(_ApoObject):
 
         c_ctonnb: ctypes.c_double = ctypes.c_double()
 
-        status = lib().apo_force_manager_get_ctonnb(ctypes.byref(c_ctonnb), self.handle)
-
-        check_status(status, "ForceManager.getCtonnb() failed")
+        lib().apo_force_manager_get_ctonnb(ctypes.byref(c_ctonnb), self.handle)
 
         return float(c_ctonnb.value)
 
@@ -512,9 +471,7 @@ class ForceManager(_ApoObject):
 
         c_ctofnb: ctypes.c_double = ctypes.c_double()
 
-        status = lib().apo_force_manager_get_ctofnb(ctypes.byref(c_ctofnb), self.handle)
-
-        check_status(status, "ForceManager.getCtofnb() failed")
+        lib().apo_force_manager_get_ctofnb(ctypes.byref(c_ctofnb), self.handle)
 
         return float(c_ctofnb.value)
 
@@ -525,11 +482,7 @@ class ForceManager(_ApoObject):
         c_buffer = c_buffer_type()
         c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(3)
 
-        status = lib().apo_force_manager_get_fft_grid(
-            c_buffer, c_buffer_len, self.handle
-        )
-
-        check_status(status, "ForceManager.getFFTGrid() failed")
+        lib().apo_force_manager_get_fft_grid(c_buffer, c_buffer_len, self.handle)
 
         return (int(c_buffer[0]), int(c_buffer[1]), int(c_buffer[2]))
 
@@ -538,11 +491,7 @@ class ForceManager(_ApoObject):
 
         c_order: ctypes.c_int = ctypes.c_int()
 
-        status = lib().apo_force_manager_get_pme_spline_order(
-            ctypes.byref(c_order), self.handle
-        )
-
-        check_status(status, "ForceManager.getPmeSplineOrder() failed")
+        lib().apo_force_manager_get_pme_spline_order(ctypes.byref(c_order), self.handle)
 
         return float(c_order.value)
 
@@ -551,13 +500,8 @@ class ForceManager(_ApoObject):
 
         c_pbc = ctypes.c_int()
 
-        status = lib().apo_force_manager_get_periodic_boundary_condition(
+        lib().apo_force_manager_get_periodic_boundary_condition(
             ctypes.byref(c_pbc), self.handle
-        )
-
-        check_status(
-            status,
-            "ForceManager.getPeriodicBoundaryCondition() failed",
         )
 
         return PeriodicBoundaryCondition(c_pbc.value)
@@ -567,11 +511,7 @@ class ForceManager(_ApoObject):
 
         c_vdw_type: ctypes.c_int = ctypes.c_int()
 
-        status = lib().apo_force_manager_get_vdw_type(
-            ctypes.byref(c_vdw_type), self.handle
-        )
-
-        check_status(status, "ForceManager.getVdwType() failed")
+        lib().apo_force_manager_get_vdw_type(ctypes.byref(c_vdw_type), self.handle)
 
         return VdwType(c_vdw_type.value)
 
@@ -580,8 +520,6 @@ class ForceManager(_ApoObject):
 
         c_flag: ctypes.c_bool = ctypes.c_bool()
 
-        status = lib().apo_force_manager_is_composite(ctypes.byref(c_flag), self.handle)
-
-        check_status(status, "ForceManager.isComposite() failed")
+        lib().apo_force_manager_is_composite(ctypes.byref(c_flag), self.handle)
 
         return bool(c_flag.value)
