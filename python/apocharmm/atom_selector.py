@@ -13,7 +13,7 @@ from ._base import _ApoObject
 from ._lib import lib
 from .atom_selection import AtomSelection
 from .charmm_psf import CharmmPsf
-from .error import check_status
+from .error import configure_status_function
 
 _prototypes_initialized: bool = False
 
@@ -24,21 +24,20 @@ def _initialize_prototypes() -> None:
     if _prototypes_initialized:
         return
 
-    lib().apo_atom_selector_create.argtypes = [
-        ctypes.POINTER(ctypes.c_void_p),
-        ctypes.c_void_p,
-    ]
-    lib().apo_atom_selector_create.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_atom_selector_create,
+        [ctypes.POINTER(ctypes.c_void_p), ctypes.c_void_p],
+        "AtomSelector construction",
+    )
 
     lib().apo_atom_selector_destroy.argtypes = [ctypes.c_void_p]
     lib().apo_atom_selector_destroy.restype = None
 
-    lib().apo_atom_selector_select.argtypes = [
-        ctypes.POINTER(ctypes.c_void_p),
-        ctypes.c_void_p,
-        ctypes.c_char_p,
-    ]
-    lib().apo_atom_selector_select.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_atom_selector_select,
+        [ctypes.POINTER(ctypes.c_void_p), ctypes.c_void_p, ctypes.c_char_p],
+        "AtomSelector.select(selection_string)",
+    )
 
     _prototypes_initialized = True
 
@@ -57,9 +56,7 @@ class AtomSelector(_ApoObject):
 
         handle: ctypes.c_void_p = ctypes.c_void_p()
 
-        status = lib().apo_atom_selector_create(ctypes.byref(handle), psf.handle)
-
-        check_status(status, "AtomSelector construction failed")
+        lib().apo_atom_selector_create(ctypes.byref(handle), psf.handle)
 
         if handle.value is None:
             raise RuntimeError(
@@ -77,19 +74,14 @@ class AtomSelector(_ApoObject):
         if not isinstance(selection_string, str):
             raise TypeError("selection_string must be a str")
 
-        if selection_string == "":
-            raise ValueError("selection_string must not be empty")
-
         handle: ctypes.c_void_p = ctypes.c_void_p()
 
         encoded_selection: bytes = selection_string.encode("utf-8")
         c_selection_string: ctypes.c_char_p = ctypes.c_char_p(encoded_selection)
 
-        status = lib().apo_atom_selector_select(
+        lib().apo_atom_selector_select(
             ctypes.byref(handle), self.handle, c_selection_string
         )
-
-        check_status(status, "AtomSelector.select(selection_string) failed")
 
         if handle.value is None:
             raise RuntimeError(

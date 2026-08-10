@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -61,8 +62,8 @@ private:
   const SelectionToken &consumeSelectionValue(const std::string_view context);
   bool match(const SelectionTokenType type);
 
-  const std::string_view getFieldValue(const SelectionTokenType fieldTokenType,
-                                       const int atomIndex) const;
+  std::string getFieldValue(const SelectionTokenType fieldTokenType,
+                            const int atomIndex) const;
 
 private:
   void buildResidueIndex(void);
@@ -82,7 +83,7 @@ private:
   static const std::string_view getFieldName(const SelectionTokenType type);
 
 private:
-  void throwErrorAtCurrent(const std::string_view message) const;
+  [[noreturn]] void throwErrorAtCurrent(const std::string_view message) const;
 
 private:
   std::shared_ptr<const CharmmPSF> m_Psf;

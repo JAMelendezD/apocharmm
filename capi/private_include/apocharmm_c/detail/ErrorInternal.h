@@ -42,6 +42,23 @@ APOCHARMM_C_INTERNAL_TEST_API
 apo_status ensure_last_error(apo_status status,
                              const char *function_name) noexcept;
 
+inline apo_status
+status_from_error_code(const ApoCharmmErrorCode code) noexcept {
+  switch (code) {
+  case ApoCharmmErrorCode::InvalidArgument:
+    return APO_STATUS_INVALID_ARGUMENT;
+  case ApoCharmmErrorCode::Runtime:
+    return APO_STATUS_RUNTIME_ERROR;
+  case ApoCharmmErrorCode::Cuda:
+    return APO_STATUS_CUDA_ERROR;
+  case ApoCharmmErrorCode::NotInitialized:
+    return APO_STATUS_NOT_INITIALIZED;
+  case ApoCharmmErrorCode::NotImplemented:
+    return APO_STATUS_NOT_IMPLEMENTED;
+  }
+  return APO_STATUS_RUNTIME_ERROR;
+}
+
 template <typename Function>
 apo_status guard(Function &&function, const char *function_name) noexcept {
   clear_last_error();
@@ -54,27 +71,8 @@ apo_status guard(Function &&function, const char *function_name) noexcept {
 
     return ensure_last_error(status, function_name);
   } catch (const ApoCharmmError &e) {
-    apo_status status = APO_STATUS_RUNTIME_ERROR;
-
-    switch (e.getCode()) {
-    case ApoCharmmErrorCode::InvalidArgument:
-      status = APO_STATUS_INVALID_ARGUMENT;
-      break;
-    case ApoCharmmErrorCode::Runtime:
-      status = APO_STATUS_RUNTIME_ERROR;
-      break;
-    case ApoCharmmErrorCode::Cuda:
-      status = APO_STATUS_CUDA_ERROR;
-      break;
-    case ApoCharmmErrorCode::NotInitialized:
-      status = APO_STATUS_NOT_INITIALIZED;
-      break;
-    case ApoCharmmErrorCode::NotImplemented:
-      status = APO_STATUS_NOT_IMPLEMENTED;
-      break;
-    }
-
-    return set_last_error(status, function_name, e.what());
+    return set_last_error(status_from_error_code(e.getCode()), function_name,
+                          e.what());
   } catch (const std::invalid_argument &e) {
     return set_last_error(APO_STATUS_INVALID_ARGUMENT, function_name, e.what());
   } catch (const std::exception &e) {
@@ -87,12 +85,25 @@ apo_status guard(Function &&function, const char *function_name) noexcept {
 
 template <typename Function>
 void guard_destroy(Function &&function, const char *function_name) noexcept {
-  (void)guard(
-      [&function](void) -> apo_status {
-        function();
-        return APO_STATUS_OK;
-      },
-      function_name);
+  // JEG260810: A destroy function can be called implicitly by a
+  // language-runtime finalizer when the diagnostic from a preceding
+  // status-returning call is being consumed. Successful destruction must not
+  // clear that diagnostic.
+  try {
+    function();
+  } catch (const ApoCharmmError &e) {
+    (void)set_last_error(status_from_error_code(e.getCode()), function_name,
+                         e.what());
+  } catch (const std::invalid_argument &e) {
+    (void)set_last_error(APO_STATUS_INVALID_ARGUMENT, function_name, e.what());
+  } catch (const std::exception &e) {
+    (void)set_last_error(APO_STATUS_RUNTIME_ERROR, function_name, e.what());
+  } catch (...) {
+    (void)set_last_error(APO_STATUS_RUNTIME_ERROR, function_name,
+                         "Unknown C++ exception");
+  }
+
+  return;
 }
 
 } // namespace apocharmm_c

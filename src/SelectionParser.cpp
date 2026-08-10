@@ -10,11 +10,11 @@
 
 #include "SelectionParser.h"
 
+#include "ApoCharmmError.h"
 #include "str_utils.h"
 
 #include <algorithm>
 #include <cctype>
-#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -28,8 +28,13 @@ SelectionParser::SelectionParser(std::shared_ptr<const CharmmPSF> psf,
                                  std::vector<SelectionToken> tokens)
     : m_Psf(psf), m_Tokens(std::move(tokens)), m_Position(0), m_OperatorStack(),
       m_SelectionStack() {
-  if (m_Psf == nullptr)
-    throw std::invalid_argument("SelectionParser requires a non-null PSF");
+  APOCHARMM_REQUIRE(m_Psf != nullptr, ApoCharmmErrorCode::InvalidArgument,
+                    "SelectionParser requires a non-null PSF");
+
+  APOCHARMM_REQUIRE(m_Psf->getNumAtoms() >= 0,
+                    ApoCharmmErrorCode::NotInitialized,
+                    "CharmmPSF atom count is not initialized; observed " +
+                        std::to_string(m_Psf->getNumAtoms()));
 
   this->buildResidueIndex();
   this->buildGroupIndex();
@@ -97,8 +102,8 @@ AtomSelection SelectionParser::parse_impl(void) {
 
   this->reduceRemainingOperators();
 
-  if (m_SelectionStack.size() != 1)
-    throw std::runtime_error("Invalud atom selection expression");
+  APOCHARMM_REQUIRE(m_SelectionStack.size() == 1, ApoCharmmErrorCode::Runtime,
+                    "Internal parser error: Invalid atom selection expression");
 
   return std::move(m_SelectionStack.back());
 }
@@ -126,8 +131,6 @@ AtomSelection SelectionParser::readPrimarySelection(void) {
   }
 
   this->throwErrorAtCurrent("Expected a primary atom selection");
-
-  return AtomSelection(m_Psf->getNumAtoms(), AtomSelection::InitialValue::NONE);
 }
 
 AtomSelection SelectionParser::readAtomSelection(void) {
@@ -155,7 +158,7 @@ SelectionParser::makeFieldSelection(const SelectionTokenType fieldTokenType,
   AtomSelection selection(numAtoms, AtomSelection::InitialValue::NONE);
 
   for (int i = 0; i < numAtoms; i++) {
-    const std::string_view value = this->getFieldValue(fieldTokenType, i);
+    const std::string value = this->getFieldValue(fieldTokenType, i);
 
     if (SelectionParser::doSelectionPatternsMatch(value, fieldName) == true)
       selection.set(i);
@@ -178,7 +181,8 @@ SelectionParser::makeRangeSelection(const SelectionTokenType fieldTokenType,
 
     if ((SelectionParser::parseInteger(firstAtomNumber, firstText) == false) ||
         (SelectionParser::parseInteger(lastAtomNumber, lastText) == false)) {
-      throw std::runtime_error("BYNU range requires integer atom numbers");
+      APOCHARMM_THROW(ApoCharmmErrorCode::InvalidArgument,
+                      "BYNU range requires integer atom numbers");
     }
 
     if (firstAtomNumber > lastAtomNumber)
@@ -210,7 +214,7 @@ SelectionParser::makeRangeSelection(const SelectionTokenType fieldTokenType,
   const std::string highText = std::max(firstUpper, lastUpper);
 
   for (int i = 0; i < numAtoms; i++) {
-    const std::string_view value = this->getFieldValue(fieldTokenType, i);
+    const std::string value = this->getFieldValue(fieldTokenType, i);
 
     if (isIntegerRange == true) {
       long long int valueInteger = 0;
@@ -247,8 +251,9 @@ SelectionParser::readFieldSelection(const SelectionTokenType fieldTokenType,
 }
 
 AtomSelection SelectionParser::popSelection(void) {
-  if (m_SelectionStack.empty() == true)
-    throw std::runtime_error("Expected an atom selection before operator");
+  APOCHARMM_REQUIRE(
+      !m_SelectionStack.empty(), ApoCharmmErrorCode::Runtime,
+      "Internal parser error: Expected an atom selection before operator");
 
   AtomSelection selection = std::move(m_SelectionStack.back());
   m_SelectionStack.pop_back();
@@ -260,10 +265,11 @@ AtomSelection
 SelectionParser::invertSelection(const AtomSelection &selection) const {
   const int numAtoms = m_Psf->getNumAtoms();
 
-  if (selection.getNumAtoms() != numAtoms) {
-    throw std::runtime_error(
-        "Cannot invert AtomSelection with wrong atom count");
-  }
+  APOCHARMM_REQUIRE(
+      selection.getNumAtoms() == numAtoms, ApoCharmmErrorCode::Runtime,
+      "Cannot invert AtomSelection with wrong atom count; expected " +
+          std::to_string(numAtoms) + ", observed " +
+          std::to_string(selection.getNumAtoms()));
 
   AtomSelection inverted(numAtoms, AtomSelection::InitialValue::NONE);
 
@@ -285,10 +291,10 @@ SelectionParser::expandByResidue(const AtomSelection &selection) const {
   for (const int i : selection.getAtomIndices()) {
     const int j = m_ResidueIndex[i];
 
-    if ((j < 0) || (j >= static_cast<int>(residues.size()))) {
-      throw std::runtime_error(
-          "Invalid residue index while expanding selection by residue");
-    }
+    APOCHARMM_REQUIRE(
+        (j >= 0) && (j < static_cast<int>(residues.size())),
+        ApoCharmmErrorCode::Runtime,
+        "Invalid residue index while expanding selection by residue");
 
     const int2 resi = residues[j];
 
@@ -309,10 +315,9 @@ SelectionParser::expandByGroup(const AtomSelection &selection) const {
   for (const int i : selection.getAtomIndices()) {
     const int j = m_GroupIndex[i];
 
-    if ((j < 0) || (j >= static_cast<int>(groups.size()))) {
-      throw std::runtime_error(
-          "Invalid group index while expanding selection by group");
-    }
+    APOCHARMM_REQUIRE((j >= 0) && (j < static_cast<int>(groups.size())),
+                      ApoCharmmErrorCode::Runtime,
+                      "Invalid group index while expanding selection by group");
 
     const int2 grp = groups[j];
 
@@ -330,10 +335,11 @@ SelectionParser::expandBonded(const AtomSelection &selection) const {
 
   const std::vector<std::set<int>> &connected12 = m_Psf->getConnected12();
 
-  if (static_cast<int>(connected12.size()) != m_Psf->getNumAtoms()) {
-    throw std::runtime_error("CharmmPSF bonded-connectivity array size does "
-                             "not match number of atoms");
-  }
+  APOCHARMM_REQUIRE(static_cast<int>(connected12.size()) ==
+                        m_Psf->getNumAtoms(),
+                    ApoCharmmErrorCode::Runtime,
+                    "CharmmPSF bonded-connectivity array size does not match "
+                    "number of atoms");
 
   for (const int i : selection.getAtomIndices()) {
     for (const int j : connected12[i])
@@ -344,8 +350,8 @@ SelectionParser::expandBonded(const AtomSelection &selection) const {
 }
 
 void SelectionParser::applyTopOperator(void) {
-  if (m_OperatorStack.empty() == true)
-    throw std::runtime_error("Internal parser error: Empty operator stack");
+  APOCHARMM_REQUIRE(!m_OperatorStack.empty(), ApoCharmmErrorCode::Runtime,
+                    "Internal parser error: Empty operator stack");
 
   const SelectionTokenType opType = m_OperatorStack.back();
   m_OperatorStack.pop_back();
@@ -404,14 +410,14 @@ void SelectionParser::applyTopOperator(void) {
   }
 
   case SelectionTokenType::LeftParenthesis:
-    throw std::runtime_error("Internal parser error: Tried to apply '('");
+    APOCHARMM_THROW(ApoCharmmErrorCode::Runtime,
+                    "Internal parser error: Tried to apply '('");
 
   default:
-    throw std::runtime_error(
+    APOCHARMM_THROW(
+        ApoCharmmErrorCode::Runtime,
         "Internal parser error: Tried to apply a non-operator token");
   }
-
-  return;
 }
 
 void SelectionParser::applyPendingPrefixOperators(void) {
@@ -456,8 +462,10 @@ void SelectionParser::reduceUntilLeftParenthesis(void) {
 
 void SelectionParser::reduceRemainingOperators(void) {
   while (m_OperatorStack.empty() == false) {
-    if (m_OperatorStack.back() == SelectionTokenType::LeftParenthesis)
-      throw std::runtime_error("Found '(' without matching ')'");
+    if (m_OperatorStack.back() == SelectionTokenType::LeftParenthesis) {
+      APOCHARMM_THROW(ApoCharmmErrorCode::InvalidArgument,
+                      "Found '(' without matching ')'");
+    }
 
     this->applyTopOperator();
   }
@@ -466,10 +474,9 @@ void SelectionParser::reduceRemainingOperators(void) {
 }
 
 const SelectionToken &SelectionParser::peek(void) const {
-  if (m_Position >= m_Tokens.size()) {
-    throw std::runtime_error(
-        "Internal parser error: Token position is out of range");
-  }
+  APOCHARMM_REQUIRE(m_Position < m_Tokens.size(), ApoCharmmErrorCode::Runtime,
+                    "Internal parser error: Token position is out of range");
+
   return m_Tokens[m_Position];
 }
 
@@ -498,7 +505,7 @@ bool SelectionParser::match(const SelectionTokenType type) {
   return true;
 }
 
-const std::string_view
+std::string
 SelectionParser::getFieldValue(const SelectionTokenType fieldTokenType,
                                const int atomIndex) const {
   switch (fieldTokenType) {
@@ -523,7 +530,8 @@ SelectionParser::getFieldValue(const SelectionTokenType fieldTokenType,
     return std::to_string(atomIndex + 1);
 
   default:
-    throw std::runtime_error(
+    APOCHARMM_THROW(
+        ApoCharmmErrorCode::Runtime,
         "Internal parser error: Token is not a field selection token");
   }
 }
@@ -538,8 +546,9 @@ void SelectionParser::buildResidueIndex(void) {
   for (std::size_t i = 0; i < residues.size(); i++) {
     const int2 resi = residues[i];
 
-    if ((resi.x < 0) || (resi.y < resi.x) || (resi.y >= numAtoms))
-      throw std::runtime_error("Residue atom range is out of bounds");
+    APOCHARMM_REQUIRE(
+        (resi.x >= 0) && (resi.y >= resi.x) && (resi.y < numAtoms),
+        ApoCharmmErrorCode::Runtime, "Residue atom range is out of bounds");
 
     for (int j = resi.x; j <= resi.y; j++)
       m_ResidueIndex[j] = static_cast<int>(i);
@@ -558,8 +567,9 @@ void SelectionParser::buildGroupIndex(void) {
   for (std::size_t i = 0; i < groups.size(); i++) {
     const int2 grp = groups[i];
 
-    if ((grp.x < 0) || (grp.y < grp.x) || (grp.y >= numAtoms))
-      throw std::runtime_error("Group atom range is out of bounds");
+    APOCHARMM_REQUIRE((grp.x >= 0) && (grp.y >= grp.x) && (grp.y < numAtoms),
+                      ApoCharmmErrorCode::Runtime,
+                      "Group atom range is out of bounds");
 
     for (int j = grp.x; j <= grp.y; j++)
       m_GroupIndex[j] = static_cast<int>(i);
@@ -738,14 +748,15 @@ SelectionParser::getFieldName(const SelectionTokenType type) {
     return "bynu";
 
   default:
-    throw std::runtime_error(
+    APOCHARMM_THROW(
+        ApoCharmmErrorCode::Runtime,
         "Internal parser error: Token is not a field selection token");
   }
 }
 
-void SelectionParser::throwErrorAtCurrent(
-    const std::string_view message) const {
-  throw std::runtime_error(std::string{message} + " at position " +
-                           std::to_string(this->peek().pos));
-  return;
+[[noreturn]] void
+SelectionParser::throwErrorAtCurrent(const std::string_view message) const {
+  APOCHARMM_THROW(ApoCharmmErrorCode::InvalidArgument,
+                  std::string{message} + " at position " +
+                      std::to_string(this->peek().pos));
 }

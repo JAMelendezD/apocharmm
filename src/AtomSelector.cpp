@@ -10,20 +10,26 @@
 
 #include "AtomSelector.h"
 
+#include "ApoCharmmError.h"
 #include "SelectionParser.h"
 #include "SelectionTokenizer.h"
 
-#include <stdexcept>
+#include <string>
 #include <utility>
 #include <vector>
 
-AtomSelector::AtomSelector(std::shared_ptr<const CharmmPSF> psf) : m_Psf(psf) {}
+AtomSelector::AtomSelector(std::shared_ptr<const CharmmPSF> psf) : m_Psf(psf) {
+  APOCHARMM_REQUIRE(m_Psf != nullptr, ApoCharmmErrorCode::InvalidArgument,
+                    "AtomSelector requires a non-null PSF");
+
+  APOCHARMM_REQUIRE(m_Psf->getNumAtoms() >= 0,
+                    ApoCharmmErrorCode::NotInitialized,
+                    "CharmmPSF atom count is not initialized; observed " +
+                        std::to_string(m_Psf->getNumAtoms()));
+}
 
 AtomSelection
 AtomSelector::select(const std::string_view selectionString) const {
-  if (m_Psf == nullptr)
-    throw std::runtime_error("AtomSelector does not have a PSF");
-
   std::vector<SelectionToken> tokens =
       SelectionTokenizer::tokenize(selectionString);
 

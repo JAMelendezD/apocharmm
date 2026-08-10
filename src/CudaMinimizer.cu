@@ -207,7 +207,6 @@ void CudaMinimizer::minimize(int numSteps) {
     cudaMalloc(&d_forceNorm, sizeof(double));
 
     for (int iter = 0; iter < numSteps; ++iter) {
-
       verboseFlag = true;
       if (verboseFlag) {
         std::cout << "Iter : " << iter // << " stepSize : " << stepSize

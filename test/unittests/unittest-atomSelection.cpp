@@ -12,12 +12,18 @@
 #include "AtomSelection.h"
 #include "AtomSelector.h"
 #include "CharmmPSF.h"
+#include "SelectionParser.h"
+#include "SelectionToken.h"
 #include "apo_test_helpers.h"
 #include "catch.hpp"
 
+#include <cstddef>
 #include <limits>
+#include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -49,6 +55,12 @@ const std::string TEST_PSF_TEXT = R"PSF(PSF
        0 !NACC: acceptors
        0 !NCRTERM: cross-terms
 )PSF";
+
+std::shared_ptr<CharmmPSF> MakePsfWithAtomCount(const int numAtoms) {
+  auto psf = std::make_shared<CharmmPSF>();
+  psf->setNumAtoms(numAtoms);
+  return psf;
+}
 
 void CheckSelection(const AtomSelection &selection, const int numAtoms,
                     const std::vector<int> &expectedIndices) {
@@ -303,21 +315,184 @@ TEST_CASE("AtomSelectorSelectionLanguage") {
     CheckSelection(selector.select(".bonded. bynum 8"), 10, {8, 9});
   }
 
-  SECTION("InvalidSelectionsThrow") {
-    CHECK_THROWS(selector.select(""));
-    CHECK_THROWS(selector.select(".and. type CA"));
-    CHECK_THROWS(selector.select("type CA resn ALA"));
-    CHECK_THROWS(selector.select("(type CA .or. type N"));
-    CHECK_THROWS(selector.select("type CA .or."));
-    CHECK_THROWS(selector.select("bynu A:C"));
-    CHECK_THROWS(selector.select(".around. type CA"));
+  SECTION("InvalidSelectionsThrowApoCharmmError") {
+    apo_test::CheckApoCharmmError(
+        [&selector]() -> void { (void)selector.select(""); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Selection ended while expecting an atom selection at position 0");
+
+    apo_test::CheckApoCharmmError(
+        [&selector]() -> void { (void)selector.select(".and. type CA"); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Expected an atom selection at position 0");
+
+    apo_test::CheckApoCharmmError(
+        [&selector]() -> void { (void)selector.select("type CA resn ALA"); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Expected .AND., .OR., ')', or end of selection at position 8");
+
+    apo_test::CheckApoCharmmError(
+        [&selector]() -> void {
+          (void)selector.select("(type CA .or. type N");
+        },
+        ApoCharmmErrorCode::InvalidArgument, "Found '(' without matching ')'");
+
+    apo_test::CheckApoCharmmError(
+        [&selector]() -> void { (void)selector.select("type CA .or."); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Selection ended while expecting an atom selection at position 12");
+
+    apo_test::CheckApoCharmmError(
+        [&selector]() -> void { (void)selector.select("type"); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Expected selection value after type at position 4");
+
+    apo_test::CheckApoCharmmError(
+        [&selector]() -> void { (void)selector.select("all)"); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Found ')' without matching '(' at position 3");
+
+    apo_test::CheckApoCharmmError(
+        [&selector]() -> void { (void)selector.select("bynu A:C"); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "BYNU range requires integer atom numbers");
+
+    apo_test::CheckApoCharmmError(
+        [&selector]() -> void { (void)selector.select(".around. type CA"); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Unknown dotted atom selection operator \".around.\"");
+
+    apo_test::CheckApoCharmmError(
+        [&selector]() -> void { (void)selector.select("."); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Unterminated dotted selection operator at position 0");
+
+    const std::string selectionWithControlCharacter("type CA\0", 8);
+    const std::string_view selectionView(selectionWithControlCharacter.data(),
+                                         selectionWithControlCharacter.size());
+
+    apo_test::CheckApoCharmmError(
+        [&selector, selectionView]() -> void {
+          (void)selector.select(selectionView);
+        },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Unexpected character in atom selection at position 7");
   }
 
   apo_test::RemoveIfExists(fileName);
 }
 
-TEST_CASE("AtomSelectorRejectsNullPSF") {
-  AtomSelector selector(nullptr);
+TEST_CASE("AtomSelectorRejectsInvalidPsf") {
+  SECTION("NullPsf") {
+    apo_test::CheckApoCharmmError([]() -> void { (void)AtomSelector(nullptr); },
+                                  ApoCharmmErrorCode::InvalidArgument,
+                                  "AtomSelector requires a non-null PSF");
+  }
 
-  CHECK_THROWS_AS(selector.select("all"), std::runtime_error);
+  SECTION("UninitializedPsf") {
+    auto psf = std::make_shared<CharmmPSF>();
+
+    apo_test::CheckApoCharmmError(
+        [psf]() -> void { (void)AtomSelector(psf); },
+        ApoCharmmErrorCode::NotInitialized,
+        "CharmmPSF atom count is not initialized; observed -1");
+  }
+}
+
+TEST_CASE("SelectionParserRejectsInvalidInputs") {
+  SECTION("NullPsf") {
+    std::shared_ptr<const CharmmPSF> psf = nullptr;
+    std::vector<SelectionToken> tokens{
+        SelectionToken{SelectionTokenType::End, "", 0}};
+
+    apo_test::CheckApoCharmmError(
+        [psf, tokens]() mutable -> void {
+          (void)SelectionParser::parse(psf, std::move(tokens));
+        },
+        ApoCharmmErrorCode::InvalidArgument,
+        "SelectionParser requires a non-null PSF");
+  }
+
+  SECTION("UninitializedPsf") {
+    auto psf = std::make_shared<CharmmPSF>();
+    std::vector<SelectionToken> tokens{
+        SelectionToken{SelectionTokenType::End, "", 0}};
+
+    apo_test::CheckApoCharmmError(
+        [psf, tokens]() mutable -> void {
+          (void)SelectionParser::parse(psf, std::move(tokens));
+        },
+        ApoCharmmErrorCode::NotInitialized,
+        "CharmmPSF atom count is not initialized; observed -1");
+  }
+
+  SECTION("MissingEndToken") {
+    auto psf = MakePsfWithAtomCount(0);
+
+    apo_test::CheckApoCharmmError(
+        [psf]() -> void {
+          (void)SelectionParser::parse(psf, std::vector<SelectionToken>{});
+        },
+        ApoCharmmErrorCode::Runtime,
+        "Internal parser error: Token position is out of range");
+  }
+}
+
+TEST_CASE("AtomSelectorRejectsMalformedPsfState") {
+  SECTION("ResidueRangeOutOfBounds") {
+    auto psf = MakePsfWithAtomCount(2);
+    psf->getResidues().getHostArray().push_back(int2{0, 2});
+
+    AtomSelector selector(psf);
+
+    apo_test::CheckApoCharmmError(
+        [&selector]() -> void { (void)selector.select("all"); },
+        ApoCharmmErrorCode::Runtime, "Residue atom range is out of bounds");
+  }
+
+  SECTION("GroupRangeOutOfBounds") {
+    auto psf = MakePsfWithAtomCount(2);
+    psf->getGroups().getHostArray().push_back(int2{0, 2});
+
+    AtomSelector selector(psf);
+
+    apo_test::CheckApoCharmmError(
+        [&selector]() -> void { (void)selector.select("all"); },
+        ApoCharmmErrorCode::Runtime, "Group atom range is out of bounds");
+  }
+
+  SECTION("MissingResidueMapping") {
+    auto psf = MakePsfWithAtomCount(2);
+    psf->getResidues().getHostArray().push_back(int2{0, 0});
+
+    AtomSelector selector(psf);
+
+    apo_test::CheckApoCharmmError(
+        [&selector]() -> void { (void)selector.select(".byres. bynu 2"); },
+        ApoCharmmErrorCode::Runtime,
+        "Invalid residue index while expanding selection by residue");
+  }
+
+  SECTION("MissingGroupMapping") {
+    auto psf = MakePsfWithAtomCount(2);
+    psf->getGroups().getHostArray().push_back(int2{0, 0});
+
+    AtomSelector selector(psf);
+
+    apo_test::CheckApoCharmmError(
+        [&selector]() -> void { (void)selector.select(".bygroup. bynu 2"); },
+        ApoCharmmErrorCode::Runtime,
+        "Invalid group index while expanding selection by group");
+  }
+
+  SECTION("BondedConnectivitySizeMismatch") {
+    auto psf = MakePsfWithAtomCount(2);
+    AtomSelector selector(psf);
+
+    apo_test::CheckApoCharmmError(
+        [&selector]() -> void { (void)selector.select(".bonded. bynu 1"); },
+        ApoCharmmErrorCode::Runtime,
+        "CharmmPSF bonded-connectivity array size does not match number of "
+        "atoms");
+  }
 }

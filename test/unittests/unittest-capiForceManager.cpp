@@ -652,7 +652,7 @@ TEST_CASE("CapiForceManagerMapsNotInitializedAndRuntimeErrors") {
       "value");
 }
 
-TEST_CASE("CapiForceManagerClearsStaleErrorsAndDestroysWithoutThrowing") {
+TEST_CASE("CapiForceManagerClearsStaleErrorsAndDestroyPreservesDiagnostic") {
   ForceManagerInputs inputs;
   ForceManagerHandle forceManager = MakeForceManager(inputs);
 
@@ -665,12 +665,14 @@ TEST_CASE("CapiForceManagerClearsStaleErrorsAndDestroysWithoutThrowing") {
 
   CHECK(apo_force_manager_set_cutoff(forceManager.get(), 0.0) ==
         APO_STATUS_INVALID_ARGUMENT);
-  CHECK(std::string(apo_last_error()).empty() == false);
+
+  const std::string cutoffDiagnostic(apo_last_error());
+  REQUIRE(cutoffDiagnostic.empty() == false);
 
   apo_force_manager *rawForceManager = forceManager.release();
   CHECK_NOTHROW(apo_force_manager_destroy(rawForceManager));
-  CHECK(std::string(apo_last_error()).empty() == true);
+  CHECK(std::string(apo_last_error()) == cutoffDiagnostic);
 
   CHECK_NOTHROW(apo_force_manager_destroy(nullptr));
-  CHECK(std::string(apo_last_error()).empty() == true);
+  CHECK(std::string(apo_last_error()) == cutoffDiagnostic);
 }

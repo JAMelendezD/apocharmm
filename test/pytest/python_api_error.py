@@ -231,40 +231,72 @@ def check_python_and_native_failures(repo_root: Path) -> None:
     )
     assert_equal("Python type-check exception type", type(type_error), TypeError)
 
-    value_error = expect_exception(
-        "AtomSelector.select preserves Python ValueError",
-        ValueError,
+    empty_selection_error: apo.ApoCharmmError = expect_exception(
+        "AtomSelector.select maps an empty selection to invalid argument",
+        apo.ApoCharmmError,
         lambda: selector.select(""),
     )
-    assert_equal("Python value-check exception type", type(value_error), ValueError)
+    assert_equal(
+        "empty selection exception type",
+        type(empty_selection_error),
+        apo.ApoCharmmError,
+    )
+    assert_equal(
+        "empty selection numeric status",
+        empty_selection_error.status,
+        apo.APO_STATUS_INVALID_ARGUMENT,
+    )
+    assert_equal(
+        "empty selection status name",
+        empty_selection_error.status_name,
+        "APO_STATUS_INVALID_ARGUMENT",
+    )
+    assert_equal(
+        "empty selection context",
+        empty_selection_error.context,
+        "AtomSelector.select(selection_string)",
+    )
+    assert_equal(
+        "empty selection native diagnostic",
+        empty_selection_error.native_diagnostic,
+        "apo_atom_selector_select: selection_string is NULL or empty",
+    )
 
-    runtime_error = expect_exception(
-        "AtomSelector.select maps a native runtime failure",
+    invalid_range_error: apo.ApoCharmmError = expect_exception(
+        "AtomSelector.select maps an invalid BYNU range to invalid argument",
         apo.ApoCharmmError,
         lambda: selector.select("bynu A:C"),
     )
     assert_equal(
-        "native runtime exception type", type(runtime_error), apo.ApoCharmmError
+        "invalid BYNU range exception type",
+        type(invalid_range_error),
+        apo.ApoCharmmError,
     )
     assert_equal(
-        "native runtime numeric status",
-        runtime_error.status,
-        apo.APO_STATUS_RUNTIME_ERROR,
+        "invalid BYNU range numeric status",
+        invalid_range_error.status,
+        apo.APO_STATUS_INVALID_ARGUMENT,
     )
     assert_equal(
-        "native runtime status name",
-        runtime_error.status_name,
-        "APO_STATUS_RUNTIME_ERROR",
+        "invalid BYNU range status name",
+        invalid_range_error.status_name,
+        "APO_STATUS_INVALID_ARGUMENT",
     )
     assert_equal(
-        "native runtime context",
-        runtime_error.context,
-        "AtomSelector.select(selection_string) failed",
+        "invalid BYNU range context",
+        invalid_range_error.context,
+        "AtomSelector.select(selection_string)",
     )
     assert_equal(
-        "native runtime diagnostic",
-        runtime_error.native_diagnostic,
-        "apo_atom_selector_select: BYNU range requires integer atom numbers",
+        "invalid BYNU range diagnostic contains raw message",
+        "BYNU range requires integer atom numbers"
+        in invalid_range_error.native_diagnostic,
+        True,
+    )
+    assert_equal(
+        "invalid BYNU range rendered failed text count",
+        invalid_range_error.message.count("failed"),
+        0,
     )
 
     invalid_argument_error = expect_exception(

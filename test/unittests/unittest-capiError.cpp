@@ -336,15 +336,27 @@ TEST_CASE("CapiPublicFunctionRejectsInvalidPointerAndClearsOnRecovery") {
   CHECK(std::remove(PARAMETER_FILE) == 0);
 }
 
-TEST_CASE("CapiDestroyGuardDoesNotAllowExceptionsToEscape") {
-  CHECK_NOTHROW(apocharmm_c::guard_destroy(
-      [](void) { throw std::runtime_error("destroy failure"); },
-      "apo_test_destroy"));
+TEST_CASE("CapiDestroyGuardPreservesExistingDiagnosticAndCapturesFailures") {
+  const apo_status failedStatus = apocharmm_c::guard(
+      [](void) -> apo_status {
+        throw std::runtime_error("preceding operation failure");
+      },
+      "apo_test_preceding_operation");
 
-  CHECK_FALSE(std::string(apo_last_error()).empty());
+  REQUIRE(failedStatus == APO_STATUS_RUNTIME_ERROR);
+
+  const std::string precedingDiagnostic(apo_last_error());
+  REQUIRE(precedingDiagnostic ==
+          "apo_test_preceding_operation: preceding operation failure");
 
   CHECK_NOTHROW(
       apocharmm_c::guard_destroy([](void) {}, "apo_test_destroy_success"));
 
-  CHECK(std::string(apo_last_error()).empty());
+  CHECK(std::string(apo_last_error()) == precedingDiagnostic);
+
+  CHECK_NOTHROW(apocharmm_c::guard_destroy(
+      [](void) { throw std::runtime_error("destroy failure"); },
+      "apo_test_destroy"));
+
+  CHECK(std::string(apo_last_error()) == "apo_test_destroy: destroy failure");
 }

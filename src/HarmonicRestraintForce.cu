@@ -108,9 +108,9 @@ void HarmonicRestraintForce<AT, CT>::setForceConstants(
                         std::to_string(m_NumAtoms) + ", observed " +
                         std::to_string(forceConstants.size()));
 
-  m_ForceConstants.set(0.0);
+  const std::vector<int> selectedAtomIndices = m_Selection.getAtomIndices();
 
-  for (const int i : m_Selection.getAtomIndices()) {
+  for (const int i : selectedAtomIndices) {
     APOCHARMM_REQUIRE(
         std::isfinite(forceConstants[i]), ApoCharmmErrorCode::InvalidArgument,
         "Force constant at index " + std::to_string(i) +
@@ -121,9 +121,12 @@ void HarmonicRestraintForce<AT, CT>::setForceConstants(
                       "Force constant at index " + std::to_string(i) +
                           " must be non-negative; observed " +
                           std::to_string(forceConstants[i]));
-
-    m_ForceConstants[i] = forceConstants[i];
   }
+
+  m_ForceConstants.set(0.0);
+
+  for (const int i : selectedAtomIndices)
+    m_ForceConstants[i] = forceConstants[i];
 
   m_ForceConstants.transferToDevice();
 

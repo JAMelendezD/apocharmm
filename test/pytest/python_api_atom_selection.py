@@ -168,25 +168,56 @@ def check_validation(psf: apo.CharmmPsf, selector: apo.AtomSelector) -> None:
         TypeError,
         lambda: selector.select(1),
     )
-    expect_exception(
-        "AtomSelector.select rejects empty selection string",
-        ValueError,
-        lambda: selector.select(""),
-    )
+    invalid_selections: list[tuple[str, str]] = [
+        ("", "selection_string is NULL or empty"),
+        (".and. type CA", "Expected an atom selection at position 0"),
+        (
+            "type CA resn ALA",
+            "Expected .AND., .OR., ')', or end of selection at position 8",
+        ),
+        ("(type CA .or. type N", "Found '(' without matching ')'"),
+        (
+            "type CA .or.",
+            "Selection ended while expecting an atom selection at position 12",
+        ),
+        ("type", "Expected selection value after type at position 4"),
+        ("all)", "Found ')' without matching '(' at position 3"),
+        ("bynu A:C", "BYNU range requires integer atom numbers"),
+        (".", "Unterminated dotted selection operator at position 0"),
+    ]
 
-    for selection_string in (
-        ".and. type CA",
-        "type CA resn ALA",
-        "(type CA .or. type N",
-        "type CA .or.",
-        "bynu A:C",
-        ".around. type CA",
-    ):
-        expect_exception(
+    for selection_string, expected_diagnostic in invalid_selections:
+        expect_invalid_argument(
             f"AtomSelector reports invalid selection {selection_string!r}",
-            apo.ApoCharmmError,
             lambda selection_string=selection_string: selector.select(selection_string),
+            expected_diagnostic,
         )
+
+    selection_error: apo.ApoCharmmError = expect_invalid_argument(
+        "AtomSelector reports unknown dotted operator",
+        lambda: selector.select(".around. type CA"),
+        'Unknown dotted atom selection operator ".around."',
+    )
+    assert_equal(
+        "AtomSelector.select Python operation context",
+        selection_error.context,
+        "AtomSelector.select(selection_string)",
+    )
+    assert_equal(
+        "AtomSelector.select rendered context occurrence count",
+        selection_error.message.count(selection_error.context),
+        1,
+    )
+    assert_equal(
+        "AtomSelector.select rendered native function occurrence count",
+        selection_error.message.count("apo_atom_selector_select"),
+        1,
+    )
+    assert_equal(
+        "AtomSelector.select rendered failed text count",
+        selection_error.message.count("failed"),
+        0,
+    )
 
     selection: apo.AtomSelection = assert_selection(
         "validation selection", selector, "type CA", [1, 5]

@@ -8,11 +8,16 @@
 // ENDLICENSE
 
 #include "AtomSelection.h"
+#include "CharmmPSF.h"
 #include "apo_test_helpers.h"
 #include "apocharmm_c/AtomSelection.h"
+#include "apocharmm_c/AtomSelector.h"
+#include "apocharmm_c/CharmmPsf.h"
 #include "apocharmm_c/Error.h"
 #include "apocharmm_c/Status.h"
 #include "apocharmm_c/detail/AtomSelectionHandle.h"
+#include "apocharmm_c/detail/AtomSelectorHandle.h"
+#include "apocharmm_c/detail/CharmmPsfHandle.h"
 #include "catch.hpp"
 
 #include <cstddef>
@@ -42,6 +47,38 @@ AtomSelectionHandle MakeSelection(const int numAtoms,
     handle->object->set(atomIndex);
 
   return handle;
+}
+
+struct AtomSelectorDeleter {
+  void operator()(apo_atom_selector *selector) const noexcept {
+    apo_atom_selector_destroy(selector);
+    return;
+  }
+};
+
+struct CharmmPsfDeleter {
+  void operator()(apo_charmm_psf *psf) const noexcept {
+    apo_charmm_psf_destroy(psf);
+    return;
+  }
+};
+
+using AtomSelectorHandle =
+    std::unique_ptr<apo_atom_selector, AtomSelectorDeleter>;
+using CharmmPsfHandle = std::unique_ptr<apo_charmm_psf, CharmmPsfDeleter>;
+
+CharmmPsfHandle MakePsf(const int numAtoms) {
+  CharmmPsfHandle handle(new apo_charmm_psf());
+  handle->object = std::make_shared<CharmmPSF>();
+  handle->object->setNumAtoms(numAtoms);
+  return handle;
+}
+
+AtomSelectorHandle MakeSelector(const apo_charmm_psf *psf) {
+  apo_atom_selector *selector = nullptr;
+  REQUIRE(apo_atom_selector_create(&selector, psf) == APO_STATUS_OK);
+  REQUIRE(selector != nullptr);
+  return AtomSelectorHandle(selector);
 }
 
 } // namespace
@@ -226,5 +263,190 @@ TEST_CASE("CapiAtomSelectionDestroyIsNoexcept") {
   CHECK(std::string(apo_last_error()).empty() == true);
 
   CHECK_NOTHROW(apo_atom_selection_destroy(nullptr));
+  CHECK(std::string(apo_last_error()).empty() == true);
+}
+
+TEST_CASE("CapiAtomSelectorCreateAndSelect") {
+  CharmmPsfHandle psf = MakePsf(4);
+  AtomSelectorHandle selector = MakeSelector(psf.get());
+
+  apo_atom_selection *rawSelection = nullptr;
+  REQUIRE(apo_atom_selector_select(&rawSelection, selector.get(), "all") ==
+          APO_STATUS_OK);
+  REQUIRE(rawSelection != nullptr);
+
+  AtomSelectionHandle selection(rawSelection);
+
+  std::size_t numAtoms = 0;
+  REQUIRE(apo_atom_selection_get_num_atoms(&numAtoms, selection.get()) ==
+          APO_STATUS_OK);
+  CHECK(numAtoms == 4);
+
+  std::size_t numSelected = 0;
+  REQUIRE(apo_atom_selection_get_num_selected(&numSelected, selection.get()) ==
+          APO_STATUS_OK);
+  CHECK(numSelected == 4);
+
+  CHECK(std::string(apo_last_error()).empty() == true);
+}
+
+TEST_CASE("CapiAtomSelectorValidatesPointersAndStrings") {
+  SECTION("Create") {
+    CharmmPsfHandle psf = MakePsf(4);
+
+    apo_test::CheckStatusAndDiagnostic(
+        apo_atom_selector_create(nullptr, psf.get()),
+        APO_STATUS_INVALID_ARGUMENT,
+        "apo_atom_selector_create: out pointer is NULL");
+
+    apo_atom_selector staleSelector;
+    apo_atom_selector *selector = &staleSelector;
+
+    apo_test::CheckStatusAndDiagnostic(
+        apo_atom_selector_create(&selector, nullptr),
+        APO_STATUS_INVALID_ARGUMENT,
+        "apo_atom_selector_create: CharmmPsf is NULL");
+    CHECK(selector == nullptr);
+
+    apo_charmm_psf emptyPsf;
+    selector = &staleSelector;
+
+    apo_test::CheckStatusAndDiagnostic(
+        apo_atom_selector_create(&selector, &emptyPsf),
+        APO_STATUS_INVALID_ARGUMENT,
+        "apo_atom_selector_create: CharmmPsf object is NULL");
+    CHECK(selector == nullptr);
+  }
+
+  SECTION("Select") {
+    CharmmPsfHandle psf = MakePsf(4);
+    AtomSelectorHandle selector = MakeSelector(psf.get());
+
+    apo_test::CheckStatusAndDiagnostic(
+        apo_atom_selector_select(nullptr, selector.get(), "all"),
+        APO_STATUS_INVALID_ARGUMENT,
+        "apo_atom_selector_select: out pointer is NULL");
+
+    apo_atom_selection staleSelection;
+    apo_atom_selection *selection = &staleSelection;
+
+    apo_test::CheckStatusAndDiagnostic(
+        apo_atom_selector_select(&selection, nullptr, "all"),
+        APO_STATUS_INVALID_ARGUMENT,
+        "apo_atom_selector_select: AtomSelector is NULL");
+    CHECK(selection == nullptr);
+
+    apo_atom_selector emptySelector;
+    selection = &staleSelection;
+
+    apo_test::CheckStatusAndDiagnostic(
+        apo_atom_selector_select(&selection, &emptySelector, "all"),
+        APO_STATUS_INVALID_ARGUMENT,
+        "apo_atom_selector_select: AtomSelector object is NULL");
+    CHECK(selection == nullptr);
+
+    selection = &staleSelection;
+
+    apo_test::CheckStatusAndDiagnostic(
+        apo_atom_selector_select(&selection, selector.get(), nullptr),
+        APO_STATUS_INVALID_ARGUMENT,
+        "apo_atom_selector_select: selection_string is NULL or empty");
+    CHECK(selection == nullptr);
+
+    selection = &staleSelection;
+
+    apo_test::CheckStatusAndDiagnostic(
+        apo_atom_selector_select(&selection, selector.get(), ""),
+        APO_STATUS_INVALID_ARGUMENT,
+        "apo_atom_selector_select: selection_string is NULL or empty");
+    CHECK(selection == nullptr);
+  }
+}
+
+TEST_CASE("CapiAtomSelectorMapsNativeErrors") {
+  SECTION("NotInitialized") {
+    CharmmPsfHandle psf(new apo_charmm_psf());
+    psf->object = std::make_shared<CharmmPSF>();
+
+    apo_atom_selector *selector = nullptr;
+    apo_status status = APO_STATUS_OK;
+
+    CHECK_NOTHROW((status = apo_atom_selector_create(&selector, psf.get())));
+
+    apo_test::CheckNativeError(
+        status, APO_STATUS_NOT_INITIALIZED, "NotInitialized",
+        "apo_atom_selector_create",
+        "CharmmPSF atom count is not initialized; observed -1",
+        "src/AtomSelector.cpp", "AtomSelector");
+    CHECK(selector == nullptr);
+  }
+
+  SECTION("InvalidArgument") {
+    CharmmPsfHandle psf = MakePsf(2);
+    AtomSelectorHandle selector = MakeSelector(psf.get());
+
+    apo_atom_selection *selection = nullptr;
+    apo_status status = APO_STATUS_OK;
+
+    CHECK_NOTHROW((status = apo_atom_selector_select(&selection, selector.get(),
+                                                     ".around. type CA")));
+
+    apo_test::CheckNativeError(
+        status, APO_STATUS_INVALID_ARGUMENT, "InvalidArgument",
+        "apo_atom_selector_select",
+        "Unknown dotted atom selection operator \".around.\"",
+        "src/SelectionTokenizer.cpp", "getDottedTokenType");
+    CHECK(selection == nullptr);
+  }
+
+  SECTION("Runtime") {
+    CharmmPsfHandle psf = MakePsf(2);
+    AtomSelectorHandle selector = MakeSelector(psf.get());
+
+    apo_atom_selection *selection = nullptr;
+    apo_status status = APO_STATUS_OK;
+
+    CHECK_NOTHROW((status = apo_atom_selector_select(&selection, selector.get(),
+                                                     ".bonded. bynu 1")));
+
+    apo_test::CheckNativeError(
+        status, APO_STATUS_RUNTIME_ERROR, "Runtime", "apo_atom_selector_select",
+        "CharmmPSF bonded-connectivity array size does not match number of "
+        "atoms",
+        "src/SelectionParser.cpp", "expandBonded");
+    CHECK(selection == nullptr);
+  }
+}
+
+TEST_CASE("CapiAtomSelectorSuccessClearsStaleDiagnostic") {
+  CharmmPsfHandle psf = MakePsf(4);
+  AtomSelectorHandle selector = MakeSelector(psf.get());
+
+  apo_atom_selection *selection = nullptr;
+
+  REQUIRE(apo_atom_selector_select(&selection, selector.get(),
+                                   ".around. type CA") ==
+          APO_STATUS_INVALID_ARGUMENT);
+  REQUIRE(selection == nullptr);
+  REQUIRE(std::string(apo_last_error()).empty() == false);
+
+  REQUIRE(apo_atom_selector_select(&selection, selector.get(), "all") ==
+          APO_STATUS_OK);
+  REQUIRE(selection != nullptr);
+
+  AtomSelectionHandle selectionHandle(selection);
+
+  CHECK(std::string(apo_last_error()).empty() == true);
+}
+
+TEST_CASE("CapiAtomSelectorDestroyIsNoexcept") {
+  CharmmPsfHandle psf = MakePsf(4);
+  AtomSelectorHandle selector = MakeSelector(psf.get());
+  apo_atom_selector *const rawSelector = selector.release();
+
+  CHECK_NOTHROW(apo_atom_selector_destroy(rawSelector));
+  CHECK(std::string(apo_last_error()).empty() == true);
+
+  CHECK_NOTHROW(apo_atom_selector_destroy(nullptr));
   CHECK(std::string(apo_last_error()).empty() == true);
 }

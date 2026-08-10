@@ -10,11 +10,11 @@
 
 #include "SelectionTokenizer.h"
 
+#include "ApoCharmmError.h"
 #include "str_utils.h"
 
 #include <cctype>
 #include <cstddef>
-#include <stdexcept>
 #include <string>
 
 std::vector<SelectionToken>
@@ -49,9 +49,9 @@ SelectionTokenizer::tokenize(const std::string_view selectionString) {
       const std::size_t end = selectionString.find('.', start + 1);
 
       if (end == std::string::npos) {
-        throw std::runtime_error(
-            "Unterminated dotted selection operator at position " +
-            std::to_string(start));
+        APOCHARMM_THROW(ApoCharmmErrorCode::InvalidArgument,
+                        "Unterminated dotted selection operator at position " +
+                            std::to_string(start));
       }
 
       const std::string_view text =
@@ -72,9 +72,9 @@ SelectionTokenizer::tokenize(const std::string_view selectionString) {
     }
 
     if (start == pos) {
-      throw std::runtime_error(
-          "Unexpected character in atom selection at position " +
-          std::to_string(start));
+      APOCHARMM_THROW(ApoCharmmErrorCode::InvalidArgument,
+                      "Unexpected character in atom selection at position " +
+                          std::to_string(start));
     }
 
     const std::string_view text = selectionString.substr(start, pos - start);
@@ -90,7 +90,8 @@ SelectionTokenizer::tokenize(const std::string_view selectionString) {
 }
 
 bool SelectionTokenizer::isBareTokenCharacter(const char c) {
-  if (std::isspace(static_cast<unsigned char>(c)))
+  if (std::iscntrl(static_cast<unsigned char>(c)) ||
+      std::isspace(static_cast<unsigned char>(c)))
     return false;
   if ((c == '(') || (c == ')') || (c == ':'))
     return false;
@@ -186,8 +187,7 @@ SelectionTokenizer::getDottedTokenType(const std::string_view str) {
   if (upperStr == ".BONDED.")
     return SelectionTokenType::Bonded;
 
-  throw std::invalid_argument("Unknown dotted atom selection operator \"" +
-                              std::string{str} + "\"");
-
-  return SelectionTokenType::End;
+  APOCHARMM_THROW(ApoCharmmErrorCode::InvalidArgument,
+                  "Unknown dotted atom selection operator \"" +
+                      std::string{str} + "\"");
 }
