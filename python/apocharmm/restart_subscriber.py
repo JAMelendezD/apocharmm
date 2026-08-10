@@ -65,12 +65,8 @@ class RestartSubscriber(Subscriber):
             create_function_name: str = "apo_restart_subscriber_create"
             lib().apo_restart_subscriber_create(ctypes.byref(handle), c_path)
         else:
-            if (
-                isinstance(report_frequency, bool)
-                or report_frequency <= 0
-                or report_frequency > 2**31 - 1
-            ):
-                raise ValueError("report_frequency must fit in positive int")
+            if report_frequency < -(2**31) or report_frequency > 2**31 - 1:
+                raise ValueError("report_frequency must fit in int")
 
             c_report_frequency: ctypes.c_int = ctypes.c_int(report_frequency)
 

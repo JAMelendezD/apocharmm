@@ -67,8 +67,6 @@ void RestartSubscriber::update(void) {
       "RestartSubscriber supports only CudaNoseHooverIntegrator, "
       "CudaLangevinPistonIntegrator, and CudaLangevinThermostatIntegrator");
 
-  const std::vector<double> boxDimensions = m_CharmmContext->getBoxDimensions();
-
   APOCHARMM_REQUIRE(m_Integrator->getCharmmContext() != nullptr,
                     ApoCharmmErrorCode::NotInitialized,
                     "RestartSubscriber integrator has no CharmmContext");
@@ -77,6 +75,8 @@ void RestartSubscriber::update(void) {
                     ApoCharmmErrorCode::Runtime,
                     "RestartSubscriber CharmmContext does not match the "
                     "integrator CharmmContext");
+
+  const std::vector<double> boxDimensions = m_CharmmContext->getBoxDimensions();
 
   APOCHARMM_REQUIRE(
       (boxDimensions.size() == 3) && (boxDimensions[0] > 0.0) &&

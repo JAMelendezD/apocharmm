@@ -8,8 +8,10 @@
 //
 // ENDLICENSE
 
+#include "ApoCharmmError.h"
 #include "CudaIntegrator.h"
 #include "Subscriber.h"
+#include "apo_test_helpers.h"
 #include "catch.hpp"
 
 namespace {
@@ -105,12 +107,47 @@ TEST_CASE("CudaIntegratorBaseSubscriberManagement") {
   auto sub2 = std::make_shared<CountingSubscriber>(2);
   auto sub3 = std::make_shared<CountingSubscriber>(3);
 
+  SECTION("SubscribeNullSubscriberThrows") {
+    apo_test::CheckApoCharmmError([&]() { integrator->subscribe(nullptr); },
+                                  ApoCharmmErrorCode::InvalidArgument,
+                                  "Subscriber must not be null");
+
+    CHECK(integrator->getSubscribers().empty() == true);
+    CHECK(integrator->getReportFreqList().empty() == true);
+  }
+
+  SECTION("SubscribeRequiresSharedOwnership") {
+    CudaIntegrator stackIntegrator(TIME_STEP);
+
+    apo_test::CheckApoCharmmError(
+        [&]() { stackIntegrator.subscribe(sub2); },
+        ApoCharmmErrorCode::NotInitialized,
+        "CudaIntegrator must be owned by std::shared_ptr before subscribing");
+
+    CHECK(stackIntegrator.getSubscribers().empty() == true);
+    CHECK(stackIntegrator.getReportFreqList().empty() == true);
+  }
+
   SECTION("SubscribeSingleSubscriber") {
     integrator->subscribe(sub2);
 
     REQUIRE(integrator->getSubscribers().size() == 1);
     REQUIRE(integrator->getReportFreqList().size() == 1);
 
+    CHECK(integrator->getSubscribers()[0] == sub2);
+    CHECK(integrator->getReportFreqList()[0] == 2);
+  }
+
+  SECTION("SubscribeDuplicateSubscriberThrowsWithoutDuplicatingLists") {
+    integrator->subscribe(sub2);
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->subscribe(sub2); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Subscriber is already subscribed to this CudaIntegrator");
+
+    REQUIRE(integrator->getSubscribers().size() == 1);
+    REQUIRE(integrator->getReportFreqList().size() == 1);
     CHECK(integrator->getSubscribers()[0] == sub2);
     CHECK(integrator->getReportFreqList()[0] == 2);
   }
@@ -148,7 +185,18 @@ TEST_CASE("CudaIntegratorBaseSubscriberManagement") {
     CHECK(integrator->getReportFreqList().empty() == true);
   }
 
+  SECTION("UnsubscribeNullSubscriberThrows") {
+    apo_test::CheckApoCharmmError([&]() { integrator->unsubscribe(nullptr); },
+                                  ApoCharmmErrorCode::InvalidArgument,
+                                  "Subscriber must not be null");
+
+    CHECK(integrator->getSubscribers().empty() == true);
+    CHECK(integrator->getReportFreqList().empty() == true);
+  }
+
   SECTION("UnsubscribeMissingSubscriberThrows") {
-    CHECK_THROWS_AS(integrator->unsubscribe(sub2), std::invalid_argument);
+    apo_test::CheckApoCharmmError([&]() { integrator->unsubscribe(sub2); },
+                                  ApoCharmmErrorCode::InvalidArgument,
+                                  "Subscriber not found (file \"\")");
   }
 }

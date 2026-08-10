@@ -10,12 +10,14 @@
 
 #include "DcdSubscriber.h"
 
+#include "ApoCharmmError.h"
 #include "CharmmContext.h"
 #include "CudaIntegrator.h"
 
 #include <array>
 #include <cstddef>
 #include <fstream>
+#include <limits>
 #include <vector>
 
 DcdSubscriber::DcdSubscriber(const std::string &fileName)
@@ -31,16 +33,29 @@ DcdSubscriber::DcdSubscriber(const std::string &fileName,
   m_IsHeaderWritten = false;
 }
 
-// DcdSubscriber::DcdSubscriber(const std::string &fileName, int
-// reportFrequency,
-//                              std::shared_ptr<CharmmContext> ctx)
-//     : Subscriber(fileName, reportFrequency) {
-//   m_NumFramesWritten = 0;
-//   m_IsHeaderWritten = false;
-//   this->writeHeader();
-// }
-
 void DcdSubscriber::update(void) {
+  APOCHARMM_REQUIRE(!m_FileName.empty(), ApoCharmmErrorCode::NotInitialized,
+                    "DcdSubscriber requires an output file before update");
+
+  APOCHARMM_REQUIRE(m_CharmmContext != nullptr,
+                    ApoCharmmErrorCode::NotInitialized,
+                    "DcdSubscriber requires a CharmmContext before update");
+
+  APOCHARMM_REQUIRE(m_Integrator != nullptr, ApoCharmmErrorCode::NotInitialized,
+                    "DcdSubscriber requires an integrator before update");
+
+  APOCHARMM_REQUIRE(m_FileStream.is_open(), ApoCharmmErrorCode::Runtime,
+                    "DcdSubscriber output file is not open for writing: " +
+                        m_FileName);
+
+  const std::vector<double> boxDimensions = m_CharmmContext->getBoxDimensions();
+
+  APOCHARMM_REQUIRE(
+      (boxDimensions.size() == 3) && (boxDimensions[0] > 0.0) &&
+          (boxDimensions[1] > 0.0) && (boxDimensions[2] > 0.0),
+      ApoCharmmErrorCode::NotInitialized,
+      "DcdSubscriber requires three positive box dimensions before update");
+
   // Write header if needed
   if (!m_IsHeaderWritten)
     this->writeHeader();

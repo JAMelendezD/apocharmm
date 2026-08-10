@@ -10,6 +10,7 @@
 
 #include "CudaIntegrator.h"
 
+#include "ApoCharmmError.h"
 #include "Subscriber.h"
 #include "cuda_utils.h"
 
@@ -252,35 +253,51 @@ void CudaIntegrator::setNonbondedListUpdateFrequency(const int nfreq) {
 }
 
 void CudaIntegrator::subscribe(std::shared_ptr<Subscriber> sub) {
-  m_Subscribers.push_back(sub);
-  m_ReportFreqList.push_back(sub->getReportFrequency());
+  APOCHARMM_REQUIRE(sub != nullptr, ApoCharmmErrorCode::InvalidArgument,
+                    "Subscriber must not be null");
+
+  APOCHARMM_REQUIRE(std::find(m_Subscribers.begin(), m_Subscribers.end(),
+                              sub) == m_Subscribers.end(),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Subscriber is already subscribed to this CudaIntegrator");
+
+  const std::shared_ptr<CudaIntegrator> integrator =
+      this->weak_from_this().lock();
+  APOCHARMM_REQUIRE(
+      integrator != nullptr, ApoCharmmErrorCode::NotInitialized,
+      "CudaIntegrator must be owned by std::shared_ptr before subscribing");
+
   sub->setCharmmContext(m_Context);
 
   // JEG250610: Subscribers can query integrator for time step. We don't need N
   // copies floating around sub->setTimeStepFromIntegrator(m_TimeStep *
   // m_Timfac);
 
-  try {
-    sub->setIntegrator(this->shared_from_this());
-  } catch (const std::exception &e) {
-    std::cout << "Error : " << e.what() << '\n';
-  }
+  sub->setIntegrator(integrator);
+
+  m_Subscribers.push_back(sub);
+  m_ReportFreqList.push_back(sub->getReportFrequency());
+
+  return;
 }
 
 void CudaIntegrator::subscribe(
     const std::vector<std::shared_ptr<Subscriber>> &sublist) {
-  for (std::size_t i = 0; i < sublist.size(); i++) {
-    this->subscribe(sublist[i]);
-  }
+  for (std::shared_ptr<Subscriber> sub : sublist)
+    this->subscribe(sub);
+  return;
 }
 
 void CudaIntegrator::unsubscribe(std::shared_ptr<Subscriber> sub) {
-  auto subIterator = std::find(m_Subscribers.begin(), m_Subscribers.end(), sub);
+  APOCHARMM_REQUIRE(sub != nullptr, ApoCharmmErrorCode::InvalidArgument,
+                    "Subscriber must not be null");
 
-  if (subIterator == m_Subscribers.end()) {
-    throw std::invalid_argument("Subscriber not found (file \"" +
-                                sub->getFileName() + "\")");
-  }
+  const auto subIterator =
+      std::find(m_Subscribers.begin(), m_Subscribers.end(), sub);
+
+  APOCHARMM_REQUIRE(
+      subIterator != m_Subscribers.end(), ApoCharmmErrorCode::InvalidArgument,
+      "Subscriber not found (file \"" + sub->getFileName() + "\")");
 
   const std::size_t index = static_cast<std::size_t>(
       std::distance(m_Subscribers.begin(), subIterator));

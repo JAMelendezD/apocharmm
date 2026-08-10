@@ -15,6 +15,7 @@ set(PYTHON_API_TESTS
   python_api_atom_selection.py
 
   # Subscriber tests
+  python_api_subscriber.py
   python_api_dcd_subscriber.py
   python_api_restart_subscriber.py
 

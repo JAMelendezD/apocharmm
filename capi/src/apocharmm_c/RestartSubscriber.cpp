@@ -25,7 +25,7 @@ apo_restart_subscriber_create(apo_restart_subscriber **out, const char *path) {
                 out, function_name, "out"));
 
         APOCHARMM_C_RETURN_IF_ERROR(
-            apocharmm_c::require_c_string(path, function_name, "path"));
+            apocharmm_c::require_pointer<char>(path, function_name, "path"));
 
         std::unique_ptr<apo_restart_subscriber> handle(
             new apo_restart_subscriber());
@@ -52,10 +52,7 @@ extern "C" apo_status apo_restart_subscriber_create_with_report_frequency(
                 out, function_name, "out"));
 
         APOCHARMM_C_RETURN_IF_ERROR(
-            apocharmm_c::require_c_string(path, function_name, "path"));
-
-        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_positive_int(
-            report_frequency, function_name, "report_frequency"));
+            apocharmm_c::require_pointer<char>(path, function_name, "path"));
 
         std::unique_ptr<apo_restart_subscriber> handle(
             new apo_restart_subscriber());

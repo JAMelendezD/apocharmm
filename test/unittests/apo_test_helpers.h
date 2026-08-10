@@ -13,6 +13,8 @@
 #include "ApoCharmmError.h"
 #include "CudaContainer.h"
 #include "DeviceVector.h"
+#include "apocharmm_c/Error.h"
+#include "apocharmm_c/Status.h"
 #include "catch.hpp"
 #include "cuda_utils.h"
 
@@ -505,6 +507,44 @@ void CheckApoCharmmError(Function action, const ApoCharmmErrorCode expectedCode,
   }
 
   FAIL_CHECK("Expected ApoCharmmError, but no exception was thrown");
+
+  return;
+}
+
+void CheckStatusAndDiagnostic(const apo_status status,
+                              const apo_status expectedStatus,
+                              const std::string_view expectedDiagnostic) {
+  CHECK(status == expectedStatus);
+  CHECK(std::string(apo_last_error()) == expectedDiagnostic);
+  return;
+}
+
+void CheckNativeError(const apo_status status, const apo_status expectedStatus,
+                      const std::string_view expectedCodeName,
+                      const std::string_view functionName,
+                      const std::string_view expectedMessage,
+                      const std::string_view expectedSourceFile,
+                      const std::string_view expectedSourceFunction) {
+  CHECK(status == expectedStatus);
+
+  const std::string diagnostic(apo_last_error());
+  REQUIRE(diagnostic.empty() == false);
+
+  const std::string expectedPrefix = std::string(functionName) + ": ";
+  const std::string expectedError = "apoCHARMM error [" +
+                                    std::string(expectedCodeName) +
+                                    "]: " + std::string(expectedMessage);
+  const std::string expectedSource =
+      "  source: " + std::string(expectedSourceFile) + ':';
+  const std::string expectedFunction =
+      "  function: " + std::string(expectedSourceFunction);
+
+  CHECK(diagnostic.compare(0, expectedPrefix.size(), expectedPrefix) == 0);
+  CHECK(diagnostic.find(expectedError) != std::string::npos);
+  CHECK(diagnostic.find(expectedSource) != std::string::npos);
+  CHECK(diagnostic.find(expectedFunction) != std::string::npos);
+  CHECK(diagnostic.find("ERROR:") == std::string::npos);
+  CHECK(diagnostic.back() != '\n');
 
   return;
 }

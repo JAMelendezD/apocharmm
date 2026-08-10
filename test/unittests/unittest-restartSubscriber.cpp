@@ -338,43 +338,6 @@ void CheckLangevinPistonStateMatches(
   return;
 }
 
-void CheckRestartSubscriberUpdateError(RestartSubscriber &subscriber,
-                                       const ApoCharmmErrorCode expectedCode,
-                                       const std::string_view expectedMessage) {
-  const std::string_view expectedCodeName =
-      GetApoCharmmErrorCodeName(expectedCode);
-
-  INFO("Expected ApoCharmmError code: " << expectedCodeName);
-  INFO("Expected ApoCharmmError message: " << expectedMessage);
-
-  try {
-    subscriber.update();
-  } catch (const ApoCharmmError &error) {
-    INFO("Observed ApoCharmmError code: "
-         << GetApoCharmmErrorCodeName(error.getCode()));
-    INFO("Observed ApoCharmmError message: " << error.getMessage());
-    INFO("Observed ApoCharmmError source: " << error.getSourceFile() << ':'
-                                            << error.getSourceLine());
-    INFO("Observed ApoCharmmError function: " << error.getSourceFunction());
-
-    CHECK(error.getCode() == expectedCode);
-    CHECK(error.getMessage() == expectedMessage);
-    CHECK(error.getMessage().find("ERROR:") == std::string_view::npos);
-    CHECK((error.getMessage().empty() || error.getMessage().back() != '\n'));
-
-    return;
-  } catch (const std::exception &error) {
-    FAIL(
-        "Expected ApoCharmmError, but caught another std::exception\n  what(): "
-        << error.what());
-    return;
-  }
-
-  FAIL_CHECK("Expected ApoCharmmError, but no exception was thrown");
-
-  return;
-}
-
 } // namespace
 
 TEST_CASE("RestartSubscriberConstructionAndReportFrequency") {
@@ -416,9 +379,12 @@ TEST_CASE("RestartSubscriberConstructionAndReportFrequency") {
   }
 
   SECTION("RejectsMissingOutputDirectory") {
-    CHECK_THROWS_AS(
-        RestartSubscriber("missing_restart_subscriber_dir/output.rst"),
-        std::invalid_argument);
+    apo_test::CheckApoCharmmError(
+        []() {
+          RestartSubscriber("missing_restart_subscriber_dir/output.rst");
+        },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Output directory does not exist: missing_restart_subscriber_dir");
   }
 }
 
@@ -431,8 +397,8 @@ TEST_CASE("RestartSubscriberUpdateValidatesRequiredState") {
     rst.setCharmmContext(ctx);
     rst.setIntegrator(integrator);
 
-    CheckRestartSubscriberUpdateError(
-        rst, ApoCharmmErrorCode::NotInitialized,
+    apo_test::CheckApoCharmmError(
+        [&]() { rst.update(); }, ApoCharmmErrorCode::NotInitialized,
         "RestartSubscriber requires an output file before update");
   }
 
@@ -446,8 +412,8 @@ TEST_CASE("RestartSubscriberUpdateValidatesRequiredState") {
     RestartSubscriber rst(fileName, REPORT_FREQUENCY);
     rst.setIntegrator(integrator);
 
-    CheckRestartSubscriberUpdateError(
-        rst, ApoCharmmErrorCode::NotInitialized,
+    apo_test::CheckApoCharmmError(
+        [&]() { rst.update(); }, ApoCharmmErrorCode::NotInitialized,
         "RestartSubscriber requires a CharmmContext before update");
 
     apo_test::RemoveIfExists(fileName);
@@ -462,8 +428,8 @@ TEST_CASE("RestartSubscriberUpdateValidatesRequiredState") {
     RestartSubscriber rst(fileName, REPORT_FREQUENCY);
     rst.setCharmmContext(ctx);
 
-    CheckRestartSubscriberUpdateError(
-        rst, ApoCharmmErrorCode::NotInitialized,
+    apo_test::CheckApoCharmmError(
+        [&]() { rst.update(); }, ApoCharmmErrorCode::NotInitialized,
         "RestartSubscriber requires an integrator before update");
 
     apo_test::RemoveIfExists(fileName);
@@ -481,8 +447,8 @@ TEST_CASE("RestartSubscriberUpdateValidatesRequiredState") {
     rst.setCharmmContext(ctx);
     rst.setIntegrator(integrator);
 
-    CheckRestartSubscriberUpdateError(
-        rst, ApoCharmmErrorCode::NotInitialized,
+    apo_test::CheckApoCharmmError(
+        [&]() { rst.update(); }, ApoCharmmErrorCode::NotInitialized,
         "RestartSubscriber integrator has no CharmmContext");
 
     apo_test::RemoveIfExists(fileName);
@@ -501,9 +467,10 @@ TEST_CASE("RestartSubscriberUpdateValidatesRequiredState") {
     rst.setCharmmContext(ctx);
     rst.setIntegrator(integrator);
 
-    CheckRestartSubscriberUpdateError(rst, ApoCharmmErrorCode::Runtime,
-                                      "RestartSubscriber CharmmContext does "
-                                      "not match the integrator CharmmContext");
+    apo_test::CheckApoCharmmError([&]() { rst.update(); },
+                                  ApoCharmmErrorCode::Runtime,
+                                  "RestartSubscriber CharmmContext does not "
+                                  "match the integrator CharmmContext");
 
     apo_test::RemoveIfExists(fileName);
   }
@@ -520,10 +487,10 @@ TEST_CASE("RestartSubscriberUpdateValidatesRequiredState") {
     rst.setCharmmContext(ctx);
     rst.setIntegrator(integrator);
 
-    CheckRestartSubscriberUpdateError(
-        rst, ApoCharmmErrorCode::NotInitialized,
-        "RestartSubscriber requires three positive box dimensions before "
-        "update");
+    apo_test::CheckApoCharmmError([&]() { rst.update(); },
+                                  ApoCharmmErrorCode::NotInitialized,
+                                  "RestartSubscriber requires three positive "
+                                  "box dimensions before update");
 
     apo_test::RemoveIfExists(fileName);
   }
@@ -533,13 +500,15 @@ TEST_CASE("RestartSubscriberUpdateReportsOutputOpenFailure") {
   auto ctx = CreateContext(true);
   auto integrator = CreateNoseHooverIntegrator(ctx);
 
-  RestartSubscriber rst(".", REPORT_FREQUENCY);
+  RestartSubscriber rst;
+  rst.setReportFrequency(REPORT_FREQUENCY);
+  rst.setFileName(".");
   rst.setCharmmContext(ctx);
   rst.setIntegrator(integrator);
 
-  CheckRestartSubscriberUpdateError(
-      rst, ApoCharmmErrorCode::Runtime,
-      "Failed to open restart file for writing: .");
+  apo_test::CheckApoCharmmError([&]() { rst.update(); },
+                                ApoCharmmErrorCode::Runtime,
+                                "Failed to open restart file for writing: .");
 }
 
 #if defined(__linux__)
@@ -553,8 +522,9 @@ TEST_CASE("RestartSubscriberUpdateReportsOutputWriteFailure") {
   rst.setCharmmContext(ctx);
   rst.setIntegrator(integrator);
 
-  CheckRestartSubscriberUpdateError(rst, ApoCharmmErrorCode::Runtime,
-                                    "Failed to write restart file: /dev/full");
+  apo_test::CheckApoCharmmError([&]() { rst.update(); },
+                                ApoCharmmErrorCode::Runtime,
+                                "Failed to write restart file: /dev/full");
 }
 #endif
 
@@ -569,8 +539,8 @@ TEST_CASE("RestartSubscriberRejectsUnsupportedIntegrator") {
   rst.setCharmmContext(ctx);
   rst.setIntegrator(integrator);
 
-  CheckRestartSubscriberUpdateError(
-      rst, ApoCharmmErrorCode::NotImplemented,
+  apo_test::CheckApoCharmmError(
+      [&]() { rst.update(); }, ApoCharmmErrorCode::NotImplemented,
       "RestartSubscriber supports only CudaNoseHooverIntegrator, "
       "CudaLangevinPistonIntegrator, and CudaLangevinThermostatIntegrator");
 
@@ -587,10 +557,14 @@ TEST_CASE("RestartSubscriberRejectsDuplicateContextOrIntegrator") {
   RestartSubscriber rst(fileName, REPORT_FREQUENCY);
 
   rst.setCharmmContext(ctx);
-  CHECK_THROWS_AS(rst.setCharmmContext(ctx), std::invalid_argument);
+  apo_test::CheckApoCharmmError([&]() { rst.setCharmmContext(ctx); },
+                                ApoCharmmErrorCode::InvalidArgument,
+                                "Subscriber already has a CharmmContext");
 
   rst.setIntegrator(integrator);
-  CHECK_THROWS_AS(rst.setIntegrator(integrator), std::invalid_argument);
+  apo_test::CheckApoCharmmError([&]() { rst.setIntegrator(integrator); },
+                                ApoCharmmErrorCode::InvalidArgument,
+                                "Subscriber already has an Integrator");
 
   apo_test::RemoveIfExists(fileName);
 }

@@ -11,7 +11,7 @@ import ctypes
 
 from ._base import _ApoObject
 from ._lib import lib
-from .error import check_status
+from .error import configure_status_function
 
 _prototypes_initialized: bool = False
 
@@ -22,14 +22,17 @@ def _initialize_prototypes() -> None:
     if _prototypes_initialized:
         return
 
-    lib().apo_subscriber_set_report_frequency.argtypes = [ctypes.c_void_p, ctypes.c_int]
-    lib().apo_subscriber_set_report_frequency.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_subscriber_set_report_frequency,
+        [ctypes.c_void_p, ctypes.c_int],
+        "Subscriber.setReportFrequency(report_frequency)",
+    )
 
-    lib().apo_subscriber_get_report_frequency.argtypes = [
-        ctypes.POINTER(ctypes.c_int),
-        ctypes.c_void_p,
-    ]
-    lib().apo_subscriber_get_report_frequency.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_subscriber_get_report_frequency,
+        [ctypes.POINTER(ctypes.c_int), ctypes.c_void_p],
+        "Subscriber.getReportFrequency()",
+    )
 
     _prototypes_initialized = True
 
@@ -51,16 +54,14 @@ class Subscriber(_ApoObject):
     def setReportFrequency(self, report_frequency: int) -> None:
         _initialize_prototypes()
 
-        if report_frequency <= 0 or report_frequency > 2**31 - 1:
-            raise ValueError("report_frequency must fit in positive int")
+        if report_frequency < -(2**31) or report_frequency > 2**31 - 1:
+            raise ValueError("report_frequency must fit in int")
 
         c_report_frequency: ctypes.c_int = ctypes.c_int(report_frequency)
 
-        status = lib().apo_subscriber_set_report_frequency(
+        lib().apo_subscriber_set_report_frequency(
             self.subscriber_handle, c_report_frequency
         )
-
-        check_status(status, "Subscriber.setReportFrequency(report_frequency) failed")
 
         return
 
@@ -69,10 +70,8 @@ class Subscriber(_ApoObject):
 
         c_report_frequency = ctypes.c_int()
 
-        status = lib().apo_subscriber_get_report_frequency(
+        lib().apo_subscriber_get_report_frequency(
             ctypes.byref(c_report_frequency), self.subscriber_handle
         )
-
-        check_status(status, "Subscriber.getReportFrequency() failed")
 
         return int(c_report_frequency.value)

@@ -14,7 +14,7 @@ import threading
 from ._base import _ApoObject
 from ._lib import encode_path, lib
 from ._types import FilePath
-from .error import check_status
+from .error import check_status, configure_status_function
 
 from .charmm_context import CharmmContext
 from .subscriber import Subscriber
@@ -40,11 +40,17 @@ def _initialize_prototypes() -> None:
     ]
     lib().apo_cuda_integrator_set_charmm_context.restype = ctypes.c_int
 
-    lib().apo_cuda_integrator_subscribe.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
-    lib().apo_cuda_integrator_subscribe.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_integrator_subscribe,
+        [ctypes.c_void_p, ctypes.c_void_p],
+        "CudaIntegrator.subscribe(subscriber)",
+    )
 
-    lib().apo_cuda_integrator_unsubscribe.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
-    lib().apo_cuda_integrator_unsubscribe.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_integrator_unsubscribe,
+        [ctypes.c_void_p, ctypes.c_void_p],
+        "CudaIntegrator.unsubscribe(subscriber)",
+    )
 
     lib().apo_cuda_integrator_propagate.argtypes = [ctypes.c_void_p, ctypes.c_int]
     lib().apo_cuda_integrator_propagate.restype = ctypes.c_int
@@ -121,11 +127,9 @@ class CudaIntegrator(_ApoObject):
         if not isinstance(subscriber, Subscriber):
             raise TypeError("CudaIntegrator.subscribe expects a Subscriber")
 
-        status = lib().apo_cuda_integrator_subscribe(
+        lib().apo_cuda_integrator_subscribe(
             self.integrator_handle, subscriber.subscriber_handle
         )
-
-        check_status(status, "CudaIntegrator.subscribe(subscriber) failed")
 
         self._subscribers.append(subscriber)
 
@@ -137,11 +141,9 @@ class CudaIntegrator(_ApoObject):
         if not isinstance(subscriber, Subscriber):
             raise TypeError("CudaIntegrator.unsubscribe expects a Subscriber")
 
-        status = lib().apo_cuda_integrator_unsubscribe(
+        lib().apo_cuda_integrator_unsubscribe(
             self.integrator_handle, subscriber.subscriber_handle
         )
-
-        check_status(status, "CudaIntegrator.unsubscribe(subscriber) failed")
 
         self._subscribers.remove(subscriber)
 

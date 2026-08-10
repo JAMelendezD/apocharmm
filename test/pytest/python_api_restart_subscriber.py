@@ -26,6 +26,7 @@ from python_api_test_helpers import (
     assert_sequence_close,
     assert_nested_sequence_close,
     expect_exception,
+    expect_invalid_argument,
 )
 
 BOX_DIMENSIONS: list[float] = [50.0, 50.0, 50.0]
@@ -47,37 +48,6 @@ REFERENCE_PRESSURE_TENSOR: list[list[float]] = [
 TOLERANCE: float = 1.0e-15
 
 IntegratorFactory = Callable[[apo.CharmmContext], apo.CudaIntegrator]
-
-
-def assert_restart_subscriber_construction_error(
-    label: str,
-    action: Callable[[], object],
-    c_function_name: str,
-    missing_directory: Path,
-) -> None:
-    error: apo.ApoCharmmError = expect_exception(label, apo.ApoCharmmError, action)
-    expected_native_diagnostic: str = (
-        f'{c_function_name}: FATAL ERROR: directory "{missing_directory}" '
-        "does not exist\n"
-    )
-    expected_message: str = (
-        f"RestartSubscriber construction [APO_STATUS_INVALID_ARGUMENT ({apo.APO_STATUS_INVALID_ARGUMENT})]: {expected_native_diagnostic}"
-    )
-
-    assert_equal(f"{label} status", error.status, apo.APO_STATUS_INVALID_ARGUMENT)
-    assert_equal(
-        f"{label} status name", error.status_name, "APO_STATUS_INVALID_ARGUMENT"
-    )
-    assert_equal(f"{label} context", error.context, "RestartSubscriber construction")
-    assert_equal(
-        f"{label} native diagnostic",
-        error.native_diagnostic,
-        expected_native_diagnostic,
-    )
-    assert_equal(f"{label} message", error.message, expected_message)
-    assert_equal(f"{label} rendered message", str(error), expected_message)
-
-    return
 
 
 def assert_restart_file_has_required_section(path: Path) -> None:
@@ -258,36 +228,74 @@ def check_construction_and_validation(output_dir: Path) -> None:
     )
     rst.close()
 
-    expect_exception(
+    zero_error = expect_invalid_argument(
         "RestartSubscriber rejects zero report frequency",
-        ValueError,
         lambda: apo.RestartSubscriber(output_dir / "tmp_zero.rst", 0),
+        "Subscriber report frequency must be positive; observed 0",
     )
-    expect_exception(
+    assert_equal(
+        "RestartSubscriber zero report frequency context",
+        zero_error.context,
+        "RestartSubscriber construction",
+    )
+
+    negative_error = expect_invalid_argument(
         "RestartSubscriber rejects negative report frequency",
-        ValueError,
         lambda: apo.RestartSubscriber(output_dir / "tmp_negative.rst", -1),
+        "Subscriber report frequency must be positive; observed -1",
     )
+    assert_equal(
+        "RestartSubscriber negative report frequency context",
+        negative_error.context,
+        "RestartSubscriber construction",
+    )
+
+    empty_path_error = expect_invalid_argument(
+        "RestartSubscriber rejects empty output path",
+        lambda: apo.RestartSubscriber(""),
+        "Output file name must not be empty",
+    )
+    assert_equal(
+        "RestartSubscriber empty output path context",
+        empty_path_error.context,
+        "RestartSubscriber construction",
+    )
+
     expect_exception(
         "RestartSubscriber rejects too-large report frequency",
         ValueError,
         lambda: apo.RestartSubscriber(output_dir / "tmp_large.rst", 2**31),
     )
+    expect_exception(
+        "RestartSubscriber rejects too-small report frequency",
+        ValueError,
+        lambda: apo.RestartSubscriber(output_dir / "tmp_small.rst", -(2**31) - 1),
+    )
+
     missing_directory: Path = output_dir / "missing_dir"
 
-    assert_restart_subscriber_construction_error(
+    default_missing_error = expect_invalid_argument(
         "RestartSubscriber default constructor rejects missing output directory",
         lambda: apo.RestartSubscriber(missing_directory / "tmp.rst"),
-        "apo_restart_subscriber_create",
-        missing_directory,
+        f"Output directory does not exist: {missing_directory}",
     )
-    assert_restart_subscriber_construction_error(
+    assert_equal(
+        "RestartSubscriber default missing directory context",
+        default_missing_error.context,
+        "RestartSubscriber construction",
+    )
+
+    frequency_missing_error = expect_invalid_argument(
         "RestartSubscriber frequency constructor rejects missing output directory",
         lambda: apo.RestartSubscriber(
             missing_directory / "tmp_frequency.rst", REPORT_FREQUENCY
         ),
-        "apo_restart_subscriber_create_with_report_frequency",
-        missing_directory,
+        f"Output directory does not exist: {missing_directory}",
+    )
+    assert_equal(
+        "RestartSubscriber frequency missing directory context",
+        frequency_missing_error.context,
+        "RestartSubscriber construction",
     )
 
     remove_if_exists(default_path)

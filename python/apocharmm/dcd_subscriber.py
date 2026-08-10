@@ -11,7 +11,7 @@ import ctypes
 
 from ._lib import encode_path, lib
 from ._types import FilePath
-from .error import check_status
+from .error import configure_status_function
 from .subscriber import Subscriber
 
 _prototypes_initialized: bool = False
@@ -23,27 +23,26 @@ def _initialize_prototypes() -> None:
     if _prototypes_initialized:
         return
 
-    lib().apo_dcd_subscriber_create.argtypes = [
-        ctypes.POINTER(ctypes.c_void_p),
-        ctypes.c_char_p,
-    ]
-    lib().apo_dcd_subscriber_create.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_dcd_subscriber_create,
+        [ctypes.POINTER(ctypes.c_void_p), ctypes.c_char_p],
+        "DcdSubscriber construction",
+    )
 
-    lib().apo_dcd_subscriber_create_with_report_frequency.argtypes = [
-        ctypes.POINTER(ctypes.c_void_p),
-        ctypes.c_char_p,
-        ctypes.c_int,
-    ]
-    lib().apo_dcd_subscriber_create_with_report_frequency.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_dcd_subscriber_create_with_report_frequency,
+        [ctypes.POINTER(ctypes.c_void_p), ctypes.c_char_p, ctypes.c_int],
+        "DcdSubscriber construction",
+    )
 
     lib().apo_dcd_subscriber_destroy.argtypes = [ctypes.c_void_p]
     lib().apo_dcd_subscriber_destroy.restype = None
 
-    lib().apo_dcd_subscriber_as_subscriber.argtypes = [
-        ctypes.POINTER(ctypes.c_void_p),
-        ctypes.c_void_p,
-    ]
-    lib().apo_dcd_subscriber_as_subscriber.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_dcd_subscriber_as_subscriber,
+        [ctypes.POINTER(ctypes.c_void_p), ctypes.c_void_p],
+        "DcdSubscriber base-subscriber conversion",
+    )
 
     _prototypes_initialized = True
 
@@ -63,24 +62,18 @@ class DcdSubscriber(Subscriber):
         c_path: ctypes.c_char_p = ctypes.c_char_p(encoded_path)
 
         if report_frequency is None:
-            status = lib().apo_dcd_subscriber_create(ctypes.byref(handle), c_path)
             function_name = "apo_dcd_subscriber_create"
+            lib().apo_dcd_subscriber_create(ctypes.byref(handle), c_path)
         else:
-            if (
-                isinstance(report_frequency, bool)
-                or report_frequency <= 0
-                or report_frequency > 2**31 - 1
-            ):
-                raise ValueError("report_frequency must fit in positive int")
+            if report_frequency < -(2**31) or report_frequency > 2**31 - 1:
+                raise ValueError("report_frequency must fit in int")
 
             c_report_frequency: ctypes.c_int = ctypes.c_int(report_frequency)
-
-            status = lib().apo_dcd_subscriber_create_with_report_frequency(
-                ctypes.byref(handle), c_path, c_report_frequency
-            )
             function_name = "apo_dcd_subscriber_create_with_report_frequency"
 
-        check_status(status, "DcdSubscriber construction failed")
+            lib().apo_dcd_subscriber_create_with_report_frequency(
+                ctypes.byref(handle), c_path, c_report_frequency
+            )
 
         if handle.value is None:
             raise RuntimeError(
@@ -91,11 +84,9 @@ class DcdSubscriber(Subscriber):
 
         subscriber_handle: ctypes.c_void_p = ctypes.c_void_p()
 
-        status = lib().apo_dcd_subscriber_as_subscriber(
+        lib().apo_dcd_subscriber_as_subscriber(
             ctypes.byref(subscriber_handle), self.handle
         )
-
-        check_status(status, "DcdSubscriber base-subscriber conversion failed")
 
         if subscriber_handle.value is None:
             raise RuntimeError(

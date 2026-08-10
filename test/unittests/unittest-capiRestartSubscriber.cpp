@@ -48,14 +48,6 @@ RestartSubscriberHandle CreateRestartSubscriber(const std::string &path,
   return RestartSubscriberHandle(rawSubscriber);
 }
 
-void CheckStatusAndDiagnostic(const apo_status status,
-                              const apo_status expectedStatus,
-                              const std::string_view expectedDiagnostic) {
-  CHECK(status == expectedStatus);
-  CHECK(std::string(apo_last_error()) == expectedDiagnostic);
-  return;
-}
-
 } // namespace
 
 TEST_CASE("CapiRestartSubscriberConstructionAndBaseConversion") {
@@ -106,62 +98,68 @@ TEST_CASE("CapiRestartSubscriberValidatesCreationArguments") {
   constexpr const char *PATH = "tmpCapiRestartSubscriberValidation.rst";
   apo_restart_subscriber sentinel;
 
-  CheckStatusAndDiagnostic(
+  apo_test::CheckStatusAndDiagnostic(
       apo_restart_subscriber_create(nullptr, PATH), APO_STATUS_INVALID_ARGUMENT,
       "apo_restart_subscriber_create: out pointer is NULL");
 
   apo_restart_subscriber *subscriber = &sentinel;
-  CheckStatusAndDiagnostic(
+  apo_test::CheckStatusAndDiagnostic(
       apo_restart_subscriber_create(&subscriber, nullptr),
       APO_STATUS_INVALID_ARGUMENT,
-      "apo_restart_subscriber_create: path is NULL or empty");
+      "apo_restart_subscriber_create: path is NULL");
   CHECK(subscriber == nullptr);
+
+  apo_status status = APO_STATUS_OK;
 
   subscriber = &sentinel;
-  CheckStatusAndDiagnostic(
-      apo_restart_subscriber_create(&subscriber, ""),
-      APO_STATUS_INVALID_ARGUMENT,
-      "apo_restart_subscriber_create: path is NULL or empty");
+  CHECK_NOTHROW((status = apo_restart_subscriber_create(&subscriber, "")));
+  apo_test::CheckNativeError(status, APO_STATUS_INVALID_ARGUMENT,
+                             "InvalidArgument", "apo_restart_subscriber_create",
+                             "Output file name must not be empty",
+                             "src/Subscriber.cu", "setFileName");
   CHECK(subscriber == nullptr);
 
-  CheckStatusAndDiagnostic(
+  apo_test::CheckStatusAndDiagnostic(
       apo_restart_subscriber_create_with_report_frequency(nullptr, PATH, 1),
       APO_STATUS_INVALID_ARGUMENT,
       "apo_restart_subscriber_create_with_report_frequency: out pointer is "
       "NULL");
 
   subscriber = &sentinel;
-  CheckStatusAndDiagnostic(
+  apo_test::CheckStatusAndDiagnostic(
       apo_restart_subscriber_create_with_report_frequency(&subscriber, nullptr,
                                                           1),
       APO_STATUS_INVALID_ARGUMENT,
-      "apo_restart_subscriber_create_with_report_frequency: path is NULL or "
-      "empty");
+      "apo_restart_subscriber_create_with_report_frequency: path is NULL");
   CHECK(subscriber == nullptr);
 
   subscriber = &sentinel;
-  CheckStatusAndDiagnostic(
-      apo_restart_subscriber_create_with_report_frequency(&subscriber, "", 1),
-      APO_STATUS_INVALID_ARGUMENT,
-      "apo_restart_subscriber_create_with_report_frequency: path is NULL or "
-      "empty");
+  CHECK_NOTHROW((status = apo_restart_subscriber_create_with_report_frequency(
+                     &subscriber, "", 1)));
+  apo_test::CheckNativeError(
+      status, APO_STATUS_INVALID_ARGUMENT, "InvalidArgument",
+      "apo_restart_subscriber_create_with_report_frequency",
+      "Output file name must not be empty", "src/Subscriber.cu", "setFileName");
   CHECK(subscriber == nullptr);
 
   subscriber = &sentinel;
-  CheckStatusAndDiagnostic(
-      apo_restart_subscriber_create_with_report_frequency(&subscriber, PATH, 0),
-      APO_STATUS_INVALID_ARGUMENT,
-      "apo_restart_subscriber_create_with_report_frequency: report_frequency "
-      "must be positive");
+  CHECK_NOTHROW((status = apo_restart_subscriber_create_with_report_frequency(
+                     &subscriber, PATH, 0)));
+  apo_test::CheckNativeError(
+      status, APO_STATUS_INVALID_ARGUMENT, "InvalidArgument",
+      "apo_restart_subscriber_create_with_report_frequency",
+      "Subscriber report frequency must be positive; observed 0",
+      "src/Subscriber.cu", "setReportFrequency");
   CHECK(subscriber == nullptr);
 
   subscriber = &sentinel;
-  CheckStatusAndDiagnostic(
-      apo_restart_subscriber_create_with_report_frequency(&subscriber, PATH,
-                                                          -1),
-      APO_STATUS_INVALID_ARGUMENT,
-      "apo_restart_subscriber_create_with_report_frequency: report_frequency "
-      "must be positive");
+  CHECK_NOTHROW((status = apo_restart_subscriber_create_with_report_frequency(
+                     &subscriber, PATH, -1)));
+  apo_test::CheckNativeError(
+      status, APO_STATUS_INVALID_ARGUMENT, "InvalidArgument",
+      "apo_restart_subscriber_create_with_report_frequency",
+      "Subscriber report frequency must be positive; observed -1",
+      "src/Subscriber.cu", "setReportFrequency");
   CHECK(subscriber == nullptr);
 }
 
@@ -172,11 +170,12 @@ TEST_CASE("CapiRestartSubscriberMapsNativeConstructionFailure") {
   apo_status status = APO_STATUS_OK;
 
   CHECK_NOTHROW((status = apo_restart_subscriber_create(&subscriber, PATH)));
-  CHECK(status == APO_STATUS_INVALID_ARGUMENT);
+  apo_test::CheckNativeError(
+      status, APO_STATUS_INVALID_ARGUMENT, "InvalidArgument",
+      "apo_restart_subscriber_create",
+      "Output directory does not exist: missing_capi_restart_subscriber_dir",
+      "src/Subscriber.cu", "checkPath");
   CHECK(subscriber == nullptr);
-  CHECK(std::string(apo_last_error()) ==
-        "apo_restart_subscriber_create: FATAL ERROR: directory "
-        "\"missing_capi_restart_subscriber_dir\" does not exist\n");
 }
 
 TEST_CASE("CapiRestartSubscriberValidatesBaseConversion") {
@@ -186,14 +185,14 @@ TEST_CASE("CapiRestartSubscriberValidatesBaseConversion") {
   {
     RestartSubscriberHandle subscriber = CreateRestartSubscriber(fileName);
 
-    CheckStatusAndDiagnostic(
+    apo_test::CheckStatusAndDiagnostic(
         apo_restart_subscriber_as_subscriber(nullptr, subscriber.get()),
         APO_STATUS_INVALID_ARGUMENT,
         "apo_restart_subscriber_as_subscriber: out pointer is NULL");
 
     apo_subscriber baseSentinel;
     apo_subscriber *baseSubscriber = &baseSentinel;
-    CheckStatusAndDiagnostic(
+    apo_test::CheckStatusAndDiagnostic(
         apo_restart_subscriber_as_subscriber(&baseSubscriber, nullptr),
         APO_STATUS_INVALID_ARGUMENT,
         "apo_restart_subscriber_as_subscriber: RestartSubscriber is NULL");
@@ -201,7 +200,7 @@ TEST_CASE("CapiRestartSubscriberValidatesBaseConversion") {
 
     apo_restart_subscriber emptySubscriber;
     baseSubscriber = &baseSentinel;
-    CheckStatusAndDiagnostic(
+    apo_test::CheckStatusAndDiagnostic(
         apo_restart_subscriber_as_subscriber(&baseSubscriber, &emptySubscriber),
         APO_STATUS_INVALID_ARGUMENT,
         "apo_restart_subscriber_as_subscriber: RestartSubscriber object is "

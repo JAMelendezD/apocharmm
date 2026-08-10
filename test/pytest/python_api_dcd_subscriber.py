@@ -26,6 +26,7 @@ from python_api_test_helpers import (
     assert_finite_temperature,
     assert_nested_sequence_close,
     expect_exception,
+    expect_invalid_argument,
 )
 
 BOX_DIMENSIONS: list[float] = [50.0, 50.0, 50.0]
@@ -192,25 +193,60 @@ def check_constructor_validation(output_dir: Path) -> None:
     assert_equal("DcdSubscriber updated report frequency", dcd.getReportFrequency(), 2)
     dcd.close()
 
-    expect_exception(
+    zero_error = expect_invalid_argument(
         "DcdSubscriber rejects zero report frequency",
-        ValueError,
         lambda: apo.DcdSubscriber(output_dir / "tmp_zero.dcd", 0),
+        "Subscriber report frequency must be positive; observed 0",
     )
-    expect_exception(
+    assert_equal(
+        "DcdSubscriber zero report frequency context",
+        zero_error.context,
+        "DcdSubscriber construction",
+    )
+
+    negative_error = expect_invalid_argument(
         "DcdSubscriber rejects negative report frequency",
-        ValueError,
         lambda: apo.DcdSubscriber(output_dir / "tmp_negative.dcd", -1),
+        "Subscriber report frequency must be positive; observed -1",
     )
+    assert_equal(
+        "DcdSubscriber negative report frequency context",
+        negative_error.context,
+        "DcdSubscriber construction",
+    )
+
+    empty_path_error = expect_invalid_argument(
+        "DcdSubscriber rejects empty output path",
+        lambda: apo.DcdSubscriber(""),
+        "Output file name must not be empty",
+    )
+    assert_equal(
+        "DcdSubscriber empty output path context",
+        empty_path_error.context,
+        "DcdSubscriber construction",
+    )
+
     expect_exception(
         "DcdSubscriber rejects too-large report frequency",
         ValueError,
         lambda: apo.DcdSubscriber(output_dir / "tmp_large.dcd", 2**31),
     )
     expect_exception(
+        "DcdSubscriber rejects too-small report frequency",
+        ValueError,
+        lambda: apo.DcdSubscriber(output_dir / "tmp_small.dcd", -(2**31) - 1),
+    )
+
+    missing_directory: Path = output_dir / "missing_dir"
+    missing_directory_error = expect_invalid_argument(
         "DcdSubscriber rejects missing output directory",
-        apo.ApoCharmmError,
-        lambda: apo.DcdSubscriber(output_dir / "missing_dir" / "tmp.dcd"),
+        lambda: apo.DcdSubscriber(missing_directory / "tmp.dcd"),
+        f"Output directory does not exist: {missing_directory}",
+    )
+    assert_equal(
+        "DcdSubscriber missing output directory context",
+        missing_directory_error.context,
+        "DcdSubscriber construction",
     )
 
     remove_if_exists(default_path)

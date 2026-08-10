@@ -8,6 +8,7 @@
 //
 // ENDLICENSE
 
+#include "ApoCharmmError.h"
 #include "CharmmContext.h"
 #include "CharmmCrd.h"
 #include "CharmmPSF.h"
@@ -223,8 +224,10 @@ TEST_CASE("DcdSubscriberConstructorsAndReportFrequency") {
   }
 
   SECTION("RejectsMissingOutputDirectory") {
-    CHECK_THROWS_AS(DcdSubscriber("missing_dcd_subscriber_dir/output.dcd"),
-                    std::invalid_argument);
+    apo_test::CheckApoCharmmError(
+        []() { (void)DcdSubscriber("missing_dcd_subscriber_dir/output.dcd"); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Output directory does not exist: missing_dcd_subscriber_dir");
   }
 }
 
@@ -239,8 +242,12 @@ TEST_CASE("DcdSubscriberUpdateWritesOneFrame") {
   subscriber.setCharmmContext(ctx);
   subscriber.setIntegrator(integrator);
 
-  CHECK_THROWS_AS(subscriber.setCharmmContext(ctx), std::invalid_argument);
-  CHECK_THROWS_AS(subscriber.setIntegrator(integrator), std::invalid_argument);
+  apo_test::CheckApoCharmmError([&]() { subscriber.setCharmmContext(ctx); },
+                                ApoCharmmErrorCode::InvalidArgument,
+                                "Subscriber already has a CharmmContext");
+  apo_test::CheckApoCharmmError([&]() { subscriber.setIntegrator(integrator); },
+                                ApoCharmmErrorCode::InvalidArgument,
+                                "Subscriber already has an Integrator");
 
   subscriber.update();
 

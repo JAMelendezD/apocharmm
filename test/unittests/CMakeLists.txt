@@ -18,6 +18,7 @@ set(SOURCES_UNITTESTS_TESTS
   unittest-atomSelection.cpp
 
   # Subscriber tests
+  unittest-subscriber.cpp
   unittest-dcdSubscriber.cpp
   unittest-restartSubscriber.cpp
 
@@ -43,6 +44,7 @@ set(SOURCES_CAPI_TESTS
   unittest-capiAtomSelection.cpp
 
   # Subscriber tests
+  unittest-capiSubscriber.cpp
   unittest-capiRestartSubscriber.cpp
 )
 
@@ -130,9 +132,16 @@ foreach(source_file ${SOURCES_UNITTESTS_TESTS})
     DATA_PATH="${PROJECT_SOURCE_DIR}/test/data/"
   )
 
+  # JEG260810: So we can use generic help function for C API testing
+  target_include_directories(${name} PRIVATE
+      ${apoCHARMM_SOURCE_DIR}/capi/private_include
+      ${apoCHARMM_SOURCE_DIR}/capi/include
+    )
+
   target_link_libraries(${name} PRIVATE
     ${EXTERNAL_LIBRARIES}
     apoCHARMMlib
+    apocharmm_c
     CUDA::cudart
   )
 
@@ -173,6 +182,7 @@ if(TARGET apocharmm_c)
 
     target_include_directories(${name} PRIVATE
       ${apoCHARMM_SOURCE_DIR}/capi/private_include
+      ${apoCHARMM_SOURCE_DIR}/capi/include
     )
 
     target_compile_options(${name} PRIVATE
@@ -188,8 +198,8 @@ if(TARGET apocharmm_c)
     )
 
     target_link_libraries(${name} PRIVATE
-      apocharmm_c
       apoCHARMMlib
+      apocharmm_c
     )
 
     set_target_properties(${name} PROPERTIES
