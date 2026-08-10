@@ -165,10 +165,10 @@ TEST_CASE("CapiDcdSubscriberMapsNativeConstructionValidation") {
   CHECK(subscriber == nullptr);
 
   CHECK_NOTHROW((status = apo_dcd_subscriber_create(&subscriber, ".")));
-  apo_test::CheckNativeError(
-      status, APO_STATUS_RUNTIME_ERROR, "Runtime", "apo_dcd_subscriber_create",
-      "Failed to open subscriber output file for writing: .",
-      "src/Subscriber.cu", "openFile");
+  apo_test::CheckNativeError(status, APO_STATUS_RUNTIME_ERROR, "Runtime",
+                             "apo_dcd_subscriber_create",
+                             "Failed to open DCD file for writing: .",
+                             "src/DcdSubscriber.cu", "openFile");
   CHECK(subscriber == nullptr);
 
   apo_test::RemoveIfExists(PATH);

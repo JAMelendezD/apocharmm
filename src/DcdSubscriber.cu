@@ -20,17 +20,21 @@
 #include <limits>
 #include <vector>
 
-DcdSubscriber::DcdSubscriber(const std::string &fileName)
-    : Subscriber(fileName) {
+DcdSubscriber::DcdSubscriber(const std::string &fileName) : Subscriber() {
   m_NumFramesWritten = 0;
   m_IsHeaderWritten = false;
+  this->setFileName(fileName);
+  this->openFile();
 }
 
 DcdSubscriber::DcdSubscriber(const std::string &fileName,
                              const int reportFrequency)
-    : Subscriber(fileName, reportFrequency) {
+    : Subscriber() {
   m_NumFramesWritten = 0;
   m_IsHeaderWritten = false;
+  this->setReportFrequency(reportFrequency);
+  this->setFileName(fileName);
+  this->openFile();
 }
 
 void DcdSubscriber::update(void) {
@@ -44,7 +48,7 @@ void DcdSubscriber::update(void) {
   APOCHARMM_REQUIRE(m_Integrator != nullptr, ApoCharmmErrorCode::NotInitialized,
                     "DcdSubscriber requires an integrator before update");
 
-  APOCHARMM_REQUIRE(m_FileStream.is_open(), ApoCharmmErrorCode::Runtime,
+  APOCHARMM_REQUIRE(m_FileStream.is_open(), ApoCharmmErrorCode::NotInitialized,
                     "DcdSubscriber output file is not open for writing: " +
                         m_FileName);
 
@@ -55,6 +59,25 @@ void DcdSubscriber::update(void) {
           (boxDimensions[1] > 0.0) && (boxDimensions[2] > 0.0),
       ApoCharmmErrorCode::NotInitialized,
       "DcdSubscriber requires three positive box dimensions before update");
+
+  const int numAtoms = m_CharmmContext->getNumAtoms();
+
+  APOCHARMM_REQUIRE(numAtoms > 0, ApoCharmmErrorCode::NotInitialized,
+                    "DcdSubscriber requires at least one atom before update");
+
+  const unsigned long long int nextNumFramesWritten =
+      static_cast<unsigned long long int>(m_NumFramesWritten) + 1ULL;
+  const unsigned long long int nextNumStepsWritten =
+      nextNumFramesWritten *
+      static_cast<unsigned long long int>(m_ReportFrequency);
+
+  APOCHARMM_REQUIRE(
+      (nextNumFramesWritten <=
+       static_cast<unsigned long long int>(std::numeric_limits<int>::max())) &&
+          (nextNumStepsWritten <= static_cast<unsigned long long int>(
+                                      std::numeric_limits<int>::max())),
+      ApoCharmmErrorCode::Runtime,
+      "DcdSubscriber frame metadata exceeds DCD integer range");
 
   // Write header if needed
   if (!m_IsHeaderWritten)
@@ -67,24 +90,47 @@ void DcdSubscriber::update(void) {
   this->writeCoordData();
 
   // Update header to account for new data that was written
-  m_NumFramesWritten++;
+  const int numFramesWritten = static_cast<int>(nextNumFramesWritten);
+  const int numStepsWritten = static_cast<int>(nextNumStepsWritten);
 
   m_FileStream.seekp(8);
-  m_FileStream.write(reinterpret_cast<const char *>(&m_NumFramesWritten),
+  m_FileStream.write(reinterpret_cast<const char *>(&numFramesWritten),
                      sizeof(int));
 
-  int idum = m_NumFramesWritten * m_ReportFrequency;
   m_FileStream.seekp(20);
-  m_FileStream.write(reinterpret_cast<const char *>(&idum), sizeof(int));
+  m_FileStream.write(reinterpret_cast<const char *>(&numStepsWritten),
+                     sizeof(int));
 
   m_FileStream.seekp(0, std::ofstream::end);
+  m_FileStream.flush();
+
+  APOCHARMM_REQUIRE(m_FileStream.good(), ApoCharmmErrorCode::Runtime,
+                    "Failed to write DCD frame: " + m_FileName);
+
+  m_NumFramesWritten = numFramesWritten;
 
   return;
 }
 
 void DcdSubscriber::openFile(void) {
+  APOCHARMM_REQUIRE(!m_FileName.empty(), ApoCharmmErrorCode::NotInitialized,
+                    "DcdSubscriber output file name is not set");
+
   this->checkPath(m_FileName);
+
+  if (m_FileStream.is_open())
+    m_FileStream.close();
+
+  m_FileStream.clear();
   m_FileStream.open(m_FileName, std::ios::out | std::ios::binary);
+
+  APOCHARMM_REQUIRE(m_FileStream.is_open() && m_FileStream.good(),
+                    ApoCharmmErrorCode::Runtime,
+                    "Failed to open DCD file for writing: " + m_FileName);
+
+  m_NumFramesWritten = 0;
+  m_IsHeaderWritten = false;
+
   return;
 }
 
@@ -178,6 +224,11 @@ void DcdSubscriber::writeHeader(void) {
   m_FileStream.write(reinterpret_cast<const char *>(&blockSizeBytes),
                      sizeof(int));
 
+  m_FileStream.flush();
+
+  APOCHARMM_REQUIRE(m_FileStream.good(), ApoCharmmErrorCode::Runtime,
+                    "Failed to write DCD header: " + m_FileName);
+
   m_IsHeaderWritten = true;
 
   return;
@@ -210,9 +261,6 @@ void DcdSubscriber::writeXtalData(void) {
 }
 
 void DcdSubscriber::writeCoordData(void) {
-  // const std::shared_ptr<std::vector<float4>> ptr =
-  //     m_CharmmContext->getXYZQ()->getHostXYZQ();
-  // const float4 *xyzq = (*ptr).data();
   m_CharmmContext->getCoordinatesChargesSP().transferToHost();
   const float4 *xyzq =
       m_CharmmContext->getCoordinatesChargesSP().getHostArray().data();
@@ -248,75 +296,3 @@ void DcdSubscriber::writeCoordData(void) {
 
   return;
 }
-
-/* *
-struct DcdHeader {
-  int size1;
-  char cord[4];
-  int ints1[9];
-  float timeStep;
-  int ints2[13];
-  char str1[80];
-  char str2[80];
-  int last[4];
-};
-
-void DcdSubscriber::initialize(void) {
-  if (!hasCharmmContext) {
-    throw std::invalid_argument("DcdSubscriber does not have a CharmmContext, "
-                                "can't initialize() properly.\n");
-  }
-  numAtoms = charmmContext->getNumAtoms();
-  // Writing the headers
-  int firstStep = 0; // TODO : get the firstStep from integrator
-  // int interval = reportFreq;
-  float timeStep = integrator->getTimeStep();
-  int ndegf = charmmContext->getDegreesOfFreedom();
-  // int boxFlag = 0;
-  int boxFlag = 1; // adding unit cell dimensions
-
-  DcdHeader header;
-  header.size1 = 84;
-  header.cord[0] = 'C';
-  header.cord[1] = 'O';
-  header.cord[2] = 'R';
-  header.cord[3] = 'D';
-
-  header.ints1[0] = 0; // number of frames written
-  header.ints1[1] = firstStep;
-  header.ints1[2] = reportFreq;
-  header.ints1[3] = 0;     // reportFreq * number of frame written
-  header.ints1[4] = 0;     // velocity saving frequency
-  header.ints1[5] = 0;     // unused
-  header.ints1[6] = 0;     // unused
-  header.ints1[7] = ndegf; // ndegf
-  header.ints1[8] = 0;     // Number of fixed atoms
-
-  header.timeStep = timeStep;
-
-  header.ints2[0] = boxFlag;
-  header.ints2[1] = 0;  // 4d data
-  header.ints2[2] = 0;  // cheq charge data
-  header.ints2[3] = 0;  // non-contiguous data
-  header.ints2[4] = 0;  // unused
-  header.ints2[5] = 0;  // unused
-  header.ints2[6] = 0;  // unused
-  header.ints2[7] = 0;  // unused
-  header.ints2[8] = 0;  // unused
-  header.ints2[9] = 35; // CHARMM version, should be >= 22
-  header.ints2[10] = 84;
-
-  header.ints2[11] = 164;
-  header.ints2[12] = 2;
-  // header.str1 = "Created by CHARMM";
-  // header.str2 = "Created at time ";
-  header.last[0] = 164;
-
-  header.last[1] = 4;
-  header.last[2] = numAtoms;
-  header.last[3] = 4;
-
-  fout.write((char *)&header, sizeof(header));
-  isInitialized = true;
-}
-* */

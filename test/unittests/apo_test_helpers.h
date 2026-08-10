@@ -514,8 +514,16 @@ void CheckApoCharmmError(Function action, const ApoCharmmErrorCode expectedCode,
 void CheckStatusAndDiagnostic(const apo_status status,
                               const apo_status expectedStatus,
                               const std::string_view expectedDiagnostic) {
+  const std::string diagnostic(apo_last_error());
+
+  INFO("Expected apo_status: " << static_cast<int>(expectedStatus));
+  INFO("Observed apo_status: " << static_cast<int>(status));
+  INFO("Expected C API diagnostic:\n" << expectedDiagnostic);
+  INFO("Observed C API diagnostic:\n" << diagnostic);
+
   CHECK(status == expectedStatus);
-  CHECK(std::string(apo_last_error()) == expectedDiagnostic);
+  CHECK(diagnostic == expectedDiagnostic);
+
   return;
 }
 
@@ -525,10 +533,7 @@ void CheckNativeError(const apo_status status, const apo_status expectedStatus,
                       const std::string_view expectedMessage,
                       const std::string_view expectedSourceFile,
                       const std::string_view expectedSourceFunction) {
-  CHECK(status == expectedStatus);
-
   const std::string diagnostic(apo_last_error());
-  REQUIRE(diagnostic.empty() == false);
 
   const std::string expectedPrefix = std::string(functionName) + ": ";
   const std::string expectedError = "apoCHARMM error [" +
@@ -538,6 +543,17 @@ void CheckNativeError(const apo_status status, const apo_status expectedStatus,
       "  source: " + std::string(expectedSourceFile) + ':';
   const std::string expectedFunction =
       "  function: " + std::string(expectedSourceFunction);
+
+  INFO("Expected apo_status: " << static_cast<int>(expectedStatus));
+  INFO("Observed apo_status: " << static_cast<int>(status));
+  INFO("Expected diagnostic prefix:\n" << expectedPrefix);
+  INFO("Expected native error text:\n" << expectedError);
+  INFO("Expected native source text:\n" << expectedSource);
+  INFO("Expected native function text:\n" << expectedFunction);
+  INFO("Observed C API diagnostic:\n" << diagnostic);
+
+  CHECK(status == expectedStatus);
+  REQUIRE(diagnostic.empty() == false);
 
   CHECK(diagnostic.compare(0, expectedPrefix.size(), expectedPrefix) == 0);
   CHECK(diagnostic.find(expectedError) != std::string::npos);

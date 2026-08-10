@@ -24,8 +24,10 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <ios>
+#include <limits>
 #include <memory>
-#include <stdexcept>
+#include <streambuf>
 #include <string>
 #include <vector>
 
@@ -56,6 +58,24 @@ struct DcdFile {
   int numAtoms = 0;
   float timeStep = 0.0f;
   std::vector<DcdFrame> frames;
+};
+
+class FailingStreamBuffer : public std::streambuf {
+protected:
+  std::streamsize xsputn(const char *, const std::streamsize) override {
+    return 0;
+  }
+
+  int_type overflow(const int_type) override { return traits_type::eof(); }
+
+  int sync(void) override { return -1; }
+};
+
+class TestDcdSubscriber : public DcdSubscriber {
+public:
+  using DcdSubscriber::DcdSubscriber;
+
+  std::fstream &getOutputFile(void) { return m_FileStream; }
 };
 
 template <typename T> T ReadValue(std::ifstream &input) {
@@ -223,12 +243,260 @@ TEST_CASE("DcdSubscriberConstructorsAndReportFrequency") {
     apo_test::RemoveIfExists(fileName);
   }
 
+  SECTION("RejectsEmptyOutputFileName") {
+    apo_test::CheckApoCharmmError([]() { (void)DcdSubscriber(""); },
+                                  ApoCharmmErrorCode::InvalidArgument,
+                                  "Output file name must not be empty");
+  }
+
+  SECTION("RejectsZeroReportFrequency") {
+    apo_test::CheckApoCharmmError(
+        []() { (void)DcdSubscriber("tmp_dcd_zero_frequency.dcd", 0); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Subscriber report frequency must be positive; observed 0");
+  }
+
+  SECTION("RejectsNegativeReportFrequency") {
+    apo_test::CheckApoCharmmError(
+        []() { (void)DcdSubscriber("tmp_dcd_negative_frequency.dcd", -1); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Subscriber report frequency must be positive; observed -1");
+  }
+
   SECTION("RejectsMissingOutputDirectory") {
     apo_test::CheckApoCharmmError(
         []() { (void)DcdSubscriber("missing_dcd_subscriber_dir/output.dcd"); },
         ApoCharmmErrorCode::InvalidArgument,
         "Output directory does not exist: missing_dcd_subscriber_dir");
   }
+
+  SECTION("RejectsMissingOutputDirectoryWithReportFrequency") {
+    apo_test::CheckApoCharmmError(
+        []() {
+          (void)DcdSubscriber("missing_dcd_subscriber_dir/output.dcd",
+                              REPORT_FREQUENCY);
+        },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Output directory does not exist: missing_dcd_subscriber_dir");
+  }
+
+  SECTION("RejectsOutputOpenFailure") {
+    apo_test::CheckApoCharmmError([]() { (void)DcdSubscriber("."); },
+                                  ApoCharmmErrorCode::Runtime,
+                                  "Failed to open DCD file for writing: .");
+  }
+
+  SECTION("RejectsOutputOpenFailureWithReportFrequency") {
+    apo_test::CheckApoCharmmError(
+        []() { (void)DcdSubscriber(".", REPORT_FREQUENCY); },
+        ApoCharmmErrorCode::Runtime, "Failed to open DCD file for writing: .");
+  }
+
+  SECTION("OpenFileRequiresOutputFileName") {
+    const std::string fileName = "tmp_dcd_open_requires_name.dcd";
+    apo_test::RemoveIfExists(fileName);
+
+    DcdSubscriber subscriber(fileName);
+    subscriber.getFileName().clear();
+
+    apo_test::CheckApoCharmmError([&]() { subscriber.openFile(); },
+                                  ApoCharmmErrorCode::NotInitialized,
+                                  "DcdSubscriber output file name is not set");
+
+    apo_test::RemoveIfExists(fileName);
+  }
+}
+
+TEST_CASE("DcdSubscriberUpdateValidatesRequiredState") {
+  SECTION("RequiresOutputFileName") {
+    const std::string fileName = "tmp_dcd_update_requires_name.dcd";
+    apo_test::RemoveIfExists(fileName);
+
+    DcdSubscriber subscriber(fileName);
+    subscriber.getFileName().clear();
+
+    apo_test::CheckApoCharmmError(
+        [&]() { subscriber.update(); }, ApoCharmmErrorCode::NotInitialized,
+        "DcdSubscriber requires an output file before update");
+
+    apo_test::RemoveIfExists(fileName);
+  }
+
+  SECTION("RequiresCharmmContext") {
+    const std::string fileName = "tmp_dcd_update_requires_context.dcd";
+    apo_test::RemoveIfExists(fileName);
+
+    auto integrator = std::make_shared<CudaIntegrator>(TIME_STEP);
+
+    DcdSubscriber subscriber(fileName, REPORT_FREQUENCY);
+    subscriber.setIntegrator(integrator);
+
+    apo_test::CheckApoCharmmError(
+        [&]() { subscriber.update(); }, ApoCharmmErrorCode::NotInitialized,
+        "DcdSubscriber requires a CharmmContext before update");
+
+    apo_test::RemoveIfExists(fileName);
+  }
+
+  SECTION("RequiresIntegrator") {
+    const std::string fileName = "tmp_dcd_update_requires_integrator.dcd";
+    apo_test::RemoveIfExists(fileName);
+
+    auto ctx = CreateContext();
+
+    DcdSubscriber subscriber(fileName, REPORT_FREQUENCY);
+    subscriber.setCharmmContext(ctx);
+
+    apo_test::CheckApoCharmmError(
+        [&]() { subscriber.update(); }, ApoCharmmErrorCode::NotInitialized,
+        "DcdSubscriber requires an integrator before update");
+
+    apo_test::RemoveIfExists(fileName);
+  }
+
+  SECTION("RequiresOpenOutputFile") {
+    const std::string fileName = "tmp_dcd_update_requires_open_file.dcd";
+    apo_test::RemoveIfExists(fileName);
+
+    auto ctx = CreateContext();
+    auto integrator = std::make_shared<CudaIntegrator>(TIME_STEP);
+
+    TestDcdSubscriber subscriber(fileName, REPORT_FREQUENCY);
+    subscriber.setCharmmContext(ctx);
+    subscriber.setIntegrator(integrator);
+    subscriber.getOutputFile().close();
+
+    apo_test::CheckApoCharmmError(
+        [&]() { subscriber.update(); }, ApoCharmmErrorCode::NotInitialized,
+        "DcdSubscriber output file is not open for writing: " + fileName);
+
+    apo_test::RemoveIfExists(fileName);
+  }
+
+  SECTION("RequiresPositiveBoxDimensions") {
+    const std::string fileName = "tmp_dcd_update_requires_box.dcd";
+    apo_test::RemoveIfExists(fileName);
+
+    auto ctx = CreateContext();
+    ctx->getBoxDimensions()[0] = 0.0;
+    auto integrator = std::make_shared<CudaIntegrator>(TIME_STEP);
+
+    DcdSubscriber subscriber(fileName, REPORT_FREQUENCY);
+    subscriber.setCharmmContext(ctx);
+    subscriber.setIntegrator(integrator);
+
+    apo_test::CheckApoCharmmError(
+        [&]() { subscriber.update(); }, ApoCharmmErrorCode::NotInitialized,
+        "DcdSubscriber requires three positive box dimensions before update");
+
+    apo_test::RemoveIfExists(fileName);
+  }
+
+  SECTION("RequiresAtLeastOneAtom") {
+    const std::string fileName = "tmp_dcd_update_requires_atoms.dcd";
+    apo_test::RemoveIfExists(fileName);
+
+    auto ctx = std::make_shared<CharmmContext>();
+    ctx->setBoxDimensions(BOX_DIMENSIONS);
+    auto integrator = std::make_shared<CudaIntegrator>(TIME_STEP);
+
+    DcdSubscriber subscriber(fileName, REPORT_FREQUENCY);
+    subscriber.setCharmmContext(ctx);
+    subscriber.setIntegrator(integrator);
+
+    apo_test::CheckApoCharmmError(
+        [&]() { subscriber.update(); }, ApoCharmmErrorCode::NotInitialized,
+        "DcdSubscriber requires at least one atom before update");
+
+    apo_test::RemoveIfExists(fileName);
+  }
+}
+
+TEST_CASE("DcdSubscriberReportsMetadataAndOutputFailures") {
+  SECTION("RejectsFrameMetadataOverflow") {
+    const std::string fileName = "tmp_dcd_metadata_overflow.dcd";
+    apo_test::RemoveIfExists(fileName);
+
+    auto ctx = CreateContext();
+    auto integrator = std::make_shared<CudaIntegrator>(TIME_STEP);
+
+    DcdSubscriber subscriber(fileName, std::numeric_limits<int>::max());
+    subscriber.setCharmmContext(ctx);
+    subscriber.setIntegrator(integrator);
+
+    subscriber.update();
+
+    apo_test::CheckApoCharmmError(
+        [&]() { subscriber.update(); }, ApoCharmmErrorCode::Runtime,
+        "DcdSubscriber frame metadata exceeds DCD integer range");
+
+    apo_test::RemoveIfExists(fileName);
+  }
+
+  SECTION("ReportsHeaderWriteFailure") {
+    const std::string fileName = "tmp_dcd_header_write_failure.dcd";
+    apo_test::RemoveIfExists(fileName);
+
+    auto ctx = CreateContext();
+    auto integrator = std::make_shared<CudaIntegrator>(TIME_STEP);
+    FailingStreamBuffer failingBuffer;
+
+    TestDcdSubscriber subscriber(fileName, REPORT_FREQUENCY);
+    subscriber.setCharmmContext(ctx);
+    subscriber.setIntegrator(integrator);
+    subscriber.getOutputFile().std::basic_ios<char>::rdbuf(&failingBuffer);
+
+    apo_test::CheckApoCharmmError([&]() { subscriber.update(); },
+                                  ApoCharmmErrorCode::Runtime,
+                                  "Failed to write DCD header: " + fileName);
+
+    apo_test::RemoveIfExists(fileName);
+  }
+
+  SECTION("ReportsFrameWriteFailure") {
+    const std::string fileName = "tmp_dcd_frame_write_failure.dcd";
+    apo_test::RemoveIfExists(fileName);
+
+    auto ctx = CreateContext();
+    auto integrator = std::make_shared<CudaIntegrator>(TIME_STEP);
+    FailingStreamBuffer failingBuffer;
+
+    TestDcdSubscriber subscriber(fileName, REPORT_FREQUENCY);
+    subscriber.setCharmmContext(ctx);
+    subscriber.setIntegrator(integrator);
+
+    subscriber.update();
+    subscriber.getOutputFile().std::basic_ios<char>::rdbuf(&failingBuffer);
+
+    apo_test::CheckApoCharmmError([&]() { subscriber.update(); },
+                                  ApoCharmmErrorCode::Runtime,
+                                  "Failed to write DCD frame: " + fileName);
+
+    apo_test::RemoveIfExists(fileName);
+  }
+}
+
+TEST_CASE("DcdSubscriberOpenFileResetsTrajectoryState") {
+  const std::string fileName = "tmp_dcd_reopen.dcd";
+  apo_test::RemoveIfExists(fileName);
+
+  auto ctx = CreateContext();
+  auto integrator = std::make_shared<CudaIntegrator>(TIME_STEP);
+
+  DcdSubscriber subscriber(fileName, REPORT_FREQUENCY);
+  subscriber.setCharmmContext(ctx);
+  subscriber.setIntegrator(integrator);
+
+  subscriber.update();
+  subscriber.openFile();
+  subscriber.update();
+
+  const DcdFile dcd = ReadDcdFile(fileName);
+  CHECK(dcd.numFrames == 1);
+  CHECK(dcd.numSteps == REPORT_FREQUENCY);
+  REQUIRE(dcd.frames.size() == 1);
+
+  apo_test::RemoveIfExists(fileName);
 }
 
 TEST_CASE("DcdSubscriberUpdateWritesOneFrame") {

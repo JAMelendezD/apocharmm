@@ -249,6 +249,76 @@ def check_constructor_validation(output_dir: Path) -> None:
         "DcdSubscriber construction",
     )
 
+    frequency_missing_directory_error = expect_invalid_argument(
+        "DcdSubscriber frequency constructor rejects missing output directory",
+        lambda: apo.DcdSubscriber(
+            missing_directory / "tmp_frequency.dcd", REPORT_FREQUENCY
+        ),
+        f"Output directory does not exist: {missing_directory}",
+    )
+    assert_equal(
+        "DcdSubscriber frequency missing output directory context",
+        frequency_missing_directory_error.context,
+        "DcdSubscriber construction",
+    )
+
+    open_error = expect_exception(
+        "DcdSubscriber maps native output open failure",
+        apo.ApoCharmmError,
+        lambda: apo.DcdSubscriber(output_dir),
+    )
+    assert_equal(
+        "DcdSubscriber output open failure status",
+        open_error.status,
+        apo.APO_STATUS_RUNTIME_ERROR,
+    )
+    assert_equal(
+        "DcdSubscriber output open failure status name",
+        open_error.status_name,
+        "APO_STATUS_RUNTIME_ERROR",
+    )
+    assert_equal(
+        "DcdSubscriber output open failure context",
+        open_error.context,
+        "DcdSubscriber construction",
+    )
+
+    expected_open_diagnostic: str = f"Failed to open DCD file for writing: {output_dir}"
+    if expected_open_diagnostic not in open_error.native_diagnostic:
+        raise AssertionError(
+            "DcdSubscriber output open failure: expected native diagnostic "
+            f"to contain {expected_open_diagnostic!r}, observed "
+            f"{open_error.native_diagnostic!r}"
+        )
+
+    frequency_open_error = expect_exception(
+        "DcdSubscriber frequency constructor maps native output open failure",
+        apo.ApoCharmmError,
+        lambda: apo.DcdSubscriber(output_dir, REPORT_FREQUENCY),
+    )
+    assert_equal(
+        "DcdSubscriber frequency output open failure status",
+        frequency_open_error.status,
+        apo.APO_STATUS_RUNTIME_ERROR,
+    )
+    assert_equal(
+        "DcdSubscriber frequency output open failure status name",
+        frequency_open_error.status_name,
+        "APO_STATUS_RUNTIME_ERROR",
+    )
+    assert_equal(
+        "DcdSubscriber frequency output open failure context",
+        frequency_open_error.context,
+        "DcdSubscriber construction",
+    )
+
+    if expected_open_diagnostic not in frequency_open_error.native_diagnostic:
+        raise AssertionError(
+            "DcdSubscriber frequency output open failure: expected native "
+            f"diagnostic to contain {expected_open_diagnostic!r}, observed "
+            f"{frequency_open_error.native_diagnostic!r}"
+        )
+
     remove_if_exists(default_path)
     remove_if_exists(frequency_path)
 

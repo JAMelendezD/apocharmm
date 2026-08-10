@@ -45,6 +45,7 @@ set(SOURCES_CAPI_TESTS
 
   # Subscriber tests
   unittest-capiSubscriber.cpp
+  unittest-capiDcdSubscriber.cpp
   unittest-capiRestartSubscriber.cpp
 )
 
