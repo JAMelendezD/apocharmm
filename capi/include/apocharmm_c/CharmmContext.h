@@ -167,6 +167,9 @@ APOCHARMM_C_API apo_status apo_charmm_context_assign_velocities_at_temperature(
 APOCHARMM_C_API apo_status apo_charmm_context_compute_temperature(
     double *temperature, apo_charmm_context *context);
 
+APOCHARMM_C_API apo_status apo_charmm_context_calculate_potential_energy(
+    apo_charmm_context *context, const bool reset, const bool print);
+
 #ifdef __cplusplus
 }
 #endif

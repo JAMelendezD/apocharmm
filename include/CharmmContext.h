@@ -145,6 +145,8 @@ public: // Specialized functions
   void linkBackForceManager(void);
 
 protected:
+  void printEnergyTable(void);
+
   void syncStateFromForceManager(void);
   void syncForceManagerFromState(void);
 
@@ -182,6 +184,10 @@ protected:
   CudaContainer<double> m_KineticEnergy;
   CudaContainer<double> m_Pressure;
   CudaContainer<double> m_VirialKineticEnergyTensor;
+
+  std::uint64_t m_EnergyTableEvaluationCount;
+  double m_PreviousPrintedPotentialEnergy;
+  bool m_HasPreviousPrintedPotentialEnergy;
 
   double m_Temperature;
   bool m_UsingHolonomicConstraints;

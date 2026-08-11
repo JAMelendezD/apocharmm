@@ -308,6 +308,12 @@ def _initialize_prototypes() -> None:
         "CharmmContext.computeTemperature()",
     )
 
+    configure_status_function(
+        lib().apo_charmm_context_calculate_potential_energy,
+        [ctypes.c_void_p, ctypes.c_bool, ctypes.c_bool],
+        "CharmmContext.calculatePotentialEnergy(reset, print_energy)",
+    )
+
     _prototypes_initialized = True
 
     return
@@ -839,3 +845,15 @@ class CharmmContext(_ApoObject):
         )
 
         return float(c_temperature.value)
+
+    def calculatePotentialEnergy(self, print_energy: bool = False) -> None:
+        _initialize_prototypes()
+
+        c_reset: ctypes.c_bool = ctypes.c_bool(False)
+        c_print: ctypes.c_bool = ctypes.c_bool(print_energy)
+
+        lib().apo_charmm_context_calculate_potential_energy(
+            self.handle, c_reset, c_print
+        )
+
+        return

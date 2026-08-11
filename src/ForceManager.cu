@@ -376,6 +376,7 @@ std::map<std::string, double> ForceManager::getEnergyComponents(void) {
   energyDecompositionMap["ureyb"] = m_BondedEnergyVirial.getEnergy("ureyb");
   energyDecompositionMap["dihe"] = m_BondedEnergyVirial.getEnergy("dihe");
   energyDecompositionMap["imdihe"] = m_BondedEnergyVirial.getEnergy("imdihe");
+  energyDecompositionMap["cmap"] = m_BondedEnergyVirial.getEnergy("cmap");
 
   energyDecompositionMap["ewks"] = m_ReciprocalEnergyVirial.getEnergy("ewks");
   energyDecompositionMap["ewse"] = m_ReciprocalEnergyVirial.getEnergy("ewse");
@@ -383,6 +384,16 @@ std::map<std::string, double> ForceManager::getEnergyComponents(void) {
   energyDecompositionMap["ewex"] = m_DirectEnergyVirial.getEnergy("ewex");
   energyDecompositionMap["elec"] = m_DirectEnergyVirial.getEnergy("elec");
   energyDecompositionMap["vdw"] = m_DirectEnergyVirial.getEnergy("vdw");
+
+  // JEG260811: This should eventually be put in its own bucket. However, it is
+  // fine for now. (CONS HARM, CONS HMCM, CONS RESD, etc. should have their own
+  // buckets).
+  double userEnergy = 0.0;
+  for (const std::shared_ptr<CudaEnergyVirial> &energyVirial :
+       m_EnergyVirials) {
+    userEnergy += energyVirial->getEnergy();
+  }
+  energyDecompositionMap["user"] = userEnergy;
 
   return energyDecompositionMap;
 }
@@ -773,15 +784,15 @@ __global__ void convertLLIToFloat(int numAtoms, int stride,
 // Sums 10 potential enery terms given as pointers (e0-e9) into a double
 // pointer *pe
 __global__ void UpdatePotentialEnergyKernel(
-    double *__restrict__ pe, const double *__restrict__ e0,
-    const double *__restrict__ e1, const double *__restrict__ e2,
-    const double *__restrict__ e3, const double *__restrict__ e4,
-    const double *__restrict__ e5, const double *__restrict__ e6,
-    const double *__restrict__ e7, const double *__restrict__ e8,
-    const double *__restrict__ e9) {
+    double *__restrict__ potentialEnergy, const double *__restrict__ bond,
+    const double *__restrict__ angl, const double *__restrict__ urey,
+    const double *__restrict__ dihe, const double *__restrict__ impr,
+    const double *__restrict__ cmap, const double *__restrict__ ewks,
+    const double *__restrict__ ewse, const double *__restrict__ ewex,
+    const double *__restrict__ elec, const double *__restrict__ vdwe) {
   if (threadIdx.x == 0) {
-    pe[0] = e0[0] + e1[0] + e2[0] + e3[0] + e4[0] + e5[0] + e6[0] + e7[0] +
-            e8[0] + e9[0];
+    *potentialEnergy = *bond + *angl + *urey + *dihe + *impr + *cmap + *ewks +
+                       *ewse + *ewex + *elec + *vdwe;
   }
   return;
 }
@@ -893,7 +904,8 @@ void ForceManager::calcForcePart3(const float4 *xyzq, const bool calcEnergy,
     //                     bondedEnergyVirial.getEnergy("angle") +
     //                     bondedEnergyVirial.getEnergy("ureyb") +
     //                     bondedEnergyVirial.getEnergy("dihe") +
-    //                     bondedEnergyVirial.getEnergy("imdihe");
+    //                     bondedEnergyVirial.getEnergy("imdihe") +
+    //                     bondedEnergyVirial.getEnergy("cmap");
 
     // totalNonBondedEnergy = directEnergyVirial.getEnergy("ewex") +
     //                        directEnergyVirial.getEnergy("elec") +
@@ -911,6 +923,7 @@ void ForceManager::calcForcePart3(const float4 *xyzq, const bool calcEnergy,
         m_BondedEnergyVirial.getEnergyPointer("ureyb"),
         m_BondedEnergyVirial.getEnergyPointer("dihe"),
         m_BondedEnergyVirial.getEnergyPointer("imdihe"),
+        m_BondedEnergyVirial.getEnergyPointer("cmap"),
         m_ReciprocalEnergyVirial.getEnergyPointer("ewks"),
         m_ReciprocalEnergyVirial.getEnergyPointer("ewse"),
         m_DirectEnergyVirial.getEnergyPointer("ewex"),
@@ -942,6 +955,8 @@ void ForceManager::calcForcePart3(const float4 *xyzq, const bool calcEnergy,
                 << m_BondedEnergyVirial.getEnergy("dihe") << "\n";
       std::cout << "imdihe energy       : "
                 << m_BondedEnergyVirial.getEnergy("imdihe") << "\n";
+      std::cout << "cmap energy         : "
+                << m_BondedEnergyVirial.getEnergy("cmap") << "\n";
 
       std::cout << "recip kspace energy : "
                 << m_ReciprocalEnergyVirial.getEnergy("ewks") << "\n";

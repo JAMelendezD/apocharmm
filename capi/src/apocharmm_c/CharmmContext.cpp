@@ -1019,3 +1019,20 @@ apo_charmm_context_compute_temperature(double *temperature,
       },
       function_name);
 }
+
+extern "C" apo_status apo_charmm_context_calculate_potential_energy(
+    apo_charmm_context *context, const bool reset, const bool print) {
+  const char *function_name = "apo_charmm_context_calculate_potential_energy";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        context->object->calculatePotentialEnergy(reset, print);
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}

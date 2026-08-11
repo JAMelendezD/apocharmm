@@ -20,6 +20,9 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <map>
 #include <random>
 #include <sstream>
 #include <stdexcept>
@@ -38,7 +41,9 @@ CharmmContext::CharmmContext(void)
       m_NumDegreesOfFreedom(-1), m_Pbc(PBC::P1), m_HasPbc(false),
       m_CoordinatesChargesSP(), m_CoordinatesChargesDP(),
       m_HasCoordinates(false), m_VelocitiesInverseMasses(), m_KineticEnergy(1),
-      m_Pressure(9), m_VirialKineticEnergyTensor(9), m_Temperature(0.0f),
+      m_Pressure(9), m_VirialKineticEnergyTensor(9),
+      m_EnergyTableEvaluationCount(0), m_PreviousPrintedPotentialEnergy(0.0),
+      m_HasPreviousPrintedPotentialEnergy(false), m_Temperature(0.0f),
       m_UsingHolonomicConstraints(false) {}
 
 CharmmContext::CharmmContext(std::shared_ptr<CharmmPSF> psf,
@@ -100,6 +105,9 @@ CharmmContext::CharmmContext(const CharmmContext &other)
   m_VelocitiesInverseMasses = other.m_VelocitiesInverseMasses;
   m_KineticEnergy = other.m_KineticEnergy;
   m_Pressure = other.m_Pressure;
+  m_EnergyTableEvaluationCount = 0;
+  m_PreviousPrintedPotentialEnergy = 0.0;
+  m_HasPreviousPrintedPotentialEnergy = false;
   m_Temperature = other.m_Temperature;
   m_NumDegreesOfFreedom = other.m_NumDegreesOfFreedom;
   m_UsingHolonomicConstraints = other.m_UsingHolonomicConstraints;
@@ -1141,11 +1149,16 @@ void CharmmContext::calculatePotentialEnergy(const bool reset,
                                              const bool print) {
   this->requireInitializedForceManager();
 
-  APOCHARMM_REQUIRE(!print, ApoCharmmErrorCode::NotImplemented,
-                    "Potential-energy printing is not implemented");
+  APOCHARMM_REQUIRE(
+      !print || !m_ForceManager->isComposite(),
+      ApoCharmmErrorCode::NotImplemented,
+      "Energy-table printing is not implemented for composite ForceManagers");
 
   m_ForceManager->calcForce(m_CoordinatesChargesSP.getDeviceArray().data(),
                             reset, true, true);
+
+  if (print)
+    this->printEnergyTable();
 
   return;
 }
@@ -1168,6 +1181,94 @@ void CharmmContext::linkBackForceManager(void) {
     return;
 
   m_ForceManager->setContext(self);
+
+  return;
+}
+
+void CharmmContext::printEnergyTable(void) {
+  const std::map<std::string, double> energyComponents =
+      m_ForceManager->getEnergyComponents();
+
+  const auto component =
+      [&energyComponents](const std::string &name) -> double {
+    return energyComponents.at(name);
+  };
+
+  CudaContainer<double> &potentialEnergy = m_ForceManager->getPotentialEnergy();
+  potentialEnergy.transferToHost();
+
+  const double totalEnergy = potentialEnergy[0];
+  const double deltaEnergy =
+      m_HasPreviousPrintedPotentialEnergy
+          ? totalEnergy - m_PreviousPrintedPotentialEnergy
+          : 0.0;
+
+  const std::shared_ptr<Force<double>> forces = m_ForceManager->getForces();
+  const std::size_t numAtoms = static_cast<std::size_t>(m_NumAtoms);
+
+  std::vector<double> forceX(numAtoms);
+  std::vector<double> forceY(numAtoms);
+  std::vector<double> forceZ(numAtoms);
+
+  forces->getXYZ(forceX.data(), forceY.data(), forceZ.data());
+
+  double squaredGradientNorm = 0.0;
+  for (std::size_t i = 0; i < numAtoms; i++) {
+    squaredGradientNorm +=
+        forceX[i] * forceX[i] + forceY[i] * forceY[i] + forceZ[i] * forceZ[i];
+  }
+
+  const double gradientRms =
+      std::sqrt(squaredGradientNorm / static_cast<double>(numAtoms));
+
+  std::ostringstream output;
+
+  output << "ENER ENR:  Eval#     ENERgy      Delta-E         GRMS\n"
+         << "ENER INTERN:          BONDs       ANGLes       UREY-b"
+            "    DIHEdrals    IMPRopers\n"
+         << "ENER CROSS:           CMAPs        PMF1D        PMF2D"
+            "        PRIMO\n"
+         << "ENER EXTERN:        VDWaals         ELEC       HBONds"
+            "          ASP         USER\n"
+         << "ENER EWALD:          EWKSum       EWSElf       EWEXcl"
+            "       EWQCor       EWUTil\n"
+         << " ----------       ---------    ---------    ---------"
+            "    ---------    ---------\n";
+
+  output << std::fixed << std::setprecision(5) << std::right;
+
+  output << "ENER>" << std::setw(9) << m_EnergyTableEvaluationCount
+         << std::setw(13) << totalEnergy << std::setw(13) << deltaEnergy
+         << std::setw(13) << gradientRms << '\n';
+
+  output << std::left << std::setw(14) << "ENER INTERN>" << std::right
+         << std::setw(13) << component("bond") << std::setw(13)
+         << component("angle") << std::setw(13) << component("ureyb")
+         << std::setw(13) << component("dihe") << std::setw(13)
+         << component("imdihe") << '\n';
+
+  output << std::left << std::setw(14) << "ENER CROSS>" << std::right
+         << std::setw(13) << component("cmap") << std::setw(13) << 0.0
+         << std::setw(13) << 0.0 << std::setw(13) << 0.0 << '\n';
+
+  output << std::left << std::setw(14) << "ENER EXTERN>" << std::right
+         << std::setw(13) << component("vdw") << std::setw(13)
+         << component("elec") << std::setw(13) << 0.0 << std::setw(13) << 0.0
+         << std::setw(13) << component("user") << '\n';
+
+  output << std::left << std::setw(14) << "ENER EWALD>" << std::right
+         << std::setw(13) << component("ewks") << std::setw(13)
+         << component("ewse") << std::setw(13) << component("ewex")
+         << std::setw(13) << 0.0 << std::setw(13) << 0.0 << '\n';
+
+  output << " ----------       ---------    ---------    ---------"
+            "    ---------    ---------\n";
+
+  std::cout << output.str() << std::flush;
+
+  m_PreviousPrintedPotentialEnergy = totalEnergy;
+  m_HasPreviousPrintedPotentialEnergy = true;
+  m_EnergyTableEvaluationCount++;
 
   return;
 }
