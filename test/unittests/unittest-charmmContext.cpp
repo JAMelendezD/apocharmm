@@ -19,7 +19,6 @@
 #include "test_paths.h"
 
 #include <memory>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -39,10 +38,8 @@ TEST_CASE("CharmmContextForceManagerConstructorMirrorsBackendState") {
   auto fm = std::make_shared<ForceManager>(psf, prm);
   fm->setBoxDimensions(BOX_DIMENSIONS);
 
-  std::cout << "auto ctx = std::make_shared<CharmmContext>(fm);" << std::endl;
   auto ctx = std::make_shared<CharmmContext>(fm);
 
-  std::cout << "CHECK(ctx->getForceManager() == fm);" << std::endl;
   CHECK(ctx->getForceManager() == fm);
   CHECK(ctx->getPsf() == psf);
   CHECK(ctx->getPrm() == prm);
@@ -111,7 +108,7 @@ TEST_CASE("CharmmContextStagedStateCanLoadCoordinatesAfterBackendInitialize") {
 
   CHECK(fm->isInitialized() == true);
 
-  ctx->setCoordinates(crd);
+  CHECK_NOTHROW(ctx->setCoordinates(crd));
 
   CHECK(ctx->getNumAtoms() == psf->getNumAtoms());
 
@@ -140,13 +137,22 @@ TEST_CASE("CharmmContextStagedStateCanLoadCoordinatesAfterBackendInitialize") {
 TEST_CASE("CharmmContextRejectsInvalidStagedBoxDimensions") {
   CharmmContext ctx;
 
-  CHECK_THROWS_AS(ctx.setBoxDimensions({40.0, 40.0}), std::invalid_argument);
-  CHECK_THROWS_AS(ctx.setBoxDimensions({40.0, 40.0, 40.0, 40.0}),
-                  std::invalid_argument);
-  CHECK_THROWS_AS(ctx.setBoxDimensions({40.0, 0.0, 40.0}),
-                  std::invalid_argument);
-  CHECK_THROWS_AS(ctx.setBoxDimensions({40.0, -1.0, 40.0}),
-                  std::invalid_argument);
+  apo_test::CheckApoCharmmError(
+      [&ctx](void) { ctx.setBoxDimensions({40.0, 40.0}); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Box dimensions must contain exactly 3 positive values");
+  apo_test::CheckApoCharmmError(
+      [&ctx](void) { ctx.setBoxDimensions({40.0, 40.0, 40.0, 40.0}); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Box dimensions must contain exactly 3 positive values");
+  apo_test::CheckApoCharmmError(
+      [&ctx](void) { ctx.setBoxDimensions({40.0, 0.0, 40.0}); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Box dimensions must contain exactly 3 positive values");
+  apo_test::CheckApoCharmmError(
+      [&ctx](void) { ctx.setBoxDimensions({40.0, -1.0, 40.0}); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Box dimensions must contain exactly 3 positive values");
 }
 
 TEST_CASE("ForceManagerContextBackPointerDoesNotOwnCharmmContext") {
@@ -275,16 +281,3 @@ TEST_CASE("CharmmContextForwardsForceManagerConfiguration") {
   CHECK(fm->getPmeSplineOrder() == 6);
   CHECK(fm->getVdwType() == VDW_DBEXP);
 }
-
-/* *
-TEST_CASE("CharmmContextRejectsCoordinatesBeforeBackendInitialization") {
-  auto prm = std::make_shared<CharmmParameters>(getDataPath() +
-                                                "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(getDataPath() + "nacl_pair.psf");
-  auto crd = std::make_shared<CharmmCrd>(getDataPath() + "nacl_pair.cor");
-
-  auto ctx = std::make_shared<CharmmContext>(psf, prm);
-
-  CHECK_THROWS_AS(ctx->setCoordinates(crd), std::runtime_error);
-}
-* */

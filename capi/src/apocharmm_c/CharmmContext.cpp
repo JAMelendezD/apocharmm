@@ -17,9 +17,8 @@
 #include "apocharmm_c/detail/ForceManagerHandle.h"
 #include "apocharmm_c/detail/Validation.h"
 
-#include <cmath>
-#include <limits>
 #include <memory>
+#include <string>
 #include <vector>
 
 extern "C" apo_status
@@ -107,8 +106,8 @@ apo_charmm_context_set_prm(apo_charmm_context *context,
             apocharmm_c::require_handle_object<apo_charmm_parameters>(
                 parameters, function_name, "CharmmParameters"));
 
-        context->parameters = parameters->object;
         context->object->setPrm(parameters->object);
+        context->parameters = context->object->getPrm();
 
         return APO_STATUS_OK;
       },
@@ -129,8 +128,8 @@ extern "C" apo_status apo_charmm_context_set_psf(apo_charmm_context *context,
             apocharmm_c::require_handle_object<apo_charmm_psf>(
                 psf, function_name, "CharmmPsf"));
 
-        context->psf = psf->object;
         context->object->setPsf(psf->object);
+        context->psf = context->object->getPsf();
 
         return APO_STATUS_OK;
       },
@@ -152,9 +151,8 @@ apo_charmm_context_set_force_manager(apo_charmm_context *context,
             apocharmm_c::require_handle_object<apo_force_manager>(
                 force_manager, function_name, "ForceManager"));
 
-        context->force_manager = force_manager->object;
         context->object->setForceManager(force_manager->object);
-
+        context->force_manager = context->object->getForceManager();
         context->psf = context->object->getPsf();
         context->parameters = context->object->getPrm();
 
@@ -248,11 +246,6 @@ apo_charmm_context_set_charges(apo_charmm_context *context,
         APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<double>(
             charges, function_name, "charges"));
 
-        if (charges_len == 0) {
-          return apocharmm_c::invalid_argument(function_name,
-                                               "charges must not be empty");
-        }
-
         const std::vector<double> cpp_charges(charges, charges + charges_len);
         context->object->setCharges(cpp_charges);
 
@@ -300,19 +293,101 @@ apo_charmm_context_set_velocities(apo_charmm_context *context,
         APOCHARMM_C_RETURN_IF_ERROR(
             apocharmm_c::require_pointer<double>(xyz, function_name, "xyz"));
 
-        static_cast<void>(xyz_len);
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_flat_array_length(
+            xyz_len, 3, "xyz", function_name));
 
-        return APO_STATUS_NOT_IMPLEMENTED;
+        const std::vector<double> cpp_xyz(xyz, xyz + xyz_len);
+        context->object->setVelocities(cpp_xyz);
 
-        // return APO_STATUS_OK;
+        return APO_STATUS_OK;
       },
       function_name);
 }
 
-////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////
+extern "C" apo_status
+apo_charmm_context_set_velocities_from_charmm_velocity_file(
+    apo_charmm_context *context, const char *path) {
+  const char *function_name =
+      "apo_charmm_context_set_velocities_from_charmm_velocity_file";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_c_string(
+            path, function_name, "CHARMM velocity file"));
+
+        context->object->setVelocitiesFromCHARMMVelocityFile(std::string(path));
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status apo_charmm_context_set_masses(apo_charmm_context *context,
+                                                    const double *masses,
+                                                    const size_t masses_len) {
+  const char *function_name = "apo_charmm_context_set_masses";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<double>(
+            masses, function_name, "masses"));
+
+        const std::vector<double> cpp_masses(masses, masses + masses_len);
+        context->object->setMasses(cpp_masses);
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status
+apo_charmm_context_set_temperature(apo_charmm_context *context,
+                                   const double temperature) {
+  const char *function_name = "apo_charmm_context_set_temperature";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        context->object->setTemperature(temperature);
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status
+apo_charmm_context_set_periodic_boundary_condition(apo_charmm_context *context,
+                                                   const apo_pbc pbc) {
+  const char *function_name =
+      "apo_charmm_context_set_periodic_boundary_condition";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        PBC cpp_pbc = PBC::NONE;
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::to_pbc(&cpp_pbc, pbc, function_name));
+
+        context->object->setPeriodicBoundaryCondition(cpp_pbc);
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
 
 extern "C" apo_status
 apo_charmm_context_set_box_dimensions(apo_charmm_context *context,
@@ -344,6 +419,41 @@ apo_charmm_context_set_box_dimensions(apo_charmm_context *context,
       function_name);
 }
 
+extern "C" apo_status
+apo_charmm_context_set_random_seed(apo_charmm_context *context,
+                                   const uint64_t seed) {
+  const char *function_name = "apo_charmm_context_set_random_seed";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        context->object->setRandomSeed(seed);
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status apo_charmm_context_use_holonomic_constraints(
+    apo_charmm_context *context, const bool useHolonomicConstraints) {
+  const char *function_name = "apo_charmm_context_use_holonomic_constraints";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        context->object->useHolonomicConstraints(useHolonomicConstraints);
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
 extern "C" apo_status apo_charmm_context_set_kappa(apo_charmm_context *context,
                                                    const double kappa) {
   const char *function_name = "apo_charmm_context_set_kappa";
@@ -353,11 +463,6 @@ extern "C" apo_status apo_charmm_context_set_kappa(apo_charmm_context *context,
         APOCHARMM_C_RETURN_IF_ERROR(
             apocharmm_c::require_handle_object<apo_charmm_context>(
                 context, function_name, "CharmmContext"));
-
-        if (!std::isfinite(kappa) || kappa < 0.0) {
-          return apocharmm_c::invalid_argument(
-              function_name, "kappa must be finite and nonnegative");
-        }
 
         context->object->setKappa(static_cast<float>(kappa));
 
@@ -376,11 +481,6 @@ extern "C" apo_status apo_charmm_context_set_cutoff(apo_charmm_context *context,
             apocharmm_c::require_handle_object<apo_charmm_context>(
                 context, function_name, "CharmmContext"));
 
-        if (!std::isfinite(cutoff) || cutoff <= 0.0) {
-          return apocharmm_c::invalid_argument(
-              function_name, "cutoff must be finite and positive");
-        }
-
         context->object->setCutoff(static_cast<float>(cutoff));
 
         return APO_STATUS_OK;
@@ -398,11 +498,6 @@ extern "C" apo_status apo_charmm_context_set_ctonnb(apo_charmm_context *context,
             apocharmm_c::require_handle_object<apo_charmm_context>(
                 context, function_name, "CharmmContext"));
 
-        if (!std::isfinite(ctonnb) || ctonnb <= 0.0) {
-          return apocharmm_c::invalid_argument(
-              function_name, "ctonnb must be finite and positive");
-        }
-
         context->object->setCtonnb(static_cast<float>(ctonnb));
 
         return APO_STATUS_OK;
@@ -419,11 +514,6 @@ extern "C" apo_status apo_charmm_context_set_ctofnb(apo_charmm_context *context,
         APOCHARMM_C_RETURN_IF_ERROR(
             apocharmm_c::require_handle_object<apo_charmm_context>(
                 context, function_name, "CharmmContext"));
-
-        if (!std::isfinite(ctofnb) || ctofnb <= 0.0) {
-          return apocharmm_c::invalid_argument(
-              function_name, "ctofnb must be finite and positive");
-        }
 
         context->object->setCtofnb(static_cast<float>(ctofnb));
 
@@ -469,35 +559,7 @@ apo_charmm_context_set_pme_spline_order(apo_charmm_context *context,
             apocharmm_c::require_handle_object<apo_charmm_context>(
                 context, function_name, "CharmmContext"));
 
-        if (order <= 0) {
-          return apocharmm_c::invalid_argument(function_name,
-                                               "order must be positive");
-        }
-
         context->object->setPmeSplineOrder(order);
-
-        return APO_STATUS_OK;
-      },
-      function_name);
-}
-
-extern "C" apo_status
-apo_charmm_context_set_periodic_boundary_condition(apo_charmm_context *context,
-                                                   const apo_pbc pbc) {
-  const char *function_name =
-      "apo_charmm_context_set_periodic_boundary_condition";
-
-  return apocharmm_c::guard(
-      [&](void) -> apo_status {
-        APOCHARMM_C_RETURN_IF_ERROR(
-            apocharmm_c::require_handle_object<apo_charmm_context>(
-                context, function_name, "CharmmContext"));
-
-        PBC cpp_pbc = PBC::NONE;
-        APOCHARMM_C_RETURN_IF_ERROR(
-            apocharmm_c::to_pbc(&cpp_pbc, pbc, function_name));
-
-        context->object->setPeriodicBoundaryCondition(cpp_pbc);
 
         return APO_STATUS_OK;
       },
@@ -515,11 +577,6 @@ apo_charmm_context_set_vdw_type(apo_charmm_context *context,
             apocharmm_c::require_handle_object<apo_charmm_context>(
                 context, function_name, "CharmmContext"));
 
-        if ((vdw_type < 1) || (vdw_type > 6)) {
-          return apocharmm_c::invalid_argument(function_name,
-                                               "vdw_type must be [1, 6]");
-        }
-
         context->object->setVdwType(vdw_type);
 
         return APO_STATUS_OK;
@@ -528,66 +585,40 @@ apo_charmm_context_set_vdw_type(apo_charmm_context *context,
 }
 
 extern "C" apo_status
-apo_charmm_context_set_random_seed(apo_charmm_context *context,
-                                   const uint64_t seed) {
-  const char *function_name = "apo_charmm_context_set_random_seed";
-
-  return apocharmm_c::guard(
-      [&](void) -> apo_status {
-        APOCHARMM_C_RETURN_IF_ERROR(
-            apocharmm_c::require_handle_object<apo_charmm_context>(
-                context, function_name, "CharmmContext"));
-
-        context->object->setRandomSeed(seed);
-
-        return APO_STATUS_OK;
-      },
-      function_name);
-}
-
-extern "C" apo_status apo_charmm_context_use_holonomic_constraints(
-    apo_charmm_context *context, const bool useHolonomicConstraints) {
-  const char *function_name = "apo_charmm_context_use_holonomic_constraints";
-
-  return apocharmm_c::guard(
-      [&](void) -> apo_status {
-        APOCHARMM_C_RETURN_IF_ERROR(
-            apocharmm_c::require_handle_object<apo_charmm_context>(
-                context, function_name, "CharmmContext"));
-
-        context->object->useHolonomicConstraints(useHolonomicConstraints);
-
-        return APO_STATUS_OK;
-      },
-      function_name);
-}
-
-extern "C" apo_status
-apo_charmm_context_get_num_atoms(size_t *num_atoms,
+apo_charmm_context_get_num_atoms(int *num_atoms,
                                  const apo_charmm_context *context) {
   const char *function_name = "apo_charmm_context_get_num_atoms";
 
   return apocharmm_c::guard(
       [&](void) -> apo_status {
-        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<size_t>(
-            num_atoms, function_name, "num_atoms"));
-
-        *num_atoms = 0;
-
         APOCHARMM_C_RETURN_IF_ERROR(
             apocharmm_c::require_handle_object<apo_charmm_context>(
                 context, function_name, "CharmmContext"));
 
-        const int n = context->object->getNumAtoms();
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<int>(
+            num_atoms, function_name, "num_atoms"));
 
-        if (n < 0) {
-          return apocharmm_c::set_last_error(
-              APO_STATUS_RUNTIME_ERROR,
-              "apo_charmm_context_get_num_atoms: CharmmContext returned a "
-              "negative atom count");
-        }
+        *num_atoms = context->object->getNumAtoms();
 
-        *num_atoms = static_cast<size_t>(n);
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status apo_charmm_context_get_num_degrees_of_freedom(
+    int *ndegf, const apo_charmm_context *context) {
+  const char *function_name = "apo_charmm_context_get_num_degrees_of_freedom";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_pointer<int>(ndegf, function_name, "ndegf"));
+
+        *ndegf = context->object->getNumDegreesOfFreedom();
 
         return APO_STATUS_OK;
       },
@@ -662,6 +693,27 @@ apo_charmm_context_get_velocity_mass(double *xyzm, const size_t xyzm_len,
       function_name);
 }
 
+extern "C" apo_status apo_charmm_context_get_periodic_boundary_condition(
+    apo_pbc *pbc, const apo_charmm_context *context) {
+  const char *function_name =
+      "apo_charmm_context_get_periodic_boundary_condition";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_pointer<apo_pbc>(pbc, function_name, "pbc"));
+
+        return apocharmm_c::from_pbc(
+            pbc, context->object->getPeriodicBoundaryCondition(),
+            function_name);
+      },
+      function_name);
+}
+
 extern "C" apo_status
 apo_charmm_context_get_box_dimensions(double *box_dimensions,
                                       const size_t box_dimensions_len,
@@ -689,6 +741,48 @@ apo_charmm_context_get_box_dimensions(double *box_dimensions,
 
         for (size_t i = 0; i < 3; i++)
           box_dimensions[i] = box_dims[i];
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status
+apo_charmm_context_get_random_seed(uint64_t *seed,
+                                   const apo_charmm_context *context) {
+  const char *function_name = "apo_charmm_context_get_random_seed";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<uint64_t>(
+            seed, function_name, "seed"));
+
+        *seed = context->object->getRandomSeed();
+
+        return APO_STATUS_OK;
+      },
+      function_name);
+}
+
+extern "C" apo_status
+apo_charmm_context_get_volume(double *volume,
+                              const apo_charmm_context *context) {
+  const char *function_name = "apo_charmm_context_get_volume";
+
+  return apocharmm_c::guard(
+      [&](void) -> apo_status {
+        APOCHARMM_C_RETURN_IF_ERROR(
+            apocharmm_c::require_handle_object<apo_charmm_context>(
+                context, function_name, "CharmmContext"));
+
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<double>(
+            volume, function_name, "volume"));
+
+        *volume = context->object->getVolume();
 
         return APO_STATUS_OK;
       },
@@ -830,27 +924,6 @@ apo_charmm_context_get_pme_spline_order(int *order,
       function_name);
 }
 
-extern "C" apo_status apo_charmm_context_get_periodic_boundary_condition(
-    apo_pbc *pbc, const apo_charmm_context *context) {
-  const char *function_name =
-      "apo_charmm_context_get_periodic_boundary_condition";
-
-  return apocharmm_c::guard(
-      [&](void) -> apo_status {
-        APOCHARMM_C_RETURN_IF_ERROR(
-            apocharmm_c::require_handle_object<apo_charmm_context>(
-                context, function_name, "CharmmContext"));
-
-        APOCHARMM_C_RETURN_IF_ERROR(
-            apocharmm_c::require_pointer<apo_pbc>(pbc, function_name, "pbc"));
-
-        return apocharmm_c::from_pbc(
-            pbc, context->object->getPeriodicBoundaryCondition(),
-            function_name);
-      },
-      function_name);
-}
-
 extern "C" apo_status
 apo_charmm_context_get_vdw_type(int *vdw_type,
                                 const apo_charmm_context *context) {
@@ -890,8 +963,9 @@ apo_charmm_context_get_force_manager(apo_force_manager **out,
         std::shared_ptr<ForceManager> fm = context->object->getForceManager();
 
         if (fm == nullptr) {
-          return apocharmm_c::invalid_argument(
-              function_name, "CharmmContext has no ForceManager");
+          return apocharmm_c::set_last_error(APO_STATUS_NOT_INITIALIZED,
+                                             function_name,
+                                             "ForceManager is not set");
         }
 
         std::unique_ptr<apo_force_manager> handle(new apo_force_manager());
@@ -918,8 +992,7 @@ apo_charmm_context_assign_velocities_at_temperature(apo_charmm_context *context,
             apocharmm_c::require_handle_object<apo_charmm_context>(
                 context, function_name, "CharmmContext"));
 
-        context->object->assignVelocitiesAtTemperature(
-            static_cast<float>(temperature));
+        context->object->assignVelocitiesAtTemperature(temperature);
 
         return APO_STATUS_OK;
       },
@@ -940,9 +1013,7 @@ apo_charmm_context_compute_temperature(double *temperature,
         APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<double>(
             temperature, function_name, "temperature"));
 
-        const float t = context->object->computeTemperature();
-
-        *temperature = static_cast<double>(t);
+        *temperature = context->object->computeTemperature();
 
         return APO_STATUS_OK;
       },

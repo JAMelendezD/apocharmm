@@ -20,6 +20,15 @@ import apocharmm as apo
 T = TypeVar("T")
 ExceptionT = TypeVar("ExceptionT", bound=BaseException)
 
+_APO_STATUS_NAMES: dict[int, str] = {
+    apo.APO_STATUS_OK: "APO_STATUS_OK",
+    apo.APO_STATUS_INVALID_ARGUMENT: "APO_STATUS_INVALID_ARGUMENT",
+    apo.APO_STATUS_RUNTIME_ERROR: "APO_STATUS_RUNTIME_ERROR",
+    apo.APO_STATUS_CUDA_ERROR: "APO_STATUS_CUDA_ERROR",
+    apo.APO_STATUS_NOT_INITIALIZED: "APO_STATUS_NOT_INITIALIZED",
+    apo.APO_STATUS_NOT_IMPLEMENTED: "APO_STATUS_NOT_IMPLEMENTED",
+}
+
 
 def get_repo_root() -> Path:
     repo_root: str | None = os.environ.get("APOCHARMM_REPO_ROOT")
@@ -164,21 +173,36 @@ def expect_exception(
     )
 
 
-def expect_invalid_argument(
-    label: str, action: Callable[[], object], diagnostic_substring: str
+def expect_apo_error(
+    label: str,
+    action: Callable[[], object],
+    expected_status: int,
+    diagnostic_substring: str,
+    expected_context: str | None = None,
 ) -> apo.ApoCharmmError:
-    error = expect_exception(label, apo.ApoCharmmError, action)
+    error: apo.ApoCharmmError = expect_exception(label, apo.ApoCharmmError, action)
 
-    assert_equal(f"{label} status", error.status, apo.APO_STATUS_INVALID_ARGUMENT)
-    assert_equal(
-        f"{label} status name", error.status_name, "APO_STATUS_INVALID_ARGUMENT"
-    )
+    assert_equal(f"{label} status", error.status, expected_status)
+
+    expected_status_name: str | None = _APO_STATUS_NAMES.get(expected_status)
+    if expected_status_name is None:
+        raise AssertionError(
+            f"{label}: no expected status name is defined for apo_status {expected_status}"
+        )
+
+    assert_equal(f"{label} status name", error.status_name, expected_status_name)
+
+    if expected_context is not None:
+        assert_equal(f"{label} operation context", error.context, expected_context)
+        assert_equal(
+            f"{label} rendered context occurrence count",
+            error.message.count(expected_context),
+            1,
+        )
 
     if diagnostic_substring not in error.native_diagnostic:
         raise AssertionError(
-            f"{label}: expected native diagnostic to contain "
-            f"{diagnostic_substring!r}, observed "
-            f"{error.native_diagnostic!r}"
+            f"{label}: expected native diagnostic to contain {diagnostic_substring!r}, observed {error.native_diagnostic!r}"
         )
 
     if "ERROR:" in error.native_diagnostic:
@@ -190,3 +214,11 @@ def expect_invalid_argument(
         raise AssertionError(f"{label}: native diagnostic has a trailing newline")
 
     return error
+
+
+def expect_invalid_argument(
+    label: str, action: Callable[[], object], diagnostic_substring: str
+) -> apo.ApoCharmmError:
+    return expect_apo_error(
+        label, action, apo.APO_STATUS_INVALID_ARGUMENT, diagnostic_substring
+    )

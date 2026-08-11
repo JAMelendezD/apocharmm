@@ -67,14 +67,29 @@ APOCHARMM_C_API apo_status apo_charmm_context_set_velocities_inverse_masses(
 APOCHARMM_C_API apo_status apo_charmm_context_set_velocities(
     apo_charmm_context *context, const double *xyz, const size_t xyz_len);
 
-////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////
+APOCHARMM_C_API apo_status
+apo_charmm_context_set_velocities_from_charmm_velocity_file(
+    apo_charmm_context *context, const char *path);
+
+APOCHARMM_C_API apo_status apo_charmm_context_set_masses(
+    apo_charmm_context *context, const double *masses, const size_t masses_len);
+
+APOCHARMM_C_API apo_status apo_charmm_context_set_temperature(
+    apo_charmm_context *context, const double temperature);
+
+APOCHARMM_C_API apo_status apo_charmm_context_set_periodic_boundary_condition(
+    apo_charmm_context *context, const apo_pbc pbc);
 
 APOCHARMM_C_API apo_status apo_charmm_context_set_box_dimensions(
     apo_charmm_context *context, const double *box_dimensions,
     const size_t box_dimensions_len);
+
+APOCHARMM_C_API apo_status apo_charmm_context_set_random_seed(
+    apo_charmm_context *context, const uint64_t seed);
+
+APOCHARMM_C_API
+apo_status apo_charmm_context_use_holonomic_constraints(
+    apo_charmm_context *context, const bool useHolonomicConstraints);
 
 APOCHARMM_C_API apo_status
 apo_charmm_context_set_kappa(apo_charmm_context *context, const double kappa);
@@ -94,21 +109,14 @@ APOCHARMM_C_API apo_status apo_charmm_context_set_fft_grid(
 APOCHARMM_C_API apo_status apo_charmm_context_set_pme_spline_order(
     apo_charmm_context *context, const int order);
 
-APOCHARMM_C_API apo_status apo_charmm_context_set_periodic_boundary_condition(
-    apo_charmm_context *context, const apo_pbc pbc);
-
 APOCHARMM_C_API apo_status apo_charmm_context_set_vdw_type(
     apo_charmm_context *context, const int vdw_type);
 
-APOCHARMM_C_API apo_status apo_charmm_context_set_random_seed(
-    apo_charmm_context *context, const uint64_t seed);
-
-APOCHARMM_C_API
-apo_status apo_charmm_context_use_holonomic_constraints(
-    apo_charmm_context *context, const bool useHolonomicConstraints);
-
 APOCHARMM_C_API apo_status apo_charmm_context_get_num_atoms(
-    size_t *num_atoms, const apo_charmm_context *context);
+    int *num_atoms, const apo_charmm_context *context);
+
+APOCHARMM_C_API apo_status apo_charmm_context_get_num_degrees_of_freedom(
+    int *ndegf, const apo_charmm_context *context);
 
 APOCHARMM_C_API apo_status apo_charmm_context_get_coordinates_charges(
     double *xyzq, const size_t xyzq_len, const apo_charmm_context *context);
@@ -116,9 +124,18 @@ APOCHARMM_C_API apo_status apo_charmm_context_get_coordinates_charges(
 APOCHARMM_C_API apo_status apo_charmm_context_get_velocity_mass(
     double *xyzm, const size_t xyzm_len, const apo_charmm_context *context);
 
+APOCHARMM_C_API apo_status apo_charmm_context_get_periodic_boundary_condition(
+    apo_pbc *pbc, const apo_charmm_context *context);
+
 APOCHARMM_C_API apo_status apo_charmm_context_get_box_dimensions(
     double *box_dimensions, const size_t box_dimensions_len,
     const apo_charmm_context *context);
+
+APOCHARMM_C_API apo_status apo_charmm_context_get_random_seed(
+    uint64_t *seed, const apo_charmm_context *context);
+
+APOCHARMM_C_API apo_status apo_charmm_context_get_volume(
+    double *volume, const apo_charmm_context *context);
 
 APOCHARMM_C_API apo_status
 apo_charmm_context_get_kappa(double *kappa, const apo_charmm_context *context);
@@ -137,9 +154,6 @@ APOCHARMM_C_API apo_status apo_charmm_context_get_fft_grid(
 
 APOCHARMM_C_API apo_status apo_charmm_context_get_pme_spline_order(
     int *order, const apo_charmm_context *context);
-
-APOCHARMM_C_API apo_status apo_charmm_context_get_periodic_boundary_condition(
-    apo_pbc *pbc, const apo_charmm_context *context);
 
 APOCHARMM_C_API apo_status apo_charmm_context_get_vdw_type(
     int *vdw_type, const apo_charmm_context *context);

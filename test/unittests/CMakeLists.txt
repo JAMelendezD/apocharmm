@@ -38,6 +38,7 @@ set(SOURCES_CAPI_TESTS
   unittest-capiError.cpp
 
   # Manager tests
+  unittest-capiCharmmContext.cpp
   unittest-capiForceManager.cpp
 
   # Object tests

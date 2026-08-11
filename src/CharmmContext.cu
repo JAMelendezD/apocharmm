@@ -10,17 +10,16 @@
 
 #include "CharmmContext.h"
 
+#include "ApoCharmmError.h"
 #include "Constants.h"
 #include "PBC.h"
 #include "cuda_utils.h"
 #include "gpu_utils.h"
 
 #include <cmath>
-#include <cstdlib>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <fstream>
-#include <iostream>
 #include <random>
 #include <sstream>
 #include <stdexcept>
@@ -66,14 +65,11 @@ CharmmContext::CharmmContext(std::shared_ptr<CharmmPSF> psf,
 
 CharmmContext::CharmmContext(std::shared_ptr<ForceManager> fm)
     : CharmmContext() {
-  constexpr std::string_view functionName =
-      "CharmmContext::CharmmContext(std::shared_ptr<ForceManager>)";
-
   std::vector<int> devices = {0, 1, 2, 3};
   start_gpu(1, 1, 0, devices);
 
   this->setForceManager(fm);
-  this->requireForceManager(functionName);
+  this->requireForceManager();
 
   this->syncStateFromForceManager();
 
@@ -111,14 +107,8 @@ CharmmContext::CharmmContext(const CharmmContext &other)
 }
 
 void CharmmContext::setPrm(std::shared_ptr<CharmmParameters> prm) {
-  constexpr std::string_view functionName =
-      "void CharmmContext::setPrm(std::shared_ptr<CharmmParameters>)";
-
-  if (prm == nullptr) {
-    std::string msg(functionName);
-    msg += ": CharmmParameters == nullptr";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(prm != nullptr, ApoCharmmErrorCode::InvalidArgument,
+                    "CharmmParameters must not be null");
 
   m_Prm = prm;
 
@@ -131,22 +121,15 @@ void CharmmContext::setPrm(std::shared_ptr<CharmmParameters> prm) {
 }
 
 void CharmmContext::setPsf(std::shared_ptr<CharmmPSF> psf) {
-  constexpr std::string_view functionName =
-      "void CharmmContext::setPsf(std::shared_ptr<CharmmPSF>)";
+  APOCHARMM_REQUIRE(psf != nullptr, ApoCharmmErrorCode::InvalidArgument,
+                    "CharmmPSF must not be null");
 
-  if (psf == nullptr) {
-    std::string msg(functionName);
-    msg += ": CharmmPSF == nullptr";
-    throw std::invalid_argument(msg);
-  }
-
-  if ((m_NumAtoms > 0) && (m_NumAtoms != psf->getNumAtoms())) {
-    std::string msg(functionName);
-    msg += ": Number of atoms in CharmmContext and CharmmPSF do not match\n";
-    msg += " CharmmContext NATOM: " + std::to_string(m_NumAtoms) + "\n";
-    msg += " CharmmPSF NATOM: " + std::to_string(psf->getNumAtoms()) + "\n";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(
+      (m_NumAtoms <= 0) || (m_NumAtoms == psf->getNumAtoms()),
+      ApoCharmmErrorCode::InvalidArgument,
+      "Atom count mismatch between CharmmContext and CharmmPSF; expected " +
+          std::to_string(m_NumAtoms) + ", observed " +
+          std::to_string(psf->getNumAtoms()));
 
   m_Psf = psf;
 
@@ -163,14 +146,8 @@ void CharmmContext::setPsf(std::shared_ptr<CharmmPSF> psf) {
 }
 
 void CharmmContext::setForceManager(std::shared_ptr<ForceManager> fm) {
-  constexpr std::string_view functionName =
-      "void CharmmContext::setForceManager(std::shared_ptr<ForceManager>)";
-
-  if (fm == nullptr) {
-    std::string msg(functionName);
-    msg += ": ForceManager == nullptr";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(fm != nullptr, ApoCharmmErrorCode::InvalidArgument,
+                    "ForceManager must not be null");
 
   m_ForceManager = fm;
 
@@ -182,15 +159,9 @@ void CharmmContext::setForceManager(std::shared_ptr<ForceManager> fm) {
 }
 
 void CharmmContext::setNumAtoms(const int numAtoms) {
-  constexpr std::string_view functionName =
-      "void CharmmContext::setNumAtoms(const int)";
-
-  if (numAtoms <= 0) {
-    std::string msg(functionName);
-    msg += ": Number of atoms must be positive (numAtoms == " +
-           std::to_string(numAtoms) + ")";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(numAtoms > 0, ApoCharmmErrorCode::InvalidArgument,
+                    "Atom count must be positive; observed " +
+                        std::to_string(numAtoms));
 
   const bool coordinatesSizeChanged =
       (m_CoordinatesChargesSP.size() != static_cast<std::size_t>(numAtoms)) ||
@@ -223,36 +194,26 @@ void CharmmContext::setNumAtoms(const int numAtoms) {
 
 void CharmmContext::setCoordinatesCharges(
     const std::vector<double4> &coordinatesCharges) {
-  constexpr std::string_view functionName =
-      "void CharmmContext::setCoordinatesCharges(const std::vector<double4> &)";
+  APOCHARMM_REQUIRE(
+      m_NumAtoms > 0, ApoCharmmErrorCode::NotInitialized,
+      "Atom count must be set before assigning coordinates and charges");
 
-  if (m_NumAtoms <= 0) {
-    std::string msg(functionName);
-    msg += ": Number of atoms must be set before assigning coordinates";
-    throw std::runtime_error(msg);
-  }
-
-  if (coordinatesCharges.size() != static_cast<std::size_t>(m_NumAtoms)) {
-    std::string msg(functionName);
-    msg += ": Array length and number of atoms in CharmmContext do not match\n";
-    msg += " NATOM: " + std::to_string(m_NumAtoms) + "\n";
-    msg += " Array length: " + std::to_string(coordinatesCharges.size()) + "\n";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(coordinatesCharges.size() ==
+                        static_cast<std::size_t>(m_NumAtoms),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Coordinate and charge count mismatch; expected " +
+                        std::to_string(m_NumAtoms) + ", observed " +
+                        std::to_string(coordinatesCharges.size()));
 
   if ((m_ForceManager != nullptr) && m_ForceManager->isInitialized() &&
       !m_ForceManager->isComposite()) {
-    if (coordinatesCharges.size() !=
-        static_cast<std::size_t>(m_ForceManager->getNumAtoms())) {
-      std::string msg(functionName);
-      msg +=
-          ": Array length and number of atoms in ForceManager do not match\n";
-      msg +=
-          " FM NATOM: " + std::to_string(m_ForceManager->getNumAtoms()) + "\n";
-      msg +=
-          " Array length: " + std::to_string(coordinatesCharges.size()) + "\n";
-      throw std::invalid_argument(msg);
-    }
+    APOCHARMM_REQUIRE(
+        coordinatesCharges.size() ==
+            static_cast<std::size_t>(m_ForceManager->getNumAtoms()),
+        ApoCharmmErrorCode::InvalidArgument,
+        "Coordinate and charge count mismatch with ForceManager; expected " +
+            std::to_string(m_ForceManager->getNumAtoms()) + ", observed " +
+            std::to_string(coordinatesCharges.size()));
   }
 
   for (int i = 0; i < m_NumAtoms; i++) {
@@ -282,19 +243,13 @@ void CharmmContext::setCoordinatesCharges(
 
 void CharmmContext::setCoordinatesCharges(
     const std::vector<std::vector<double>> &coordinatesCharges) {
-  constexpr std::string_view functionName =
-      "void CharmmContext::setCoordinatesCharges(const "
-      "std::vector<std::vector<double>> &)";
-
   std::vector<double4> coordsCharges;
   coordsCharges.reserve(coordinatesCharges.size());
 
   for (const std::vector<double> &xyzq : coordinatesCharges) {
-    if (xyzq.size() != 4) {
-      std::string msg(functionName);
-      msg += ": Entry must have 4 values";
-      throw std::invalid_argument(msg);
-    }
+    APOCHARMM_REQUIRE(
+        xyzq.size() == 4, ApoCharmmErrorCode::InvalidArgument,
+        "Each coordinate and charge entry must contain exactly 4 values");
 
     coordsCharges.push_back(make_double4(xyzq[0], xyzq[1], xyzq[2], xyzq[3]));
   }
@@ -306,14 +261,10 @@ void CharmmContext::setCoordinatesCharges(
 
 void CharmmContext::setCoordinatesCharges(
     const std::vector<double> &coordinatesCharges) {
-  constexpr std::string_view functionName =
-      "void CharmmContext::setCoordinatesCharges(const std::vector<double> &)";
-
-  if (coordinatesCharges.size() % 4 != 0) {
-    std::string msg(functionName);
-    msg += ": Array length must be a multiple of 4";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(
+      coordinatesCharges.size() % 4 == 0, ApoCharmmErrorCode::InvalidArgument,
+      "Coordinate and charge array length must be a multiple of 4; observed " +
+          std::to_string(coordinatesCharges.size()));
 
   const std::size_t natom = coordinatesCharges.size() / 4;
   std::vector<double4> coordsCharges(natom);
@@ -330,22 +281,14 @@ void CharmmContext::setCoordinatesCharges(
 }
 
 void CharmmContext::setCoordinates(const std::vector<double3> &coordinates) {
-  constexpr std::string_view functionName =
-      "void CharmmContext::setCoordinates(const std::vector<double3> &)";
+  APOCHARMM_REQUIRE(m_NumAtoms > 0, ApoCharmmErrorCode::NotInitialized,
+                    "Atom count must be set before assigning coordinates");
 
-  if (m_NumAtoms <= 0) {
-    std::string msg(functionName);
-    msg += ": Number of atoms must be set before assigning coordinates";
-    throw std::runtime_error(msg);
-  }
-
-  if (coordinates.size() != static_cast<std::size_t>(m_NumAtoms)) {
-    std::string msg(functionName);
-    msg += ": Array length and number of atoms do not match\n";
-    msg += " NATOM: " + std::to_string(m_NumAtoms) + "\n";
-    msg += " Array length: " + std::to_string(coordinates.size()) + "\n";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(coordinates.size() == static_cast<std::size_t>(m_NumAtoms),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Coordinate count mismatch; expected " +
+                        std::to_string(m_NumAtoms) + ", observed " +
+                        std::to_string(coordinates.size()));
 
   for (int i = 0; i < m_NumAtoms; i++) {
     m_CoordinatesChargesSP[i].x = static_cast<float>(coordinates[i].x);
@@ -376,19 +319,12 @@ void CharmmContext::setCoordinates(const std::vector<double3> &coordinates) {
 
 void CharmmContext::setCoordinates(
     const std::vector<std::vector<double>> &coordinates) {
-  constexpr std::string_view functionName =
-      "void CharmmContext::setCoordinates(const "
-      "std::vector<std::vector<double>> &)";
-
   std::vector<double3> coords;
   coords.reserve(coordinates.size());
 
   for (const std::vector<double> &xyz : coordinates) {
-    if (xyz.size() != 3) {
-      std::string msg(functionName);
-      msg += ": Entry must have 3 values";
-      throw std::invalid_argument(msg);
-    }
+    APOCHARMM_REQUIRE(xyz.size() == 3, ApoCharmmErrorCode::InvalidArgument,
+                      "Each coordinate entry must contain exactly 3 values");
 
     coords.push_back(make_double3(xyz[0], xyz[1], xyz[2]));
   }
@@ -399,14 +335,10 @@ void CharmmContext::setCoordinates(
 }
 
 void CharmmContext::setCoordinates(const std::vector<double> &coordinates) {
-  constexpr std::string_view functionName =
-      "void CharmmContext::setCoordinates(const std::vector<double> &)";
-
-  if (coordinates.size() % 3 != 0) {
-    std::string msg(functionName);
-    msg += ": Array length must be a multiple of 3";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(
+      coordinates.size() % 3 == 0, ApoCharmmErrorCode::InvalidArgument,
+      "Coordinate array length must be a multiple of 3; observed " +
+          std::to_string(coordinates.size()));
 
   const std::size_t natom = coordinates.size() / 3;
   std::vector<double3> coords(natom);
@@ -422,14 +354,8 @@ void CharmmContext::setCoordinates(const std::vector<double> &coordinates) {
 }
 
 void CharmmContext::setCoordinates(const std::shared_ptr<Coordinates> crd) {
-  constexpr std::string_view functionName =
-      "void CharmmContext::setCoordinates(const std::shared_ptr<Coordinates>)";
-
-  if (crd == nullptr) {
-    std::string msg(functionName);
-    msg += ": Coordinates == nullptr";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(crd != nullptr, ApoCharmmErrorCode::InvalidArgument,
+                    "Coordinates must not be null");
 
   this->setCoordinates(crd->getCoordinatesDP());
 
@@ -437,16 +363,14 @@ void CharmmContext::setCoordinates(const std::shared_ptr<Coordinates> crd) {
 }
 
 void CharmmContext::setCharges(const std::vector<double> &charges) {
-  constexpr std::string_view functionName =
-      "void CharmmContext::setCharges(const std::vector<double> &)";
+  APOCHARMM_REQUIRE(m_NumAtoms > 0, ApoCharmmErrorCode::NotInitialized,
+                    "Atom count must be set before assigning charges");
 
-  if (charges.size() != static_cast<std::size_t>(m_NumAtoms)) {
-    std::string msg(functionName);
-    msg += ": Array length and number of atoms do not match\n";
-    msg += " NATOM: " + std::to_string(m_NumAtoms) + "\n";
-    msg += " Array length: " + std::to_string(charges.size()) + "\n";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(charges.size() == static_cast<std::size_t>(m_NumAtoms),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Charge count mismatch; expected " +
+                        std::to_string(m_NumAtoms) + ", observed " +
+                        std::to_string(charges.size()));
 
   for (int i = 0; i < m_NumAtoms; i++) {
     m_CoordinatesChargesSP[i].w = static_cast<float>(charges[i]);
@@ -461,23 +385,16 @@ void CharmmContext::setCharges(const std::vector<double> &charges) {
 
 void CharmmContext::setVelocitiesInverseMasses(
     const std::vector<double4> &velocitiesInverseMasses) {
-  constexpr std::string_view functionName =
-      "CharmmContext::setVelocitiesInverseMasses";
+  APOCHARMM_REQUIRE(
+      m_NumAtoms > 0, ApoCharmmErrorCode::NotInitialized,
+      "Atom count must be set before assigning velocities and inverse masses");
 
-  if (m_NumAtoms == -1) {
-    std::string msg(functionName);
-    msg += ": Number of atoms must be set before assigning velocities.";
-    throw std::runtime_error(msg);
-  }
-
-  if (velocitiesInverseMasses.size() != static_cast<std::size_t>(m_NumAtoms)) {
-    std::string msg(functionName);
-    msg += ": Array length and number of atoms do not match\n";
-    msg += " NATOM: " + std::to_string(m_NumAtoms) + "\n";
-    msg += " Array length: " + std::to_string(velocitiesInverseMasses.size()) +
-           "\n";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(velocitiesInverseMasses.size() ==
+                        static_cast<std::size_t>(m_NumAtoms),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Velocity and inverse-mass count mismatch; expected " +
+                        std::to_string(m_NumAtoms) + ", observed " +
+                        std::to_string(velocitiesInverseMasses.size()));
 
   for (int i = 0; i < m_NumAtoms; i++)
     m_VelocitiesInverseMasses[i] = velocitiesInverseMasses[i];
@@ -489,19 +406,13 @@ void CharmmContext::setVelocitiesInverseMasses(
 
 void CharmmContext::setVelocitiesInverseMasses(
     const std::vector<std::vector<double>> &velocitiesInverseMasses) {
-  constexpr std::string_view functionName =
-      "void CharmmContext::setVelocitiesInverseMasses(const "
-      "std::vector<std::vector<double>> &)";
-
   std::vector<double4> velMass;
   velMass.reserve(velocitiesInverseMasses.size());
 
   for (const std::vector<double> &xyzm : velocitiesInverseMasses) {
-    if (xyzm.size() != 4) {
-      std::string msg(functionName);
-      msg += ": Entry must have 4 values";
-      throw std::invalid_argument(msg);
-    }
+    APOCHARMM_REQUIRE(
+        xyzm.size() == 4, ApoCharmmErrorCode::InvalidArgument,
+        "Each velocity and inverse-mass entry must contain exactly 4 values");
 
     velMass.push_back(make_double4(xyzm[0], xyzm[1], xyzm[2], xyzm[3]));
   }
@@ -513,15 +424,11 @@ void CharmmContext::setVelocitiesInverseMasses(
 
 void CharmmContext::setVelocitiesInverseMasses(
     const std::vector<double> &velocitiesInverseMasses) {
-  constexpr std::string_view functionName =
-      "void CharmmContext::setVelocitiesInverseMasses(const "
-      "std::vector<double> &)";
-
-  if (velocitiesInverseMasses.size() % 4 != 0) {
-    std::string msg(functionName);
-    msg += ": Array length must be a multiple of 4";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(velocitiesInverseMasses.size() % 4 == 0,
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Velocity and inverse-mass array length must be a multiple "
+                    "of 4; observed " +
+                        std::to_string(velocitiesInverseMasses.size()));
 
   const std::size_t natom = velocitiesInverseMasses.size() / 4;
   std::vector<double4> velMass(natom);
@@ -538,16 +445,14 @@ void CharmmContext::setVelocitiesInverseMasses(
 }
 
 void CharmmContext::setVelocities(const std::vector<double3> &velocities) {
-  constexpr std::string_view functionName =
-      "void CharmmContext::setVelocities(const std::vector<double3> &)";
+  APOCHARMM_REQUIRE(m_NumAtoms > 0, ApoCharmmErrorCode::NotInitialized,
+                    "Atom count must be set before assigning velocities");
 
-  if (velocities.size() != static_cast<std::size_t>(m_NumAtoms)) {
-    std::string msg(functionName);
-    msg += ": Array length and number of atoms do not match\n";
-    msg += " NATOM: " + std::to_string(m_NumAtoms) + "\n";
-    msg += " Array length: " + std::to_string(velocities.size()) + "\n";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(velocities.size() == static_cast<std::size_t>(m_NumAtoms),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Velocity count mismatch; expected " +
+                        std::to_string(m_NumAtoms) + ", observed " +
+                        std::to_string(velocities.size()));
 
   for (int i = 0; i < m_NumAtoms; i++) {
     m_VelocitiesInverseMasses[i].x = velocities[i].x;
@@ -562,19 +467,12 @@ void CharmmContext::setVelocities(const std::vector<double3> &velocities) {
 
 void CharmmContext::setVelocities(
     const std::vector<std::vector<double>> &velocities) {
-  constexpr std::string_view functionName =
-      "void CharmmContext::setVelocities(const "
-      "std::vector<std::vector<double>> &)";
-
   std::vector<double3> vels;
   vels.reserve(velocities.size());
 
   for (const std::vector<double> &xyz : velocities) {
-    if (xyz.size() != 3) {
-      std::string msg(functionName);
-      msg += ": Entry must have 3 values";
-      throw std::invalid_argument(msg);
-    }
+    APOCHARMM_REQUIRE(xyz.size() == 3, ApoCharmmErrorCode::InvalidArgument,
+                      "Each velocity entry must contain exactly 3 values");
 
     vels.push_back(make_double3(xyz[0], xyz[1], xyz[2]));
   }
@@ -585,14 +483,10 @@ void CharmmContext::setVelocities(
 }
 
 void CharmmContext::setVelocities(const std::vector<double> &velocities) {
-  constexpr std::string_view functionName =
-      "void CharmmContext::setVelocities(const std::vector<double> &)";
-
-  if (velocities.size() % 3 != 0) {
-    std::string msg(functionName);
-    msg += ": Array length must be a multiple of 3";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(velocities.size() % 3 == 0,
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Velocity array length must be a multiple of 3; observed " +
+                        std::to_string(velocities.size()));
 
   const std::size_t natom = velocities.size() / 3;
   std::vector<double3> vels(natom);
@@ -609,108 +503,87 @@ void CharmmContext::setVelocities(const std::vector<double> &velocities) {
 
 void CharmmContext::setVelocitiesFromCHARMMVelocityFile(
     const std::string &fileName) {
-  constexpr std::string_view functionName =
-      "void CharmmContext::setVelocitiesFromCHARMMVelocityFile(const "
-      "std::string &)";
+  APOCHARMM_REQUIRE(m_NumAtoms > 0, ApoCharmmErrorCode::NotInitialized,
+                    "Atom count must be set before loading velocities from a "
+                    "CHARMM velocity file");
+  APOCHARMM_REQUIRE(!fileName.empty(), ApoCharmmErrorCode::InvalidArgument,
+                    "CHARMM velocity file name must not be empty");
 
   std::ifstream fin(fileName);
-
-  if (!fin.is_open()) {
-    std::string msg(functionName);
-    msg += ": Could not open CHARMM velocity file \"" + fileName + "\"";
-    throw std::runtime_error(msg);
-  }
+  APOCHARMM_REQUIRE(fin.is_open(), ApoCharmmErrorCode::Runtime,
+                    "Could not open CHARMM velocity file \"" + fileName + "\"");
 
   std::string line;
+  bool foundAtomCount = false;
   while (std::getline(fin, line)) {
-    if (!line.empty() && line[0] != '*')
+    if (!line.empty() && line[0] != '*') {
+      foundAtomCount = true;
       break;
-  }
-
-  if (line.empty()) {
-    std::string msg(functionName);
-    msg += ": Could not read atom count from CHARMM velocity file \"" +
-           fileName + "\"";
-    throw std::runtime_error(msg);
-  }
-
-  const int nAtoms = std::stoul(line);
-  if (nAtoms != m_NumAtoms) {
-    std::string msg(functionName);
-    msg += ": Number of atom mismatch in CHARMM velocities file\n";
-    msg += " NATOM: " + std::to_string(m_NumAtoms) + "\n";
-    msg += " MATOM: " + std::to_string(nAtoms) + "\n";
-    throw std::invalid_argument(msg);
-  }
-
-  int i = 0;
-
-  std::getline(fin, line);
-  while (i < m_NumAtoms) {
-    if (line.size() == 0) {
-      std::string msg(functionName);
-      msg += ": Blank line read in \"" + fileName + "\"";
-      throw std::runtime_error(msg);
     }
+  }
 
-    // auto content = split(line);
-    // static_cast<void>(content);
+  APOCHARMM_REQUIRE(foundAtomCount, ApoCharmmErrorCode::Runtime,
+                    "Could not read atom count from CHARMM velocity file \"" +
+                        fileName + "\"");
 
-    int atomId, resId, resIdInSeg;
-    std::string resName, atomName, segName;
-    float x, y, z, bFactor;
+  int fileAtomCount = 0;
+  std::stringstream atomCountStream(line);
+  APOCHARMM_REQUIRE(static_cast<bool>(atomCountStream >> fileAtomCount),
+                    ApoCharmmErrorCode::Runtime,
+                    "Could not parse atom count from CHARMM velocity file \"" +
+                        fileName + "\"");
 
-    std::stringstream ss(line);
-    ss >> atomId >> resId >> resName >> atomName >> x >> y >> z >> segName >>
-        resIdInSeg >> bFactor;
+  APOCHARMM_REQUIRE(fileAtomCount == m_NumAtoms,
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "CHARMM velocity atom count mismatch; expected " +
+                        std::to_string(m_NumAtoms) + ", observed " +
+                        std::to_string(fileAtomCount));
+
+  for (int i = 0; i < m_NumAtoms; i++) {
+    APOCHARMM_REQUIRE(
+        static_cast<bool>(std::getline(fin, line)), ApoCharmmErrorCode::Runtime,
+        "Could not read velocity record " + std::to_string(i + 1) +
+            " from CHARMM velocity file \"" + fileName + "\"");
+
+    int atomId = 0;
+    int residueId = 0;
+    int residueIdInSegment = 0;
+    std::string residueName = "";
+    std::string atomName = "";
+    std::string segmentName = "";
+    double x = 0.0;
+    double y = 0.0;
+    double z = 0.0;
+    double bFactor = 0.0;
+
+    std::stringstream recordStream(line);
+    APOCHARMM_REQUIRE(
+        static_cast<bool>(recordStream >> atomId >> residueId >> residueName >>
+                          atomName >> x >> y >> z >> segmentName >>
+                          residueIdInSegment >> bFactor),
+        ApoCharmmErrorCode::Runtime,
+        "Could not parse velocity record " + std::to_string(i + 1) +
+            " from CHARMM velocity file \"" + fileName + "\"");
 
     m_VelocitiesInverseMasses[i].x = x;
     m_VelocitiesInverseMasses[i].y = y;
     m_VelocitiesInverseMasses[i].z = z;
-
-    std::getline(fin, line);
-    ++i;
   }
 
   m_VelocitiesInverseMasses.transferToDevice();
-
-  float kineticEnergy = 0.0;
-  for (int i = 0; i < m_NumAtoms; ++i) {
-    kineticEnergy += 1.0 / m_VelocitiesInverseMasses[i].w *
-                     (pow(m_VelocitiesInverseMasses[i].x, 2) +
-                      pow(m_VelocitiesInverseMasses[i].y, 2) +
-                      pow(m_VelocitiesInverseMasses[i].z, 2));
-  }
-  kineticEnergy *= 0.5;
-
-  // JEG260702: Debug
-  /* *
-  const int ndegf = this->getDegreesOfFreedom();
-
-  std::cout << "dof : " << ndegf << "\n";
-  const float backTemp =
-      kineticEnergy / (1 / 2.0 * ndegf * charmm::constants::kBoltz);
-  std::cout << "calculated temp from ke (host) : " << backTemp << "\n";
-
-  m_VelocitiesInverseMasses.transferToDevice();
-  std::cout << "calculated temp from ke : " << this->computeTemperature()
-            << "\n";
-  * */
 
   return;
 }
 
 void CharmmContext::setMasses(const std::vector<double> &masses) {
-  constexpr std::string_view functionName =
-      "void CharmmContext::setMasses(const std::vector<double> &)";
+  APOCHARMM_REQUIRE(m_NumAtoms > 0, ApoCharmmErrorCode::NotInitialized,
+                    "Atom count must be set before assigning masses");
 
-  if (masses.size() != static_cast<std::size_t>(m_NumAtoms)) {
-    std::string msg(functionName);
-    msg += ": Array length and number of atoms do not match\n";
-    msg += " NATOM: " + std::to_string(m_NumAtoms) + "\n";
-    msg += " Array length: " + std::to_string(masses.size()) + "\n";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(masses.size() == static_cast<std::size_t>(m_NumAtoms),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Mass count mismatch; expected " +
+                        std::to_string(m_NumAtoms) + ", observed " +
+                        std::to_string(masses.size()));
 
   for (int i = 0; i < m_NumAtoms; i++)
     m_VelocitiesInverseMasses[i].w = 1.0 / masses[i];
@@ -721,14 +594,9 @@ void CharmmContext::setMasses(const std::vector<double> &masses) {
 }
 
 void CharmmContext::setTemperature(const double temperature) {
-  constexpr std::string_view functionName =
-      "void CharmmContext::setTemperature(const double)";
-
-  if (!std::isfinite(temperature) || (temperature < 0.0)) {
-    std::string msg(functionName);
-    msg += ": Temperature must be finite and non-negative";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(std::isfinite(temperature) && (temperature >= 0.0),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Temperature must be finite and non-negative");
 
   m_Temperature = temperature;
 
@@ -757,14 +625,9 @@ void CharmmContext::setPeriodicBoundaryCondition(const PBC pbc) {
 }
 
 void CharmmContext::setBoxDimensions(const std::vector<double> &boxDimensions) {
-  constexpr std::string_view functionName =
-      "void CharmmContext::setBoxDimensions(const std::vector<double> &)";
-
-  if (!hasValidBoxDimensions(boxDimensions)) {
-    std::string msg(functionName);
-    msg += ": Box dimensions must be exactly 3 positive values";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(hasValidBoxDimensions(boxDimensions),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Box dimensions must contain exactly 3 positive values");
 
   m_BoxDimensions = boxDimensions;
   m_HasBoxDimensions = true;
@@ -794,11 +657,8 @@ void CharmmContext::setRandomSeed(const std::uint64_t randomSeed) {
 
 void CharmmContext::useHolonomicConstraints(
     const bool usingHolonomicConstraints) {
-  constexpr std::string_view functionName =
-      "void CharmmContext::useHolonomicConstraints(const bool)";
-
-  this->requirePsf(functionName);
-  this->requireForceManager(functionName);
+  this->requirePsf();
+  this->requireForceManager();
 
   m_UsingHolonomicConstraints = usingHolonomicConstraints;
 
@@ -830,45 +690,44 @@ void CharmmContext::useHolonomicConstraints(
 }
 
 void CharmmContext::setKappa(const float kappa) {
-  this->requireForceManager("void CharmmContext::setKappa(const float)");
+  this->requireForceManager();
   m_ForceManager->setKappa(kappa);
   return;
 }
 
 void CharmmContext::setCutoff(const float cutoff) {
-  this->requireForceManager("void CharmmContext::setCutoff(const float)");
+  this->requireForceManager();
   m_ForceManager->setCutoff(cutoff);
   return;
 }
 
 void CharmmContext::setCtonnb(const float ctonnb) {
-  this->requireForceManager("void CharmmContext::setCtonnb(const float)");
+  this->requireForceManager();
   m_ForceManager->setCtonnb(ctonnb);
   return;
 }
 
 void CharmmContext::setCtofnb(const float ctofnb) {
-  this->requireForceManager("void CharmmContext::setCtofnb(const float)");
+  this->requireForceManager();
   m_ForceManager->setCtofnb(ctofnb);
   return;
 }
 
 void CharmmContext::setFFTGrid(const int nfftx, const int nffty,
                                const int nfftz) {
-  this->requireForceManager(
-      "void CharmmContext::setFFTGrid(const int, const int, const int)");
+  this->requireForceManager();
   m_ForceManager->setFFTGrid(nfftx, nffty, nfftz);
   return;
 }
 
 void CharmmContext::setPmeSplineOrder(const int pmeSplineOrder) {
-  this->requireForceManager("void CharmmContext::setPmeSplineOrder(const int)");
+  this->requireForceManager();
   m_ForceManager->setPmeSplineOrder(pmeSplineOrder);
   return;
 }
 
 void CharmmContext::setVdwType(const int vdwType) {
-  this->requireForceManager("void CharmmContext::setVdwType(const int)");
+  this->requireForceManager();
   m_ForceManager->setVdwType(vdwType);
   return;
 }
@@ -909,10 +768,9 @@ bool CharmmContext::usingHolonomicConstraints(void) const {
 }
 
 double CharmmContext::getVolume(void) const {
-  if (!m_HasBoxDimensions || !hasValidBoxDimensions(m_BoxDimensions)) {
-    throw std::runtime_error("double CharmmContext::getVolume(void) const: Box "
-                             "dimensions are not set");
-  }
+  APOCHARMM_REQUIRE(
+      m_HasBoxDimensions && hasValidBoxDimensions(m_BoxDimensions),
+      ApoCharmmErrorCode::NotInitialized, "Box dimensions are not set");
 
   return (m_BoxDimensions[0] * m_BoxDimensions[1] * m_BoxDimensions[2]);
 }
@@ -922,64 +780,62 @@ const CudaContainer<double> &CharmmContext::getPressure(void) const {
 }
 
 const std::vector<Bond> &CharmmContext::getBonds(void) const {
-  this->requirePsf("CharmmContext::getBonds");
+  this->requirePsf();
   return m_Psf->getBonds();
 }
 
 const CudaContainer<int4> &CharmmContext::getWaterMolecules(void) const {
-  this->requirePsf("CharmmContext::getWaterMolecules");
+  this->requirePsf();
   return m_Psf->getWaterMolecules();
 }
 
 const CudaContainer<int4> &CharmmContext::getShakeAtoms(void) const {
-  this->requireInitializedForceManager(
-      "CudaContainer<int4>& CharmmContext::getShakeAtoms(void)");
+  this->requireInitializedForceManager();
   return m_ForceManager->getShakeAtoms();
 }
 
 const CudaContainer<float4> &CharmmContext::getShakeParams(void) const {
-  this->requireInitializedForceManager(
-      "CudaContainer<float4> &CharmmContext::getShakeParams(void)");
+  this->requireInitializedForceManager();
   return m_ForceManager->getShakeParams();
 }
 
 float CharmmContext::getKappa(void) const {
-  this->requireForceManager("CharmmContext::getKappa");
+  this->requireForceManager();
   return m_ForceManager->getKappa();
 }
 
 float CharmmContext::getCutoff(void) const {
-  this->requireForceManager("CharmmContext::getCutoff");
+  this->requireForceManager();
   return m_ForceManager->getCutoff();
 }
 
 float CharmmContext::getCtonnb(void) const {
-  this->requireForceManager("CharmmContext::getCtonnb");
+  this->requireForceManager();
   return m_ForceManager->getCtonnb();
 }
 
 float CharmmContext::getCtofnb(void) const {
-  this->requireForceManager("CharmmContext::getCtofnb");
+  this->requireForceManager();
   return m_ForceManager->getCtofnb();
 }
 
 std::vector<int> CharmmContext::getFFTGrid(void) const {
-  this->requireForceManager("CharmmContext::getFFTGrid");
+  this->requireForceManager();
   return m_ForceManager->getFFTGrid();
 }
 
 int CharmmContext::getPmeSplineOrder(void) const {
-  this->requireForceManager("CharmmContext::getPmeSplineOrder");
+  this->requireForceManager();
   return m_ForceManager->getPmeSplineOrder();
 }
 
 int CharmmContext::getVdwType(void) const {
-  this->requireForceManager("CharmmContext::getVdwType");
+  this->requireForceManager();
   return m_ForceManager->getVdwType();
 }
 
 int CharmmContext::getForceStride(void) const {
-  this->requireInitializedForceManager("CharmmContext::getForceStride");
+  this->requireInitializedForceManager();
   return m_ForceManager->getForceStride();
 }
 
@@ -1016,60 +872,49 @@ std::shared_ptr<ForceManager> CharmmContext::getForceManager(void) {
 }
 
 CudaContainer<double> &CharmmContext::getPotentialEnergy(void) {
-  this->requireInitializedForceManager("CharmmContext::getPotentialEnergy");
+  this->requireInitializedForceManager();
   return m_ForceManager->getPotentialEnergy();
 }
 
 float CharmmContext::getPotentialEnergies(void) {
-  this->requireInitializedForceManager(
-      "float CharmmContext::getPotentialEnergies(void)");
+  this->requireInitializedForceManager();
   return m_ForceManager->getPotentialEnergies();
 }
 
 std::shared_ptr<Force<double>> CharmmContext::getForces(void) {
-  this->requireInitializedForceManager(
-      "std::shared_ptr<Force<double>> CharmmContext::getForces(void)");
+  this->requireInitializedForceManager();
   return m_ForceManager->getForces();
 }
 
 CudaContainer<double> &CharmmContext::getVirial(void) {
-  this->requireInitializedForceManager("CharmmContext::getVirial");
+  this->requireInitializedForceManager();
   return m_ForceManager->getVirial();
 }
 
 std::vector<Bond> &CharmmContext::getBonds(void) {
-  this->requirePsf("CharmmContext::getBonds");
+  this->requirePsf();
   return m_Psf->getBonds();
 }
 
 CudaContainer<int4> &CharmmContext::getWaterMolecules(void) {
-  this->requirePsf("CharmmContext::getWaterMolecules");
+  this->requirePsf();
   return m_Psf->getWaterMolecules();
 }
 
 CudaContainer<int4> &CharmmContext::getShakeAtoms(void) {
-  this->requireInitializedForceManager(
-      "CudaContainer<int4>& CharmmContext::getShakeAtoms(void)");
+  this->requireInitializedForceManager();
   return m_ForceManager->getShakeAtoms();
 }
 
 CudaContainer<float4> &CharmmContext::getShakeParams(void) {
-  this->requireInitializedForceManager(
-      "CudaContainer<float4> &CharmmContext::getShakeParams(void)");
+  this->requireInitializedForceManager();
   return m_ForceManager->getShakeParams();
 }
 
 void CharmmContext::assignVelocitiesAtTemperature(const double temperature) {
-  constexpr std::string_view functionName =
-      "void CharmmContext::assignVelocitiesAtTemperature(const double)";
-
-  if (m_NumAtoms == -1) {
-    std::string msg(functionName);
-    msg += ": The number of atoms has not been set.\n";
-    msg += "HINT: Trying setting coordinates or number of atoms before "
-           "assigning velocities.";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(
+      m_NumAtoms > 0, ApoCharmmErrorCode::NotInitialized,
+      "Atom count must be set before assigning velocities at a temperature");
 
   this->setTemperature(temperature);
   const double kbt = charmm::constants::kBoltz * temperature;
@@ -1087,133 +932,28 @@ void CharmmContext::assignVelocitiesAtTemperature(const double temperature) {
 
   m_VelocitiesInverseMasses.transferToDevice();
 
-  // this->removeCenterOfMassMotion();
-
-  // JEG260702: This code is not used for anything.
-  /* *
-  double kineticEnergy = 0.0;
-  for (int i = 0; i < m_NumAtoms; ++i) {
-    kineticEnergy +=
-        1.0 / m_VelocitiesInverseMasses[i].w *
-        (m_VelocitiesInverseMasses[i].x * m_VelocityInverseMasses[i].x +
-         m_VelocitiesInverseMasses[i].y * m_VelocityInverseMasses[i].y +
-         m_VelocitiesInverseMasses[i].z * m_VelocityInverseMasses[i].z);
-  }
-  kineticEnergy *= 0.5;
-
-  const double ndegf = static_cast<double>(this->getDegreesOfFreedom());
-  const double backTemp =
-      kineticEnergy / (1 / 2.0 * ndegf * charmm::constants::kBoltz);
-  static_cast<void>(backTemp);
-  * */
-
   return;
 }
 
 double CharmmContext::computeTemperature(void) {
-  if ((m_NumAtoms == -1) || (m_VelocitiesInverseMasses.size() == 0)) {
-    throw std::invalid_argument(
-        "No atoms in the system -- coordinates have not been loaded and/or "
-        "velocities not assigned.");
-  }
+  APOCHARMM_REQUIRE(m_NumAtoms > 0 && m_VelocitiesInverseMasses.size() ==
+                                          static_cast<std::size_t>(m_NumAtoms),
+                    ApoCharmmErrorCode::NotInitialized,
+                    "Atom count and velocity storage must be initialized "
+                    "before computing temperature");
+
+  APOCHARMM_REQUIRE(
+      m_NumDegreesOfFreedom > 0, ApoCharmmErrorCode::NotInitialized,
+      "Degrees of freedom must be initialized before computing temperature");
 
   const double kineticEnergy = this->getKineticEnergy();
   return kineticEnergy / (0.5 * static_cast<double>(m_NumDegreesOfFreedom) *
                           charmm::constants::kBoltz);
 }
 
-/* *
-__global__ static void CalculateKineticPressureKernel(
-    double *accumulant, const double4 *__restrict__ velocitiesInverseMasses,
-    const int numAtoms) {
-  constexpr int blockSize = 128 * 9;
-  __shared__ double sdata[blockSize];
-  int threadId = threadIdx.x;
-
-  for (int i = 0; i < 9; ++i)
-    sdata[9 * threadId + i] = 0.0;
-
-  int index = threadIdx.x + blockIdx.x * blockDim.x;
-
-  for (int i = index; i < numAtoms; i += blockDim.x)
-    if (index < numAtoms) {
-      const double rvc = 0.5 / velocitiesInverseMasses[i].w;
-      sdata[threadId + 0] =
-          rvc * velocitiesInverseMasses[i].x * velocitiesInverseMasses[i].x;
-      sdata[threadId + 1] =
-          rvc * velocitiesInverseMasses[i].x * velocitiesInverseMasses[i].y;
-      sdata[threadId + 2] =
-          rvc * velocitiesInverseMasses[i].x * velocitiesInverseMasses[i].z;
-      sdata[threadId + 3] =
-          rvc * velocitiesInverseMasses[i].y * velocitiesInverseMasses[i].x;
-      sdata[threadId + 4] =
-          rvc * velocitiesInverseMasses[i].y * velocitiesInverseMasses[i].y;
-      sdata[threadId + 5] =
-          rvc * velocitiesInverseMasses[i].y * velocitiesInverseMasses[i].z;
-      sdata[threadId + 6] =
-          rvc * velocitiesInverseMasses[i].z * velocitiesInverseMasses[i].x;
-      sdata[threadId + 7] =
-          rvc * velocitiesInverseMasses[i].z * velocitiesInverseMasses[i].y;
-      sdata[threadId + 8] =
-          rvc * velocitiesInverseMasses[i].z * velocitiesInverseMasses[i].z;
-    }
-
-  for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1) {
-    __syncthreads();
-    if (threadId < s) {
-      sdata[threadId + 0] += sdata[threadId + s * 9 + 0];
-      sdata[threadId + 1] += sdata[threadId + s * 9 + 1];
-      sdata[threadId + 2] += sdata[threadId + s * 9 + 2];
-      sdata[threadId + 3] += sdata[threadId + s * 9 + 3];
-      sdata[threadId + 4] += sdata[threadId + s * 9 + 4];
-      sdata[threadId + 5] += sdata[threadId + s * 9 + 5];
-      sdata[threadId + 6] += sdata[threadId + s * 9 + 6];
-      sdata[threadId + 7] += sdata[threadId + s * 9 + 7];
-      sdata[threadId + 8] += sdata[threadId + s * 9 + 8];
-    }
-  }
-
-  if (threadId == 0) {
-#pragma unroll
-    for (int i = 0; i < 9; i++)
-      atomicAdd(accumulant + i, sdata[i]);
-  }
-
-  return;
-}
-* */
-
 void CharmmContext::computePressure(void) {
-  throw std::runtime_error("void CharmmContext::computePressure(void): Has not "
-                           "been implemented yet");
-
-  /* *
-  this->requireInitializedForceManager(
-      "void CharmmContext::computePressure(void)");
-
-  CalculateKineticPressureKernel<<<1, 1024>>>(
-      m_VirialKineticEnergyTensor.getDeviceArray().data(),
-      m_VelocitiesInverseMasses.getDeviceArray().data(), m_NumAtoms);
-
-  cudaCheck(cudaDeviceSynchronize());
-
-  const double vcell = charmm::constants::patmos / this->getVolume();
-
-  CudaContainer<double> &virial = m_ForceManager->getVirial();
-  virial.transferFromDevice();
-
-  m_VirialKineticEnergyTensor.transferFromDevice();
-
-  for (int i = 0; i < 9; i++) {
-    m_Pressure[i] = (2.0 * m_VirialKineticEnergyTensor.getHostArray()[i] +
-                     virial.getHostArray()[i]) /
-                    vcell;
-  }
-
-  m_Pressure.transferToDevice();
-  * */
-
-  return;
+  APOCHARMM_THROW(ApoCharmmErrorCode::NotImplemented,
+                  "Pressure computation is not implemented");
 }
 
 __global__ static void ImageCenteringKernel(
@@ -1313,8 +1053,11 @@ __global__ static void ImageCenteringKernel(
 }
 
 void CharmmContext::imageCentering(void) {
-  this->requireInitializedForceManager("CharmmContext::imageCentering");
-  this->requirePsf("CharmmContext::imageCentering");
+  this->requireInitializedForceManager();
+  this->requirePsf();
+  APOCHARMM_REQUIRE(
+      m_HasBoxDimensions && hasValidBoxDimensions(m_BoxDimensions),
+      ApoCharmmErrorCode::NotInitialized, "Box dimensions are not set");
 
   double *forces = this->getForces()->xyz();
   const int forceStride = this->getForceStride();
@@ -1322,15 +1065,18 @@ void CharmmContext::imageCentering(void) {
   const CudaContainer<int2> &groups = m_Psf->getGroups();
   const int numGroups = groups.size();
 
+  if (numGroups == 0)
+    return;
+
   constexpr int numThreads = 128;
   const int numBlocks = (numGroups + numThreads - 1) / numThreads;
 
-  ImageCenteringKernel<<<numBlocks, numThreads>>>(
+  cudaCheckLaunch(ImageCenteringKernel<<<numBlocks, numThreads>>>(
       m_CoordinatesChargesDP.getDeviceArray().data(),
       m_CoordinatesChargesSP.getDeviceArray().data(),
       m_VelocitiesInverseMasses.getDeviceArray().data(), forces, forceStride,
       groups.getDeviceArray().data(), numGroups, m_BoxDimensions[0],
-      m_BoxDimensions[1], m_BoxDimensions[2], m_Pbc);
+      m_BoxDimensions[1], m_BoxDimensions[2], m_Pbc));
 
   cudaCheck(cudaDeviceSynchronize());
 
@@ -1338,7 +1084,7 @@ void CharmmContext::imageCentering(void) {
 }
 
 void CharmmContext::resetNeighborList(void) {
-  this->requireInitializedForceManager("CharmmContext::resetNeighborList");
+  this->requireInitializedForceManager();
 
   this->imageCentering();
 
@@ -1372,13 +1118,19 @@ __global__ static void CalculateKineticEnergyKernel(
 }
 
 void CharmmContext::calculateKineticEnergy(void) {
+  APOCHARMM_REQUIRE(m_NumAtoms > 0 && m_VelocitiesInverseMasses.size() ==
+                                          static_cast<std::size_t>(m_NumAtoms),
+                    ApoCharmmErrorCode::NotInitialized,
+                    "Atom count and velocity storage must be initialized "
+                    "before calculating kinetic energy");
+
   cudaCheck(
       cudaMemset(static_cast<void *>(m_KineticEnergy.getDeviceArray().data()),
                  0, sizeof(double)));
 
-  CalculateKineticEnergyKernel<<<1, 1024>>>(
+  cudaCheckLaunch(CalculateKineticEnergyKernel<<<1, 1024>>>(
       m_KineticEnergy.getDeviceArray().data(),
-      m_VelocitiesInverseMasses.getDeviceArray().data(), m_NumAtoms);
+      m_VelocitiesInverseMasses.getDeviceArray().data(), m_NumAtoms));
 
   cudaCheck(cudaDeviceSynchronize());
 
@@ -1387,21 +1139,20 @@ void CharmmContext::calculateKineticEnergy(void) {
 
 void CharmmContext::calculatePotentialEnergy(const bool reset,
                                              const bool print) {
-  this->requireInitializedForceManager(
-      "CharmmContext::calculatePotentialEnergy");
+  this->requireInitializedForceManager();
+
+  APOCHARMM_REQUIRE(!print, ApoCharmmErrorCode::NotImplemented,
+                    "Potential-energy printing is not implemented");
 
   m_ForceManager->calcForce(m_CoordinatesChargesSP.getDeviceArray().data(),
                             reset, true, true);
 
-  if (print == true)
-    std::cout << "Implement some nice printing" << std::endl;
-
   return;
 }
 
-void CharmmContext::calculateForces(bool reset, bool calcEnergy,
-                                    bool calcVirial) {
-  this->requireInitializedForceManager("CharmmContext::calculateForces");
+void CharmmContext::calculateForces(const bool reset, const bool calcEnergy,
+                                    const bool calcVirial) {
+  this->requireInitializedForceManager();
 
   m_ForceManager->calcForce(m_CoordinatesChargesSP.getDeviceArray().data(),
                             reset, calcEnergy, calcVirial);
@@ -1410,7 +1161,7 @@ void CharmmContext::calculateForces(bool reset, bool calcEnergy,
 }
 
 void CharmmContext::linkBackForceManager(void) {
-  this->requireForceManager("void CharmmContext::linkBackForceManager(void)");
+  this->requireForceManager();
 
   std::shared_ptr<CharmmContext> self = this->weak_from_this().lock();
   if (self == nullptr)
@@ -1422,8 +1173,7 @@ void CharmmContext::linkBackForceManager(void) {
 }
 
 void CharmmContext::syncStateFromForceManager(void) {
-  this->requireForceManager(
-      "void CharmmContext::syncStateFromForceManager(void)");
+  this->requireForceManager();
 
   std::shared_ptr<CharmmPSF> psf = m_ForceManager->getPsf();
   if (psf != nullptr) {
@@ -1452,8 +1202,7 @@ void CharmmContext::syncStateFromForceManager(void) {
 }
 
 void CharmmContext::syncForceManagerFromState(void) {
-  this->requireForceManager(
-      "void CharmmContext::syncForceManagerFromState(void)");
+  this->requireForceManager();
 
   if (m_Psf != nullptr)
     m_ForceManager->setPsf(m_Psf);
@@ -1519,34 +1268,25 @@ void CharmmContext::initializeForceManagerIfReady(void) {
   return;
 }
 
-void CharmmContext::requirePsf(const std::string_view functionName) const {
-  if (m_Psf == nullptr) {
-    std::string msg(functionName);
-    msg += ": CharmmPSF is not set";
-    throw std::invalid_argument(msg);
-  }
+void CharmmContext::requirePsf(void) const {
+  APOCHARMM_REQUIRE(m_Psf != nullptr, ApoCharmmErrorCode::NotInitialized,
+                    "CharmmPSF is not set");
   return;
 }
 
-void CharmmContext::requireForceManager(
-    const std::string_view functionName) const {
-  if (m_ForceManager == nullptr) {
-    std::string msg(functionName);
-    msg += ": ForceManager is not set";
-    throw std::invalid_argument(msg);
-  }
+void CharmmContext::requireForceManager(void) const {
+  APOCHARMM_REQUIRE(m_ForceManager != nullptr,
+                    ApoCharmmErrorCode::NotInitialized,
+                    "ForceManager is not set");
   return;
 }
 
-void CharmmContext::requireInitializedForceManager(
-    const std::string_view functionName) const {
-  this->requireForceManager(functionName);
+void CharmmContext::requireInitializedForceManager(void) const {
+  this->requireForceManager();
 
-  if (!m_ForceManager->isInitialized()) {
-    std::string msg(functionName);
-    msg += ": ForceManager is not initialized";
-    throw std::runtime_error(msg);
-  }
+  APOCHARMM_REQUIRE(m_ForceManager->isInitialized(),
+                    ApoCharmmErrorCode::NotInitialized,
+                    "ForceManager is not initialized");
 
   return;
 }

@@ -22,7 +22,6 @@
 #include <cstdint>
 #include <memory>
 #include <string>
-#include <string_view>
 #include <vector>
 #include <vector_types.h>
 
@@ -32,7 +31,7 @@ public:
   CharmmContext(std::shared_ptr<CharmmPSF> psf,
                 std::shared_ptr<CharmmParameters> prm);
   CharmmContext(std::shared_ptr<ForceManager> fm);
-  ~CharmmContext(void) = default;
+  ~CharmmContext(void) noexcept = default;
 
   CharmmContext(const CharmmContext &other);
 
@@ -140,8 +139,8 @@ public: // Specialized functions
   void calculateKineticEnergy(void);
   void calculatePotentialEnergy(const bool reset = false,
                                 const bool print = false);
-  void calculateForces(bool reset = false, bool calcEnergy = false,
-                       bool calcVirial = false);
+  void calculateForces(const bool reset = false, const bool calcEnergy = false,
+                       const bool calcVirial = false);
 
   void linkBackForceManager(void);
 
@@ -152,10 +151,9 @@ protected:
   bool hasCompleteForceManagerState(void) const;
   void initializeForceManagerIfReady(void);
 
-  void requirePsf(const std::string_view functionName) const;
-  void requireForceManager(const std::string_view functionName) const;
-  void
-  requireInitializedForceManager(const std::string_view functionName) const;
+  void requirePsf(void) const;
+  void requireForceManager(void) const;
+  void requireInitializedForceManager(void) const;
 
   void finalizeSetupIfReady(void);
 
