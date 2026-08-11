@@ -43,9 +43,22 @@ class ApoCharmmError(RuntimeError):
         self._status_name: str = _STATUS_NAMES.get(self._status, _UNKNOWN_STATUS_NAME)
         self._context: str = context
         self._native_diagnostic: str = native_diagnostic
-        self._message: str = "{} [{} ({})]: {}".format(
-            self._context, self._status_name, self._status, self._native_diagnostic
+
+        rendered_native_diagnostic: str = native_diagnostic.replace(
+            "\r\n", "\n"
+        ).replace("\r", "\n")
+        header: str = "{} [{} ({})]".format(
+            self._context, self._status_name, self._status
         )
+
+        separator: str = ": "
+        if "\n" in rendered_native_diagnostic:
+            separator = "" if rendered_native_diagnostic.startswith("\n") else "\n"
+
+        self._message: str = "{}{}{}".format(
+            header, separator, rendered_native_diagnostic
+        )
+
         super().__init__(self._message)
         return
 
