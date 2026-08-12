@@ -8,22 +8,26 @@
 //
 // ENDLICENSE
 
+#include "ApoCharmmError.h"
 #include "DeviceVector.h"
 #include "apo_test_helpers.h"
 #include "catch.hpp"
+#include "cuda_utils.h"
 
-#include <iostream>
+#include <string>
+#include <utility>
+#include <vector>
+
+static_assert(noexcept(std::declval<DeviceVector<int> &>().swap(
+    std::declval<DeviceVector<int> &>())));
 
 TEST_CASE("ConstructionDestruction") {
-  DeviceVector<int> u(6);
-
   SECTION("DefaultConstructor") {
     DeviceVector<int> v;
     CHECK(v.empty() == true);
     CHECK(v.size() == 0);
     CHECK(v.capacity() == 0);
     CHECK(v.data() == nullptr);
-    std::cout << "u.size() = " << u.size() << std::endl;
   }
 
   SECTION("SizeConstructorZero") {
@@ -34,7 +38,6 @@ TEST_CASE("ConstructionDestruction") {
     CHECK_NOTHROW(v.clear());
     CHECK(v.empty() == true);
     CHECK(v.data() == nullptr);
-    std::cout << "u.size() = " << u.size() << std::endl;
   }
 
   SECTION("SizeConstructorNonzero") {
@@ -48,7 +51,6 @@ TEST_CASE("ConstructionDestruction") {
     const std::vector<int> expected(n, 4);
     apo_test::CopyToDevice<int>(v, expected);
     CHECK(apo_test::CopyToHost<int>(v) == expected);
-    std::cout << "u.size() = " << u.size() << std::endl;
   }
 
   SECTION("HostVectorConstructor") {
@@ -59,7 +61,6 @@ TEST_CASE("ConstructionDestruction") {
     CHECK(v.size() == expected.size());
     CHECK(v.capacity() == expected.size());
     CHECK(apo_test::CopyToHost<int>(v) == expected);
-    std::cout << "u.size() = " << u.size() << std::endl;
   }
 
   SECTION("HostRvalueConstructor") {
@@ -171,7 +172,7 @@ TEST_CASE("CapacityAndResizeBehavior") {
 
   SECTION("PushBackFromEmpty") {
     DeviceVector<int> v;
-    v.push_back(4);
+    CHECK_NOTHROW(v.push_back(4));
 
     CHECK(v.size() == 1);
     CHECK(v.capacity() >= 1);
@@ -180,9 +181,34 @@ TEST_CASE("CapacityAndResizeBehavior") {
     CHECK(apo_test::CopyToHost<int>(v) == expected);
   }
 
+  SECTION("PushBackReportsCudaLaunchError") {
+    DeviceVector<int> v({1, 0});
+    v.resize(1);
+
+    REQUIRE(cudaGetLastError() == cudaSuccess);
+    const cudaError_t injectedError = cudaSetDevice(-1);
+    REQUIRE(injectedError == cudaErrorInvalidDevice);
+    REQUIRE(cudaPeekAtLastError() == injectedError);
+
+    const std::string expectedMessage =
+        "CUDA error detected immediately after kernel launch\n"
+        "  expression: SetBackKernel<<<1, 1>>>(m_Data, m_Size + 1, value)\n"
+        "  CUDA error name: " +
+        std::string(cudaGetErrorName(injectedError)) +
+        "\n  CUDA error description: " +
+        std::string(cudaGetErrorString(injectedError));
+
+    apo_test::CheckApoCharmmError([&v]() { v.push_back(2); },
+                                  ApoCharmmErrorCode::Cuda, expectedMessage);
+
+    CHECK(v.size() == 1);
+    cudaCheck(cudaDeviceSynchronize());
+    CHECK(apo_test::CopyToHost<int>(v) == std::vector<int>{1});
+  }
+
   SECTION("PushBackSecondElement") {
     DeviceVector<int> v(std::vector<int>{1});
-    v.push_back(4);
+    CHECK_NOTHROW(v.push_back(4));
 
     CHECK(v.size() == 2);
     CHECK(v.capacity() >= 2);
@@ -198,7 +224,7 @@ TEST_CASE("CapacityAndResizeBehavior") {
 
     DeviceVector<int> v;
     for (std::size_t i = 0; i < expected.size(); i++)
-      v.push_back(static_cast<int>(i + 1));
+      CHECK_NOTHROW(v.push_back(static_cast<int>(i + 1)));
 
     CHECK(v.size() == expected.size());
     CHECK(v.capacity() >= expected.size());
@@ -208,7 +234,7 @@ TEST_CASE("CapacityAndResizeBehavior") {
   SECTION("PushBackAfterClear") {
     DeviceVector<int> v({1, 2, 3, 4});
     v.clear();
-    v.push_back(64);
+    CHECK_NOTHROW(v.push_back(64));
 
     CHECK(v.size() == 1);
     CHECK(v.capacity() >= 1);
@@ -224,7 +250,7 @@ TEST_CASE("CapacityAndResizeBehavior") {
 
     v.resize(4);
     v.shrink_to_fit();
-    v.push_back(64);
+    CHECK_NOTHROW(v.push_back(64));
 
     const std::vector<int> expected = {1, 2, 3, 4, 64};
     CHECK(v.size() == expected.size());
@@ -320,9 +346,13 @@ TEST_CASE("CopyAssignmentSwap") {
   SECTION("SwapNonemptyNonempty") {
     DeviceVector<int> v1({1, 2, 3, 4});
     DeviceVector<int> v2({5, 4, 3, 2, 1});
+    int *const v1Data = v1.data();
+    int *const v2Data = v2.data();
 
     CHECK_NOTHROW(v1.swap(v2));
 
+    CHECK(v1.data() == v2Data);
+    CHECK(v2.data() == v1Data);
     CHECK(v1.size() == 5);
     CHECK(v1.capacity() == 5);
     CHECK(v2.size() == 4);
@@ -337,9 +367,12 @@ TEST_CASE("CopyAssignmentSwap") {
   SECTION("SwapEmptyNonempty") {
     DeviceVector<int> v1;
     DeviceVector<int> v2({1, 2, 3, 4});
+    int *const v2Data = v2.data();
 
     CHECK_NOTHROW(v1.swap(v2));
 
+    CHECK(v1.data() == v2Data);
+    CHECK(v2.data() == nullptr);
     CHECK(v1.empty() == false);
     CHECK(v1.size() == 4);
     CHECK(v1.capacity() == 4);
@@ -354,9 +387,12 @@ TEST_CASE("CopyAssignmentSwap") {
   SECTION("SwapNonemptyEmpty") {
     DeviceVector<int> v1({1, 2, 3, 4});
     DeviceVector<int> v2;
+    int *const v1Data = v1.data();
 
     CHECK_NOTHROW(v1.swap(v2));
 
+    CHECK(v1.data() == nullptr);
+    CHECK(v2.data() == v1Data);
     CHECK(v1.empty() == true);
     CHECK(v1.size() == 0);
     CHECK(v1.capacity() == 0);
@@ -371,8 +407,10 @@ TEST_CASE("CopyAssignmentSwap") {
   SECTION("SwapSelf") {
     const std::vector<int> expected = {1, 2, 3, 4};
     DeviceVector<int> v(expected);
+    int *const data = v.data();
 
     CHECK_NOTHROW(v.swap(v));
+    CHECK(v.data() == data);
     CHECK(v.size() == 4);
     CHECK(v.capacity() == 4);
     CHECK(apo_test::CopyToHost<int>(v) == expected);

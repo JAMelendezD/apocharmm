@@ -12,6 +12,8 @@
 
 #include "cuda_utils.h"
 
+#include <utility>
+
 template <typename T>
 DeviceVector<T>::DeviceVector(void)
     : m_Size(0), m_Capacity(0), m_Data(nullptr) {}
@@ -146,9 +148,9 @@ template <typename T> void DeviceVector<T>::push_back(const T &value) {
   if (m_Size >= m_Capacity) // Increase size of memory block by 50%
     this->reallocate(m_Capacity + (m_Capacity / 2) + 1);
 
-  m_Size++;
+  cudaCheckLaunch(SetBackKernel<<<1, 1>>>(m_Data, m_Size + 1, value));
 
-  SetBackKernel<<<1, 1>>>(m_Data, m_Size, value);
+  m_Size++;
 
   return;
 }
@@ -162,35 +164,11 @@ template <typename T> void DeviceVector<T>::resize(const std::size_t count) {
   return;
 }
 
-template <typename T> void DeviceVector<T>::swap(DeviceVector<T> &other) {
-  // Copy properties and data of this DeviceVector
-  std::size_t size = m_Size;
-  std::size_t capacity = m_Capacity;
-  T *data = nullptr;
-  cudaCheck(
-      cudaMalloc(reinterpret_cast<void **>(&data), m_Capacity * sizeof(T)));
-  cudaCheck(cudaMemcpy(static_cast<void *>(data),
-                       static_cast<const void *>(m_Data),
-                       m_Capacity * sizeof(T), cudaMemcpyDeviceToDevice));
-
-  // Copy properties and data from other DeviceVector to this DeviceVector
-  this->reallocate(other.capacity());
-  m_Size = other.size();
-  cudaCheck(cudaMemcpy(static_cast<void *>(m_Data),
-                       static_cast<const void *>(other.data()),
-                       other.size() * sizeof(T), cudaMemcpyDeviceToDevice));
-
-  // Copy properties and data from copy of this DeviceVector to other
-  // DeviceVector
-  other.reallocate(capacity);
-  other.resize(size);
-  cudaCheck(cudaMemcpy(static_cast<void *>(other.data()),
-                       static_cast<const void *>(data), size * sizeof(T),
-                       cudaMemcpyDeviceToDevice));
-
-  // Free temporary memory used for copying data
-  cudaCheck(cudaFree(static_cast<void *>(data)));
-
+template <typename T>
+void DeviceVector<T>::swap(DeviceVector<T> &other) noexcept {
+  std::swap(m_Size, other.m_Size);
+  std::swap(m_Capacity, other.m_Capacity);
+  std::swap(m_Data, other.m_Data);
   return;
 }
 

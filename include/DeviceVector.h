@@ -46,7 +46,7 @@ public: // Modifiers
   void clear(void);
   void push_back(const T &value);
   void resize(const std::size_t count);
-  void swap(DeviceVector<T> &other);
+  void swap(DeviceVector<T> &other) noexcept;
 
 private:
   void allocate(const std::size_t count);
