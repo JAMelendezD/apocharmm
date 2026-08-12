@@ -4,6 +4,9 @@ APOCHARMM
 Quick links to often used classes/references ?
 CharmmContext / ForceManager / Subscriber / CudaIntegrator
 
+## Subsystem documentation ##
+
+- @subpage apocharmm_error
 
 ## Architecture ideas ##
 

@@ -24,14 +24,34 @@ constexpr std::size_t FALLBACK_DIAGNOSTIC_CAPACITY = 1024;
 constexpr std::string_view UNKNOWN_FUNCTION_NAME = "unknown C function";
 constexpr std::string_view UNKNOWN_ERROR_MESSAGE = "Unknown error";
 
+/**
+ * @brief Owns one thread's current C ABI diagnostic storage.
+ *
+ * After an error helper returns, `message` aliases the empty string literal,
+ * `storage.c_str()`, `fallback`, or the static fallback diagnostic. The fixed
+ * buffer provides a null-terminated, allocation-free path when prefix
+ * formatting fails.
+ */
 struct LastErrorState {
+  /** @brief Owns a normally formatted diagnostic. */
   std::string storage;
+  /** @brief Owns an emergency function-prefixed diagnostic. */
   char fallback[FALLBACK_DIAGNOSTIC_CAPACITY] = {};
+  /** @brief Points at the diagnostic exposed by @ref apo_last_error. */
   const char *message = "";
 };
 
+/** @brief Stores the independent diagnostic state for the current thread. */
 thread_local LastErrorState g_last_error;
 
+/**
+ * @brief Returns the function label used to prefix a C ABI diagnostic.
+ *
+ * @param[in] function_name Borrowed null-terminated label. The pointer may be
+ * `nullptr` and is not retained.
+ * @return A borrowed view into `function_name`, or static fallback storage when
+ * the pointer is NULL or its first character is a newline.
+ */
 std::string_view get_function_name(const char *function_name) noexcept {
   if ((function_name == nullptr) || (function_name[0] == '\n'))
     return UNKNOWN_FUNCTION_NAME;

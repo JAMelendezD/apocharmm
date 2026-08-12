@@ -19,11 +19,38 @@
 
 namespace apocharmm_c {
 
+/**
+ * @brief Records an invalid-argument diagnostic for a C ABI entry point.
+ *
+ * @param[in] function_name Borrowed null-terminated C function label. The
+ * pointer may be `nullptr` and is not retained.
+ * @param[in] message Human-readable diagnostic copied before return.
+ * @return `APO_STATUS_INVALID_ARGUMENT`.
+ *
+ * @post The current thread's diagnostic contains the selected function label
+ * and message.
+ */
 inline apo_status invalid_argument(const char *function_name,
                                    const std::string &message) {
   return set_last_error(APO_STATUS_INVALID_ARGUMENT, function_name, message);
 }
 
+/**
+ * @brief Validates and clears an owned-handle output slot before construction.
+ *
+ * @tparam T Opaque C ABI handle type to be produced by the caller.
+ * @param[out] out Borrowed pointer to the caller's handle slot. The pointer
+ * must be non-NULL; the slot is set to `nullptr` when validation succeeds.
+ * @param[in] function_name Borrowed null-terminated C function label. The
+ * pointer may be `nullptr` and is not retained.
+ * @param[in] argument_name Borrowed non-NULL, null-terminated argument label
+ * used only to format a diagnostic.
+ * @return `APO_STATUS_OK` after setting `*out` to `nullptr`, or
+ * `APO_STATUS_INVALID_ARGUMENT` when `out` is NULL.
+ *
+ * @post On success, `*out` is `nullptr`. On failure, no output location exists
+ * and no write is performed.
+ */
 template <typename T>
 apo_status prepare_output_pointer(T **out, const char *function_name,
                                   const char *argument_name) {
@@ -37,6 +64,18 @@ apo_status prepare_output_pointer(T **out, const char *function_name,
   return APO_STATUS_OK;
 }
 
+/**
+ * @brief Validates that a borrowed C string is non-NULL and nonempty.
+ *
+ * @param[in] value Borrowed null-terminated string to validate. The pointer may
+ * be NULL and is never retained.
+ * @param[in] function_name Borrowed null-terminated C function label. The
+ * pointer may be `nullptr` and is not retained.
+ * @param[in] argument_name Borrowed non-NULL, null-terminated argument label
+ * used only to format a diagnostic.
+ * @return `APO_STATUS_OK` when `value[0]` is not `\0`, or
+ * `APO_STATUS_INVALID_ARGUMENT` when `value` is NULL or empty.
+ */
 inline apo_status require_c_string(const char *value, const char *function_name,
                                    const char *argument_name) {
   if ((value != nullptr) && (value[0] != '\0'))
@@ -46,6 +85,17 @@ inline apo_status require_c_string(const char *value, const char *function_name,
                           std::string(argument_name) + " is NULL or empty");
 }
 
+/**
+ * @brief Validates that an integer argument is strictly positive.
+ *
+ * @param[in] value Integer value to validate.
+ * @param[in] function_name Borrowed null-terminated C function label. The
+ * pointer may be `nullptr` and is not retained.
+ * @param[in] argument_name Borrowed non-NULL, null-terminated argument label
+ * used only to format a diagnostic.
+ * @return `APO_STATUS_OK` when `value` is greater than zero, or
+ * `APO_STATUS_INVALID_ARGUMENT` otherwise.
+ */
 inline apo_status require_positive_int(const int value,
                                        const char *function_name,
                                        const char *argument_name) {
@@ -56,6 +106,19 @@ inline apo_status require_positive_int(const int value,
                           std::string(argument_name) + " must be positive");
 }
 
+/**
+ * @brief Validates that a borrowed pointer is non-NULL.
+ *
+ * @tparam T Pointed-to element or handle type.
+ * @param[in] pointer Borrowed pointer to validate. The pointer may be NULL and
+ * is never retained or dereferenced.
+ * @param[in] function_name Borrowed null-terminated C function label. The
+ * pointer may be `nullptr` and is not retained.
+ * @param[in] argument_name Borrowed non-NULL, null-terminated argument label
+ * used only to format a diagnostic.
+ * @return `APO_STATUS_OK` when `pointer` is non-NULL, or
+ * `APO_STATUS_INVALID_ARGUMENT` otherwise.
+ */
 template <typename T>
 apo_status require_pointer(const T *pointer, const char *function_name,
                            const char *argument_name) {
@@ -66,12 +129,23 @@ apo_status require_pointer(const T *pointer, const char *function_name,
                           std::string(argument_name) + " is NULL");
 }
 
-// JEG260522: This utility function requires that every wrapper handle struct
-// have the same member name.
-//
-// std::shared_ptr<ObjectType> object;
-//
-// Worth standardizing now.
+/**
+ * @brief Validates an opaque handle and its retained native object.
+ *
+ * @tparam T C ABI handle struct exposing an `object` member comparable to
+ * `nullptr`.
+ * @param[in] handle Borrowed handle to validate. The pointer may be NULL and is
+ * not retained; its native object is neither copied nor transferred.
+ * @param[in] function_name Borrowed null-terminated C function label. The
+ * pointer may be `nullptr` and is not retained.
+ * @param[in] handle_name Borrowed non-NULL, null-terminated handle label used
+ * only to format a diagnostic.
+ * @return `APO_STATUS_OK` when both `handle` and `handle->object` are non-NULL,
+ * or `APO_STATUS_INVALID_ARGUMENT` otherwise.
+ *
+ * @note This helper encodes the C ABI invariant that every wrapper handle
+ * stores its retained native object in a member named `object`.
+ */
 template <typename T>
 apo_status require_handle_object(const T *handle, const char *function_name,
                                  const char *handle_name) {
@@ -87,6 +161,25 @@ apo_status require_handle_object(const T *handle, const char *function_name,
                           std::string(handle_name) + " object is NULL");
 }
 
+/**
+ * @brief Validates the capacity of a caller-owned output buffer.
+ *
+ * @tparam T Buffer element type.
+ * @param[in] buffer Borrowed contiguous candidate output buffer. The pointer
+ * may be NULL only when `required_len` is zero. This helper validates but does
+ * not write it.
+ * @param[in] provided_len Number of `T` elements available in `buffer`.
+ * @param[in] required_len Minimum number of `T` elements required by the
+ * caller.
+ * @param[in] function_name Borrowed null-terminated C function label. The
+ * pointer may be `nullptr` and is not retained.
+ * @param[in] buffer_name Borrowed non-NULL, null-terminated buffer label used
+ * only to format a diagnostic.
+ * @return `APO_STATUS_OK` when no elements are required or the non-NULL buffer
+ * has sufficient capacity; `APO_STATUS_INVALID_ARGUMENT` otherwise.
+ *
+ * @post The buffer and its contents are unchanged.
+ */
 template <typename T>
 apo_status
 require_output_buffer(const T *buffer, const std::size_t provided_len,
@@ -108,6 +201,20 @@ require_output_buffer(const T *buffer, const std::size_t provided_len,
   return APO_STATUS_OK;
 }
 
+/**
+ * @brief Validates a nonempty flat-array length against an element stride.
+ *
+ * @param[in] length Number of scalar elements in the flat array.
+ * @param[in] stride Number of scalar elements in one logical record. The value
+ * must be greater than zero.
+ * @param[in] argument_name Borrowed non-NULL, null-terminated array label used
+ * only to format a diagnostic.
+ * @param[in] function_name Borrowed null-terminated C function label. The
+ * pointer may be `nullptr` and is not retained.
+ * @return `APO_STATUS_OK` when `length` is nonzero, `stride` is nonzero, and
+ * `length` is an exact multiple of `stride`; `APO_STATUS_INVALID_ARGUMENT`
+ * otherwise.
+ */
 inline apo_status require_flat_array_length(const size_t length,
                                             const size_t stride,
                                             const char *argument_name,
@@ -129,6 +236,17 @@ inline apo_status require_flat_array_length(const size_t length,
 
 } // namespace apocharmm_c
 
+/**
+ * @brief Returns immediately from a C ABI body when an expression fails.
+ *
+ * The macro evaluates `expression` exactly once, stores its @ref apo_status,
+ * and returns that status from the enclosing function or lambda when it is not
+ * `APO_STATUS_OK`.
+ *
+ * @param[in] expression Expression yielding an @ref apo_status.
+ * @post An `APO_STATUS_OK` result continues execution immediately after the
+ * macro.
+ */
 #define APOCHARMM_C_RETURN_IF_ERROR(expression)                                \
   do {                                                                         \
     const apo_status apocharmm_c_status__ = (expression);                      \

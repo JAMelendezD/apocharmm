@@ -46,6 +46,17 @@ constexpr std::string_view APOCHARMM_SKULL =
                        XXXX             XXXX
                         XXX             XXX)ASCII";
 
+/**
+ * @brief Returns a source-file spelling suitable for native diagnostics.
+ *
+ * Paths beginning with the configured apoCHARMM source root become
+ * project-relative. Other paths containing `/` or `\` are reduced to their
+ * final component. The operation performs no allocation.
+ *
+ * @param[in] sourceFile Borrowed source-path text to normalize.
+ * @return A borrowed view into `sourceFile`. The view remains valid only while
+ * the input view's backing storage remains valid.
+ */
 std::string_view
 GetProjectRelativeSourceFile(const std::string_view sourceFile) noexcept {
   constexpr std::string_view SOURCE_ROOT{APOCHARMM_SOURCE_ROOT};
