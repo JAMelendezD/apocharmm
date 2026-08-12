@@ -8,6 +8,7 @@
 //
 // ENDLICENSE
 
+#include "ApoCharmmError.h"
 #include "CharmmPSF.h"
 #include "CharmmParameters.h"
 #include "apo_test_helpers.h"
@@ -23,7 +24,7 @@ const std::string TEST_PARAMETER_TEXT =
 *
 
 BONDS
-A      B      100.0     1.1
+A      B      1.0D+02   1.1
 B      C      200.0     1.2
 C      D      300.0     1.3
 
@@ -38,13 +39,17 @@ X      B      C      X        0.2      2         0.0
 IMPROPER
 A      B      C      D        1.5      0       180.0
 
-NONBONDED
+NONBONDED NBXMOD 5 ATOM CDIEL FSHIFT VATOM VDISTANCE VFSWITCH -
+CUTNB 14.0 CTOFNB 12.0 CTONNB 10.0 EPS 1.0 E14FAC 1.0 WMIN 1.5
 A      0.0    -0.1     1.0
 B      0.0    -0.2     1.1
 C      0.0    -0.3     1.2
 D      0.0    -0.4     1.3
 E      0.0    -0.5     1.4      0.0    -0.05    1.0
 
+END
+
+READ PARA CARD APPEND
 NBFIX
 A      D      -0.05    2.5
 
@@ -116,12 +121,12 @@ TEST_CASE("CharmmParametersParsesSingleFile") {
   CharmmParameters parameters(parameterFile);
 
   SECTION("OriginalFileName") {
-    CHECK(parameters.getOriginalPrmFileNames() ==
+    CHECK(parameters.getPrmFileNames() ==
           std::vector<std::string>{parameterFile});
   }
 
   SECTION("BondParameters") {
-    const std::map<BondKey, BondValues> bonds = parameters.getBonds();
+    const std::map<BondKey, BondValues> bonds = parameters.getBondParams();
 
     REQUIRE(bonds.size() == 3);
     REQUIRE(bonds.count(BondKey("A", "B")) == 1);
@@ -139,9 +144,9 @@ TEST_CASE("CharmmParametersParsesSingleFile") {
   }
 
   SECTION("AngleAndUreyBradleyParameters") {
-    const std::map<AngleKey, AngleValues> angles = parameters.getAngles();
+    const std::map<AngleKey, AngleValues> angles = parameters.getAngleParams();
     const std::map<AngleKey, BondValues> ureyBradleys =
-        parameters.getUreyBradleys();
+        parameters.getUreybParams();
 
     REQUIRE(angles.size() == 2);
     REQUIRE(ureyBradleys.size() == 2);
@@ -167,9 +172,9 @@ TEST_CASE("CharmmParametersParsesSingleFile") {
 
   SECTION("DihedralAndImproperParameters") {
     const std::map<DihedralKey, std::vector<DihedralValues>> dihedrals =
-        parameters.getDihedrals();
+        parameters.getDihedralParams();
     const std::map<DihedralKey, ImDihedralValues> impropers =
-        parameters.getImpropers();
+        parameters.getImproperParams();
 
     REQUIRE(dihedrals.count(DihedralKey("A", "B", "C", "D")) == 1);
     REQUIRE(dihedrals.at(DihedralKey("A", "B", "C", "D")).size() == 1);
@@ -188,15 +193,14 @@ TEST_CASE("CharmmParametersParsesSingleFile") {
           Approx(0.0f));
 
     REQUIRE(impropers.count(DihedralKey("A", "B", "C", "D")) == 1);
-    CHECK(impropers.at(DihedralKey("A", "B", "C", "D")).kpsi == Approx(1.5f));
+    CHECK(impropers.at(DihedralKey("A", "B", "C", "D")).kPsi == Approx(1.5f));
     CHECK(impropers.at(DihedralKey("A", "B", "C", "D")).psi0 == Approx(180.0f));
   }
 
   SECTION("VdwParameters") {
-    const std::map<std::string, VdwParameters> vdw =
-        parameters.getVdwParameters();
+    const std::map<std::string, VdwParameters> vdw = parameters.getVdwParams();
     const std::map<std::string, VdwParameters> vdw14 =
-        parameters.getVdw14Parameters();
+        parameters.getVdw14Params();
 
     REQUIRE(vdw.size() == 5);
     REQUIRE(vdw.count("A") == 1);
@@ -223,23 +227,21 @@ TEST_CASE("CharmmParametersParsesMultipleFiles") {
   const std::string parameterFile = "tmp_charmm_parameters_full.prm";
   const std::string supplementalFile = "tmp_charmm_parameters_supplement.prm";
   apo_test::WriteTextFile(parameterFile, TEST_PARAMETER_TEXT);
-  apo_test::WriteTextFile(supplementalFile,
-                                TEST_PARAMETER_SUPPLEMENT_TEXT);
+  apo_test::WriteTextFile(supplementalFile, TEST_PARAMETER_SUPPLEMENT_TEXT);
 
   CharmmParameters parameters({parameterFile, supplementalFile});
 
-  CHECK(parameters.getOriginalPrmFileNames() ==
+  CHECK(parameters.getPrmFileNames() ==
         std::vector<std::string>{parameterFile, supplementalFile});
 
-  const std::map<BondKey, BondValues> bonds = parameters.getBonds();
+  const std::map<BondKey, BondValues> bonds = parameters.getBondParams();
   REQUIRE(bonds.count(BondKey("A", "B")) == 1);
   REQUIRE(bonds.count(BondKey("E", "F")) == 1);
 
   CHECK(bonds.at(BondKey("E", "F")).kb == Approx(400.0f));
   CHECK(bonds.at(BondKey("E", "F")).b0 == Approx(1.4f));
 
-  const std::map<std::string, VdwParameters> vdw =
-      parameters.getVdwParameters();
+  const std::map<std::string, VdwParameters> vdw = parameters.getVdwParams();
   REQUIRE(vdw.count("F") == 1);
   CHECK(vdw.at("F").epsilon == Approx(-0.6).margin(DOUBLE_TOLERANCE));
   CHECK(vdw.at("F").rmin_2 == Approx(1.5).margin(DOUBLE_TOLERANCE));
@@ -274,7 +276,7 @@ TEST_CASE("CharmmParametersBuildsBondedParamsAndLists") {
   };
 
   apo_test::CheckVectorsClose2D<float>(bonded.paramsVal, expectedParams,
-                                             FLOAT_TOLERANCE);
+                                       FLOAT_TOLERANCE);
 
   const std::vector<std::vector<int>> expectedLists = {
       {0, 1, 0, 13},
@@ -352,14 +354,14 @@ TEST_CASE("CharmmParametersRejectsBadInputs") {
     const std::string parameterFile = "tmp_charmm_parameters_missing.prm";
     apo_test::RemoveIfExists(parameterFile);
 
-    CHECK_THROWS_AS(CharmmParameters(parameterFile), std::invalid_argument);
+    CHECK_THROWS_AS(CharmmParameters(parameterFile), ApoCharmmError);
   }
 
   SECTION("MalformedNonbondedLine") {
     const std::string parameterFile = "tmp_charmm_parameters_malformed.prm";
     apo_test::WriteTextFile(parameterFile, MALFORMED_PARAMETER_TEXT);
 
-    CHECK_THROWS_AS(CharmmParameters(parameterFile), std::invalid_argument);
+    CHECK_THROWS_AS(CharmmParameters(parameterFile), ApoCharmmError);
 
     apo_test::RemoveIfExists(parameterFile);
   }
