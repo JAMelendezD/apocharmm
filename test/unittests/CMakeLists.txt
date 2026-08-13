@@ -2,6 +2,7 @@
 set(SOURCES_UNITTESTS_TESTS
   # Base tests
   unittest-apoCharmmError.cpp
+  unittest-strUtils.cpp
   unittest-deviceVector.cpp
   unittest-cudaContainer.cpp
   unittest-nothrowDestruction.cpp

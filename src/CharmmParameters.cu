@@ -18,57 +18,20 @@
 #include <cstddef>
 #include <fstream>
 #include <set>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <tuple>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
 namespace {
 
-template <typename T>
-T ParsePrmValue(const std::string &token, const std::string_view fieldName,
-                const std::string_view recordType, const std::string &line,
-                const std::string &fileName, const std::size_t lineNumber) {
-  static_assert(std::is_same_v<T, double> || std::is_same_v<T, int>,
-                "Unsupported CHARMM parameter value type");
-
-  std::string normalizedToken = token;
-  if constexpr (std::is_floating_point_v<T>) {
-    std::replace(normalizedToken.begin(), normalizedToken.end(), 'D', 'E');
-    std::replace(normalizedToken.begin(), normalizedToken.end(), 'd', 'E');
-  }
-
-  std::size_t parsedCharacters = 0;
-  T value{};
-  bool conversionSucceeded = false;
-
-  try {
-    if constexpr (std::is_same_v<T, double>)
-      value = std::stod(normalizedToken, &parsedCharacters);
-    else
-      value = std::stoi(normalizedToken, &parsedCharacters);
-
-    conversionSucceeded = true;
-  } catch (const std::invalid_argument &) {
-  } catch (const std::out_of_range &) {
-  }
-
-  bool isValid =
-      conversionSucceeded && (parsedCharacters == normalizedToken.size());
-
-  if constexpr (std::is_floating_point_v<T>)
-    isValid = isValid && std::isfinite(value);
-
-  APOCHARMM_REQUIRE(
-      isValid, ApoCharmmErrorCode::Runtime,
-      "Invalid " + std::string(fieldName) + " value \"" + token + "\" in " +
-          std::string(recordType) + " parameter record in file \"" + fileName +
-          "\" at line " + std::to_string(lineNumber) + ": " + line);
-
-  return value;
+std::string GetPrmValueContext(const std::string_view recordType,
+                               const std::string &line,
+                               const std::string &fileName,
+                               const std::size_t lineNumber) {
+  return std::string(recordType) + " parameter record in file \"" + fileName +
+         "\" at line " + std::to_string(lineNumber) + ": " + line;
 }
 
 std::string CleanPrmLine(const std::string &rawLine) {
@@ -755,10 +718,10 @@ void CharmmParameters::parseBondRecord(const std::vector<std::string> &tokens,
   if (atom1 > atom2)
     std::swap(atom1, atom2);
 
-  const double kb = ParsePrmValue<double>(tokens[2], "kb", "BONDS", line,
-                                          fileName, lineNumber);
-  const double b0 = ParsePrmValue<double>(tokens[3], "b0", "BONDS", line,
-                                          fileName, lineNumber);
+  const std::string valueContext =
+      GetPrmValueContext("BONDS", line, fileName, lineNumber);
+  const double kb = apo::parse_double(tokens[2], "kb", valueContext);
+  const double b0 = apo::parse_double(tokens[3], "b0", valueContext);
 
   m_BondParams.insert({BondKey(atom1, atom2), BondValues(kb, b0)});
 
@@ -780,20 +743,18 @@ void CharmmParameters::parseAngleRecord(const std::vector<std::string> &tokens,
   if (atom1 > atom3)
     std::swap(atom1, atom3);
 
+  const std::string valueContext =
+      GetPrmValueContext("ANGLES", line, fileName, lineNumber);
   const double degreesToRadians = std::acos(-1.0) / 180.0;
-  const double kTheta = ParsePrmValue<double>(tokens[3], "kTheta", "ANGLES",
-                                              line, fileName, lineNumber);
+  const double kTheta = apo::parse_double(tokens[3], "kTheta", valueContext);
   const double theta0 =
-      degreesToRadians * ParsePrmValue<double>(tokens[4], "theta0", "ANGLES",
-                                               line, fileName, lineNumber);
+      degreesToRadians * apo::parse_double(tokens[4], "theta0", valueContext);
 
   double kub = 0.0;
   double s0 = 0.0;
   if (tokens.size() == 7) {
-    kub = ParsePrmValue<double>(tokens[5], "kub", "ANGLES", line, fileName,
-                                lineNumber);
-    s0 = ParsePrmValue<double>(tokens[6], "s0", "ANGLES", line, fileName,
-                               lineNumber);
+    kub = apo::parse_double(tokens[5], "kub", valueContext);
+    s0 = apo::parse_double(tokens[6], "s0", valueContext);
   }
 
   const AngleKey key(atom1, atom2, atom3);
@@ -822,12 +783,12 @@ void CharmmParameters::parseDihedralRecord(
   } else if ((atom1 == atom4) && (atom2 > atom3))
     std::swap(atom2, atom3);
 
-  const double kChi = ParsePrmValue<double>(tokens[4], "kChi", "DIHEDRALS",
-                                            line, fileName, lineNumber);
-  const int multiplicity = ParsePrmValue<int>(
-      tokens[5], "multiplicity", "DIHEDRALS", line, fileName, lineNumber);
-  const double delta = ParsePrmValue<double>(tokens[6], "delta", "DIHEDRALS",
-                                             line, fileName, lineNumber);
+  const std::string valueContext =
+      GetPrmValueContext("DIHEDRALS", line, fileName, lineNumber);
+  const double kChi = apo::parse_double(tokens[4], "kChi", valueContext);
+  const int multiplicity =
+      apo::parse_int(tokens[5], "multiplicity", valueContext);
+  const double delta = apo::parse_double(tokens[6], "delta", valueContext);
 
   const DihedralKey key(atom1, atom2, atom3, atom4);
   m_DihedralParams[key].push_back(DihedralValues(kChi, multiplicity, delta));
@@ -854,13 +815,12 @@ void CharmmParameters::parseImproperRecord(
   } else if ((atom1 == atom4) && (atom2 > atom3))
     std::swap(atom2, atom3);
 
-  const double kPsi = ParsePrmValue<double>(tokens[4], "kPsi", "IMPROPER", line,
-                                            fileName, lineNumber);
-  static_cast<void>(ParsePrmValue<double>(tokens[5], "ignored multiplicity",
-                                          "IMPROPER", line, fileName,
-                                          lineNumber));
-  const double psi0 = ParsePrmValue<double>(tokens[6], "psi0", "IMPROPER", line,
-                                            fileName, lineNumber);
+  const std::string valueContext =
+      GetPrmValueContext("IMPROPER", line, fileName, lineNumber);
+  const double kPsi = apo::parse_double(tokens[4], "kPsi", valueContext);
+  static_cast<void>(
+      apo::parse_double(tokens[5], "ignored multiplicity", valueContext));
+  const double psi0 = apo::parse_double(tokens[6], "psi0", valueContext);
 
   m_ImproperParams.insert(
       {DihedralKey(atom1, atom2, atom3, atom4), ImDihedralValues(kPsi, psi0)});
@@ -876,22 +836,23 @@ void CharmmParameters::parseNonbondedRecord(
       "Invalid NONBONDED parameter record in file \"" + fileName +
           "\" at line " + std::to_string(lineNumber) + ": " + line);
 
-  static_cast<void>(ParsePrmValue<double>(
-      tokens[1], "ignored value", "NONBONDED", line, fileName, lineNumber));
-  const double epsilon = ParsePrmValue<double>(
-      tokens[2], "epsilon", "NONBONDED", line, fileName, lineNumber);
-  const double rmin_2 = ParsePrmValue<double>(tokens[3], "rmin/2", "NONBONDED",
-                                              line, fileName, lineNumber);
+  const std::string valueContext =
+      GetPrmValueContext("NONBONDED", line, fileName, lineNumber);
+
+  static_cast<void>(
+      apo::parse_double(tokens[1], "ignored value", valueContext));
+  const double epsilon = apo::parse_double(tokens[2], "epsilon", valueContext);
+  const double rmin_2 = apo::parse_double(tokens[3], "rmin/2", valueContext);
 
   m_VdwParams.insert_or_assign(tokens[0], VdwParameters(epsilon, rmin_2));
 
   if (tokens.size() == 7) {
-    static_cast<void>(ParsePrmValue<double>(
-        tokens[4], "ignored 1-4", "NONBONDED", line, fileName, lineNumber));
-    const double epsilon14 = ParsePrmValue<double>(
-        tokens[5], "1-4 epsilon", "NONBONDED", line, fileName, lineNumber);
-    const double rmin_2_14 = ParsePrmValue<double>(
-        tokens[6], "1-4 rmin/2", "NONBONDED", line, fileName, lineNumber);
+    static_cast<void>(
+        apo::parse_double(tokens[4], "ignored 1-4", valueContext));
+    const double epsilon14 =
+        apo::parse_double(tokens[5], "1-4 epsilon", valueContext);
+    const double rmin_2_14 =
+        apo::parse_double(tokens[6], "1-4 rmin/2", valueContext);
 
     m_Vdw14Params.insert_or_assign(tokens[0],
                                    VdwParameters(epsilon14, rmin_2_14));
@@ -914,18 +875,18 @@ void CharmmParameters::parseNbfixRecord(const std::vector<std::string> &tokens,
   if (atom1 > atom2)
     std::swap(atom1, atom2);
 
-  const double emin = std::abs(ParsePrmValue<double>(
-      tokens[2], "emin", "NBFIX", line, fileName, lineNumber));
-  const double rmin = ParsePrmValue<double>(tokens[3], "rmin", "NBFIX", line,
-                                            fileName, lineNumber);
+  const std::string valueContext =
+      GetPrmValueContext("NBFIX", line, fileName, lineNumber);
+
+  const double emin =
+      std::abs(apo::parse_double(tokens[2], "emin", valueContext));
+  const double rmin = apo::parse_double(tokens[3], "rmin", valueContext);
 
   double emin14 = emin;
   double rmin14 = rmin;
   if (tokens.size() == 6) {
-    emin14 = std::abs(ParsePrmValue<double>(tokens[4], "1-4 emin", "NBFIX",
-                                            line, fileName, lineNumber));
-    rmin14 = ParsePrmValue<double>(tokens[5], "1-4 rmin", "NBFIX", line,
-                                   fileName, lineNumber);
+    emin14 = std::abs(apo::parse_double(tokens[4], "1-4 emin", valueContext));
+    rmin14 = apo::parse_double(tokens[5], "1-4 rmin", valueContext);
   }
 
   const NBFixParameters parameters{atom1, atom2, emin, rmin, emin14, rmin14};

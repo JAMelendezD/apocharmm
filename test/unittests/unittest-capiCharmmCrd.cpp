@@ -224,7 +224,7 @@ TEST_CASE("CapiCharmmCrdMapsNativeErrors") {
         status, APO_STATUS_RUNTIME_ERROR, "Runtime", "apo_charmm_crd_create",
         "Invalid atom count value \"BAD\" in CHARMM coordinate file \"" +
             crdFile + "\" at line 3",
-        "src/CharmmCrd.cu", "readCharmmCrdFile");
+        "src/str_utils.cpp", "parse_ull");
     CHECK(crd == nullptr);
 
     apo_test::RemoveIfExists(crdFile);
@@ -245,7 +245,7 @@ TEST_CASE("CapiCharmmCrdMapsNativeErrors") {
         status, APO_STATUS_RUNTIME_ERROR, "Runtime", "apo_charmm_crd_create",
         "Coordinate record 1 is truncated in CHARMM coordinate file \"" +
             crdFile + "\" at line 4",
-        "src/CharmmCrd.cu", "ParseCharmmCrdCoordinate");
+        "src/CharmmCrd.cu", "readCharmmCrdFile");
     CHECK(crd == nullptr);
 
     apo_test::RemoveIfExists(crdFile);

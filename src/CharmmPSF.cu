@@ -17,78 +17,17 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
-#include <stdexcept>
 #include <string>
 #include <string_view>
-#include <type_traits>
 #include <vector_functions.h>
 
 namespace {
 
-template <typename T>
-T ParsePsfValue(const std::string &token, const std::string_view fieldName,
-                const std::string_view sectionName, const std::string &fileName,
-                const std::size_t lineNumber) {
-  static_assert(std::is_same_v<T, int> ||
-                    std::is_same_v<T, unsigned long long int> ||
-                    std::is_same_v<T, double>,
-                "Unsupported CHARMM PSF value type");
-
-  std::size_t parsedCharacters = 0;
-  T value{};
-  bool conversionSucceeded = false;
-
-  try {
-    if constexpr (std::is_same_v<T, int>)
-      value = std::stoi(token, &parsedCharacters);
-    else if constexpr (std::is_same_v<T, unsigned long long int>)
-      value = std::stoull(token, &parsedCharacters);
-    else
-      value = std::stod(token, &parsedCharacters);
-
-    conversionSucceeded = true;
-  } catch (const std::invalid_argument &) {
-  } catch (const std::out_of_range &) {
-  }
-
-  bool isValid = conversionSucceeded && (parsedCharacters == token.size());
-
-  if constexpr (std::is_same_v<T, unsigned long long int>)
-    isValid = isValid && !token.empty() && (token.front() != '-');
-
-  if constexpr (std::is_same_v<T, double>)
-    isValid = isValid && std::isfinite(value);
-
-  APOCHARMM_REQUIRE(isValid, ApoCharmmErrorCode::Runtime,
-                    "Invalid " + std::string(fieldName) + " value \"" + token +
-                        "\" in " + std::string(sectionName) +
-                        " section of PSF \"" + fileName + "\" at line " +
-                        std::to_string(lineNumber));
-
-  return value;
-}
-
-void ReadPsfLine(std::string &line, std::size_t &position,
-                 std::size_t &lineNumber, const std::string_view fileData,
-                 const std::string_view recordName,
-                 const std::string &fileName) {
-  APOCHARMM_REQUIRE(position < fileData.size(), ApoCharmmErrorCode::Runtime,
-                    "Unexpected end of file while reading " +
-                        std::string(recordName) + " in PSF \"" + fileName +
-                        "\"");
-
-  const std::size_t lineEnd = fileData.find('\n', position);
-  if (lineEnd == std::string::npos) {
-    line.assign(fileData.substr(position));
-    position = fileData.size();
-  } else {
-    line.assign(fileData.substr(position, lineEnd - position));
-    position = lineEnd + 1;
-  }
-
-  lineNumber++;
-
-  return;
+std::string GetPsfValueContext(const std::string_view sectionName,
+                               const std::string &fileName,
+                               const std::size_t lineNumber) {
+  return std::string(sectionName) + " section of PSF \"" + fileName +
+         "\" at line " + std::to_string(lineNumber);
 }
 
 std::vector<std::string> FindPsfSection(
@@ -96,8 +35,8 @@ std::vector<std::string> FindPsfSection(
     const std::string_view fileData, const std::string_view marker,
     const std::string_view sectionName, const std::string &fileName) {
   while (position < fileData.size()) {
-    ReadPsfLine(line, position, lineNumber, fileData, "section headers",
-                fileName);
+    apo::get_line(line, position, lineNumber, fileData, "section headers",
+                  "PSF \"" + fileName + "\"");
 
     std::vector<std::string> tokens = apo::split(line);
     if ((tokens.size() >= 2) && (tokens[1] == marker))
@@ -126,8 +65,9 @@ int ParsePsfAtomNumber(const std::string &token,
                        const std::string_view sectionName,
                        const std::string &fileName,
                        const std::size_t lineNumber, const int numAtoms) {
-  const int atomNumber = ParsePsfValue<int>(token, "atom index", sectionName,
-                                            fileName, lineNumber);
+  const int atomNumber =
+      apo::parse_int(token, "atom index",
+                     GetPsfValueContext(sectionName, fileName, lineNumber));
 
   APOCHARMM_REQUIRE((atomNumber >= 1) && (atomNumber <= numAtoms),
                     ApoCharmmErrorCode::Runtime,
@@ -574,6 +514,8 @@ void CharmmPSF::readCharmmPSF(const std::string &fileName) {
   std::string fileData = "";
   apo::read_file_into_string(fileData, fileName);
 
+  const std::string psfSource = "PSF \"" + fileName + "\"";
+
   std::size_t pos = 0;
   std::size_t lineNumber = 0;
   std::string line = "";
@@ -582,17 +524,17 @@ void CharmmPSF::readCharmmPSF(const std::string &fileName) {
   // Parse TITLE section
   tokens = FindPsfSection(line, pos, lineNumber, fileData, "!NTITLE", "TITLE",
                           fileName);
-  const unsigned long long int ntitle = ParsePsfValue<unsigned long long int>(
-      tokens[0], "count", "TITLE", fileName, lineNumber);
+  const unsigned long long int ntitle = apo::parse_ull(
+      tokens[0], "count", GetPsfValueContext("TITLE", fileName, lineNumber));
   const unsigned long long int nlineTitle = ntitle;
   for (unsigned long long int i = 0; i < nlineTitle; i++)
-    ReadPsfLine(line, pos, lineNumber, fileData, "TITLE records", fileName);
+    apo::get_line(line, pos, lineNumber, fileData, "TITLE records", psfSource);
 
   // Parse ATOM section
   tokens = FindPsfSection(line, pos, lineNumber, fileData, "!NATOM", "ATOM",
                           fileName);
-  const unsigned long long int natom = ParsePsfValue<unsigned long long int>(
-      tokens[0], "count", "ATOM", fileName, lineNumber);
+  const unsigned long long int natom = apo::parse_ull(
+      tokens[0], "count", GetPsfValueContext("ATOM", fileName, lineNumber));
   RequireSupportedPsfCount(natom, "ATOM", fileName, lineNumber);
 
   const unsigned long long int nlineAtom = natom;
@@ -604,7 +546,7 @@ void CharmmPSF::readCharmmPSF(const std::string &fileName) {
   int resiEndIdx = -1;
 
   for (unsigned long long int i = 0; i < nlineAtom; i++) {
-    ReadPsfLine(line, pos, lineNumber, fileData, "ATOM records", fileName);
+    apo::get_line(line, pos, lineNumber, fileData, "ATOM records", psfSource);
     tokens = apo::split(line);
 
     APOCHARMM_REQUIRE(tokens.size() >= 8, ApoCharmmErrorCode::Runtime,
@@ -612,16 +554,17 @@ void CharmmPSF::readCharmmPSF(const std::string &fileName) {
                           "\" at line " + std::to_string(lineNumber) + ": " +
                           line);
 
+    const std::string valueContext =
+        GetPsfValueContext("ATOM", fileName, lineNumber);
+
     const std::string &segi = tokens[1];
-    const int resi = ParsePsfValue<int>(tokens[2], "residue identifier", "ATOM",
-                                        fileName, lineNumber);
+    const int resi =
+        apo::parse_int(tokens[2], "residue identifier", valueContext);
     const std::string &resn = tokens[3];
     const std::string &anam = tokens[4];
     const std::string &atyp = tokens[5];
-    const double chrg = ParsePsfValue<double>(tokens[6], "charge", "ATOM",
-                                              fileName, lineNumber);
-    const double mass =
-        ParsePsfValue<double>(tokens[7], "mass", "ATOM", fileName, lineNumber);
+    const double chrg = apo::parse_double(tokens[6], "charge", valueContext);
+    const double mass = apo::parse_double(tokens[7], "mass", valueContext);
 
     const std::size_t atomIndex = static_cast<std::size_t>(i);
     m_SegmentIdentifiers[atomIndex] = segi;
@@ -664,8 +607,8 @@ void CharmmPSF::readCharmmPSF(const std::string &fileName) {
   // Parse BOND section
   tokens = FindPsfSection(line, pos, lineNumber, fileData, "!NBOND:", "BOND",
                           fileName);
-  const unsigned long long int nbond = ParsePsfValue<unsigned long long int>(
-      tokens[0], "count", "BOND", fileName, lineNumber);
+  const unsigned long long int nbond = apo::parse_ull(
+      tokens[0], "count", GetPsfValueContext("BOND", fileName, lineNumber));
   RequireSupportedPsfCount(nbond, "BOND", fileName, lineNumber);
 
   const unsigned long long int nlineBond =
@@ -675,7 +618,7 @@ void CharmmPSF::readCharmmPSF(const std::string &fileName) {
 
   unsigned long long int ibond = 0;
   for (unsigned long long int i = 0; i < nlineBond; i++) {
-    ReadPsfLine(line, pos, lineNumber, fileData, "BOND records", fileName);
+    apo::get_line(line, pos, lineNumber, fileData, "BOND records", psfSource);
     tokens = apo::split(line);
 
     const std::size_t termsOnLine = static_cast<std::size_t>(
@@ -701,8 +644,8 @@ void CharmmPSF::readCharmmPSF(const std::string &fileName) {
   // Parse ANGLe section
   tokens = FindPsfSection(line, pos, lineNumber, fileData, "!NTHETA:", "ANGLE",
                           fileName);
-  const unsigned long long int ntheta = ParsePsfValue<unsigned long long int>(
-      tokens[0], "count", "ANGLE", fileName, lineNumber);
+  const unsigned long long int ntheta = apo::parse_ull(
+      tokens[0], "count", GetPsfValueContext("ANGLE", fileName, lineNumber));
   RequireSupportedPsfCount(ntheta, "ANGLE", fileName, lineNumber);
 
   const unsigned long long int nlineTheta =
@@ -712,7 +655,7 @@ void CharmmPSF::readCharmmPSF(const std::string &fileName) {
 
   unsigned long long int itheta = 0;
   for (unsigned long long int i = 0; i < nlineTheta; i++) {
-    ReadPsfLine(line, pos, lineNumber, fileData, "ANGLE records", fileName);
+    apo::get_line(line, pos, lineNumber, fileData, "ANGLE records", psfSource);
     tokens = apo::split(line);
 
     const std::size_t termsOnLine = static_cast<std::size_t>(
@@ -741,8 +684,8 @@ void CharmmPSF::readCharmmPSF(const std::string &fileName) {
   // Parse DIHEdral section
   tokens = FindPsfSection(line, pos, lineNumber, fileData, "!NPHI:", "DIHEDRAL",
                           fileName);
-  const unsigned long long int nphi = ParsePsfValue<unsigned long long int>(
-      tokens[0], "count", "DIHEDRAL", fileName, lineNumber);
+  const unsigned long long int nphi = apo::parse_ull(
+      tokens[0], "count", GetPsfValueContext("DIHEDRAL", fileName, lineNumber));
   RequireSupportedPsfCount(nphi, "DIHEDRAL", fileName, lineNumber);
 
   const unsigned long long int nlinePhi = nphi / 2 + ((nphi % 2 == 0) ? 0 : 1);
@@ -751,7 +694,8 @@ void CharmmPSF::readCharmmPSF(const std::string &fileName) {
 
   unsigned long long int iphi = 0;
   for (unsigned long long int i = 0; i < nlinePhi; i++) {
-    ReadPsfLine(line, pos, lineNumber, fileData, "DIHEDRAL records", fileName);
+    apo::get_line(line, pos, lineNumber, fileData, "DIHEDRAL records",
+                  psfSource);
     tokens = apo::split(line);
 
     const std::size_t termsOnLine = static_cast<std::size_t>(
@@ -783,8 +727,8 @@ void CharmmPSF::readCharmmPSF(const std::string &fileName) {
   // Parse IMPRoper dihedral section
   tokens = FindPsfSection(line, pos, lineNumber, fileData,
                           "!NIMPHI:", "IMPROPER", fileName);
-  const unsigned long long int nimphi = ParsePsfValue<unsigned long long int>(
-      tokens[0], "count", "IMPROPER", fileName, lineNumber);
+  const unsigned long long int nimphi = apo::parse_ull(
+      tokens[0], "count", GetPsfValueContext("IMPROPER", fileName, lineNumber));
   RequireSupportedPsfCount(nimphi, "IMPROPER", fileName, lineNumber);
 
   const unsigned long long int nlineImphi =
@@ -794,7 +738,8 @@ void CharmmPSF::readCharmmPSF(const std::string &fileName) {
 
   unsigned long long int iimphi = 0;
   for (unsigned long long int i = 0; i < nlineImphi; i++) {
-    ReadPsfLine(line, pos, lineNumber, fileData, "IMPROPER records", fileName);
+    apo::get_line(line, pos, lineNumber, fileData, "IMPROPER records",
+                  psfSource);
     tokens = apo::split(line);
 
     const std::size_t termsOnLine = static_cast<std::size_t>(
@@ -826,30 +771,33 @@ void CharmmPSF::readCharmmPSF(const std::string &fileName) {
   // Parse DONOr section
   tokens = FindPsfSection(line, pos, lineNumber, fileData, "!NDON:", "DONOR",
                           fileName);
-  const unsigned long long int ndon = ParsePsfValue<unsigned long long int>(
-      tokens[0], "count", "DONOR", fileName, lineNumber);
+  const unsigned long long int ndon = apo::parse_ull(
+      tokens[0], "count", GetPsfValueContext("DONOR", fileName, lineNumber));
   const unsigned long long int nlineDon = ndon / 4 + ((ndon % 4 == 0) ? 0 : 1);
   // unsigned long long int idon = 0;
   for (unsigned long long int i = 0; i < nlineDon; i++)
-    ReadPsfLine(line, pos, lineNumber, fileData, "DONOR records", fileName);
+    apo::get_line(line, pos, lineNumber, fileData, "DONOR records", psfSource);
 
   // Parse ACCEptor section
   tokens = FindPsfSection(line, pos, lineNumber, fileData, "!NACC:", "ACCEPTOR",
                           fileName);
-  const unsigned long long int nacc = ParsePsfValue<unsigned long long int>(
-      tokens[0], "count", "ACCEPTOR", fileName, lineNumber);
+  const unsigned long long int nacc = apo::parse_ull(
+      tokens[0], "count", GetPsfValueContext("ACCEPTOR", fileName, lineNumber));
   const unsigned long long int nlineAcc = nacc / 4 + ((nacc % 4 == 0) ? 0 : 1);
   // unsigned long long int iacc = 0;
-  for (unsigned long long int i = 0; i < nlineAcc; i++)
-    ReadPsfLine(line, pos, lineNumber, fileData, "ACCEPTOR records", fileName);
+  for (unsigned long long int i = 0; i < nlineAcc; i++) {
+    apo::get_line(line, pos, lineNumber, fileData, "ACCEPTOR records",
+                  psfSource);
+  }
 
   // Sections between ACCEPTOR and CROSS-TERM are ignored.
 
   // Parse CRoss-TERM section
   tokens = FindPsfSection(line, pos, lineNumber, fileData,
                           "!NCRTERM:", "CROSS-TERM", fileName);
-  const unsigned long long int ncrterm = ParsePsfValue<unsigned long long int>(
-      tokens[0], "count", "CROSS-TERM", fileName, lineNumber);
+  const unsigned long long int ncrterm =
+      apo::parse_ull(tokens[0], "count",
+                     GetPsfValueContext("CROSS-TERM", fileName, lineNumber));
   RequireSupportedPsfCount(ncrterm, "CROSS-TERM", fileName, lineNumber);
 
   const unsigned long long int nlineCrterm = ncrterm;
@@ -857,8 +805,8 @@ void CharmmPSF::readCharmmPSF(const std::string &fileName) {
   m_CrossTerms.resize(ncrterm);
 
   for (unsigned long long int i = 0; i < nlineCrterm; i++) {
-    ReadPsfLine(line, pos, lineNumber, fileData, "CROSS-TERM records",
-                fileName);
+    apo::get_line(line, pos, lineNumber, fileData, "CROSS-TERM records",
+                  psfSource);
     tokens = apo::split(line);
 
     APOCHARMM_REQUIRE(tokens.size() == 8, ApoCharmmErrorCode::Runtime,
