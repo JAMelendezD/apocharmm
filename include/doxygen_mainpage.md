@@ -7,6 +7,7 @@ CharmmContext / ForceManager / Subscriber / CudaIntegrator
 ## Subsystem documentation ##
 
 - @subpage apocharmm_error
+- @subpage device_vector
 
 ## Architecture ideas ##
 

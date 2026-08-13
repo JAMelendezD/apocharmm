@@ -135,6 +135,21 @@ template <typename T> void DeviceVector<T>::clear(void) {
   return;
 }
 
+/**
+ * @brief Stores an appended value in the last active device slot.
+ *
+ * The current caller launches one block with one thread on the default stream.
+ * The coordinate guard makes only global thread zero perform the write.
+ *
+ * @tparam T Element representation stored by value.
+ * @param[in,out] data Device buffer containing at least `size` element slots.
+ * The pointer is borrowed for the duration of the kernel.
+ * @param[in] size One-based active length identifying the destination as
+ * `data[size - 1]`.
+ * @param[in] value Value to store in the destination slot.
+ *
+ * @pre `data` is non-null and `size` is greater than zero.
+ */
 template <typename T>
 __global__ static void SetBackKernel(T *data, const std::size_t size,
                                      const T value) {
@@ -191,6 +206,11 @@ void DeviceVector<T>::reallocate(const std::size_t count) {
   const std::size_t copySize = (count < m_Size) ? count : m_Size;
   T *data = nullptr;
 
+  // Stage the replacement through a provisional allocation so allocation and
+  // prefix-copy failures preserve the old buffer. The old allocation is freed
+  // before the replacement metadata is committed; a cudaFree failure therefore
+  // leaves this vector reset while the catch path discards the provisional
+  // buffer with the non-throwing cleanup helper.
   try {
     // Allocate new memory block
     cudaCheck(cudaMalloc(reinterpret_cast<void **>(&data), count * sizeof(T)));
