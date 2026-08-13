@@ -22,7 +22,7 @@ from python_api_test_helpers import (
     assert_close,
     assert_equal,
     assert_sequence_close,
-    expect_exception,
+    expect_apo_error,
 )
 
 TOLERANCE: float = 1.0e-10
@@ -197,10 +197,12 @@ def check_malformed_psf_file(psf_path: Path) -> None:
 
     write_text_file(psf_path, MALFORMED_PSF)
 
-    expect_exception(
+    expect_apo_error(
         "CharmmPsf rejects a malformed PSF file",
-        apo.ApoCharmmError,
         lambda: apo.CharmmPsf(str(psf_path)),
+        apo.APO_STATUS_RUNTIME_ERROR,
+        f'Could not find BOND section in PSF "{psf_path}"',
+        "CharmmPsf construction",
     )
 
     return
@@ -211,10 +213,20 @@ def check_missing_psf_file(psf_path: Path) -> None:
 
     remove_if_exists(psf_path)
 
-    expect_exception(
+    expect_apo_error(
         "CharmmPsf rejects a missing PSF file",
-        apo.ApoCharmmError,
         lambda: apo.CharmmPsf(str(psf_path)),
+        apo.APO_STATUS_RUNTIME_ERROR,
+        f'Failed to open file "{psf_path}"',
+        "CharmmPsf construction",
+    )
+
+    expect_apo_error(
+        "CharmmPsf rejects an empty PSF path",
+        lambda: apo.CharmmPsf(""),
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        "apo_charmm_psf_create: PSF path is NULL or empty",
+        "CharmmPsf construction",
     )
 
     return

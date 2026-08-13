@@ -10,11 +10,135 @@
 
 #include "CharmmPSF.h"
 
+#include "ApoCharmmError.h"
 #include "str_utils.h"
 
+#include <algorithm>
+#include <cmath>
 #include <cstddef>
+#include <limits>
 #include <stdexcept>
+#include <string>
+#include <string_view>
+#include <type_traits>
 #include <vector_functions.h>
+
+namespace {
+
+template <typename T>
+T ParsePsfValue(const std::string &token, const std::string_view fieldName,
+                const std::string_view sectionName, const std::string &fileName,
+                const std::size_t lineNumber) {
+  static_assert(std::is_same_v<T, int> ||
+                    std::is_same_v<T, unsigned long long int> ||
+                    std::is_same_v<T, double>,
+                "Unsupported CHARMM PSF value type");
+
+  std::size_t parsedCharacters = 0;
+  T value{};
+  bool conversionSucceeded = false;
+
+  try {
+    if constexpr (std::is_same_v<T, int>)
+      value = std::stoi(token, &parsedCharacters);
+    else if constexpr (std::is_same_v<T, unsigned long long int>)
+      value = std::stoull(token, &parsedCharacters);
+    else
+      value = std::stod(token, &parsedCharacters);
+
+    conversionSucceeded = true;
+  } catch (const std::invalid_argument &) {
+  } catch (const std::out_of_range &) {
+  }
+
+  bool isValid = conversionSucceeded && (parsedCharacters == token.size());
+
+  if constexpr (std::is_same_v<T, unsigned long long int>)
+    isValid = isValid && !token.empty() && (token.front() != '-');
+
+  if constexpr (std::is_same_v<T, double>)
+    isValid = isValid && std::isfinite(value);
+
+  APOCHARMM_REQUIRE(isValid, ApoCharmmErrorCode::Runtime,
+                    "Invalid " + std::string(fieldName) + " value \"" + token +
+                        "\" in " + std::string(sectionName) +
+                        " section of PSF \"" + fileName + "\" at line " +
+                        std::to_string(lineNumber));
+
+  return value;
+}
+
+void ReadPsfLine(std::string &line, std::size_t &position,
+                 std::size_t &lineNumber, const std::string_view fileData,
+                 const std::string_view recordName,
+                 const std::string &fileName) {
+  APOCHARMM_REQUIRE(position < fileData.size(), ApoCharmmErrorCode::Runtime,
+                    "Unexpected end of file while reading " +
+                        std::string(recordName) + " in PSF \"" + fileName +
+                        "\"");
+
+  const std::size_t lineEnd = fileData.find('\n', position);
+  if (lineEnd == std::string::npos) {
+    line.assign(fileData.substr(position));
+    position = fileData.size();
+  } else {
+    line.assign(fileData.substr(position, lineEnd - position));
+    position = lineEnd + 1;
+  }
+
+  lineNumber++;
+
+  return;
+}
+
+std::vector<std::string> FindPsfSection(
+    std::string &line, std::size_t &position, std::size_t &lineNumber,
+    const std::string_view fileData, const std::string_view marker,
+    const std::string_view sectionName, const std::string &fileName) {
+  while (position < fileData.size()) {
+    ReadPsfLine(line, position, lineNumber, fileData, "section headers",
+                fileName);
+
+    std::vector<std::string> tokens = apo::split(line);
+    if ((tokens.size() >= 2) && (tokens[1] == marker))
+      return tokens;
+  }
+
+  APOCHARMM_THROW(ApoCharmmErrorCode::Runtime,
+                  "Could not find " + std::string(sectionName) +
+                      " section in PSF \"" + fileName + "\"");
+}
+
+void RequireSupportedPsfCount(const unsigned long long int count,
+                              const std::string_view sectionName,
+                              const std::string &fileName,
+                              const std::size_t lineNumber) {
+  APOCHARMM_REQUIRE(
+      count <=
+          static_cast<unsigned long long int>(std::numeric_limits<int>::max()),
+      ApoCharmmErrorCode::Runtime,
+      std::string(sectionName) + " count exceeds supported range in PSF \"" +
+          fileName + "\" at line " + std::to_string(lineNumber));
+  return;
+}
+
+int ParsePsfAtomNumber(const std::string &token,
+                       const std::string_view sectionName,
+                       const std::string &fileName,
+                       const std::size_t lineNumber, const int numAtoms) {
+  const int atomNumber = ParsePsfValue<int>(token, "atom index", sectionName,
+                                            fileName, lineNumber);
+
+  APOCHARMM_REQUIRE((atomNumber >= 1) && (atomNumber <= numAtoms),
+                    ApoCharmmErrorCode::Runtime,
+                    std::string(sectionName) + " atom index \"" + token +
+                        "\" is out of range in PSF \"" + fileName +
+                        "\" at line " + std::to_string(lineNumber));
+
+  return atomNumber;
+}
+
+} // namespace
 
 CharmmPSF::CharmmPSF(void)
     : m_NumAtoms(-1), m_SegmentIdentifiers(), m_ResidueIdentifiers(),
@@ -67,19 +191,35 @@ CharmmPSF::CharmmPSF(const CharmmPSF &&other)
       m_Groups(other.m_Groups), m_FileName(other.m_FileName) {}
 
 void CharmmPSF::setNumAtoms(const int numAtoms) {
+  APOCHARMM_REQUIRE(numAtoms >= 0, ApoCharmmErrorCode::InvalidArgument,
+                    "Number of atoms must be nonnegative; observed " +
+                        std::to_string(numAtoms));
+
+  const std::size_t count = static_cast<std::size_t>(numAtoms);
+
   m_NumAtoms = numAtoms;
-  m_SegmentIdentifiers.resize(numAtoms);
-  m_ResidueIdentifiers.resize(numAtoms);
-  m_ResidueNames.resize(numAtoms);
-  m_AtomNames.resize(numAtoms);
-  m_AtomTypes.resize(numAtoms);
-  m_Charges.resize(numAtoms);
-  m_Masses.resize(numAtoms);
+  m_SegmentIdentifiers.resize(count);
+  m_ResidueIdentifiers.resize(count);
+  m_ResidueNames.resize(count);
+  m_AtomNames.resize(count);
+  m_AtomTypes.resize(count);
+  m_Charges.resize(count);
+  m_Masses.resize(count);
   return;
 }
 
 void CharmmPSF::setAtomCharges(const std::vector<double> &charges) {
+  APOCHARMM_REQUIRE(m_NumAtoms >= 0, ApoCharmmErrorCode::NotInitialized,
+                    "CharmmPSF atom count is not initialized");
+
+  APOCHARMM_REQUIRE(charges.size() == static_cast<std::size_t>(m_NumAtoms),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "CharmmPSF charge count must match atom count; expected " +
+                        std::to_string(m_NumAtoms) + ", observed " +
+                        std::to_string(charges.size()));
+
   m_Charges = charges;
+
   return;
 }
 
@@ -222,20 +362,57 @@ CudaContainer<int2> &CharmmPSF::getGroups(void) { return m_Groups; }
 std::string &CharmmPSF::getFileName(void) { return m_FileName; }
 
 double CharmmPSF::getNetCharge(void) const {
+  APOCHARMM_REQUIRE(m_NumAtoms >= 0, ApoCharmmErrorCode::NotInitialized,
+                    "CharmmPSF atom count is not initialized");
+
+  APOCHARMM_REQUIRE(
+      m_Charges.size() == static_cast<std::size_t>(m_NumAtoms),
+      ApoCharmmErrorCode::Runtime,
+      "CharmmPSF charge count does not match atom count; expected " +
+          std::to_string(m_NumAtoms) + ", observed " +
+          std::to_string(m_Charges.size()));
+
   double netCharge = 0.0;
   for (int i = 0; i < m_NumAtoms; i++)
     netCharge += m_Charges[i];
+
   return netCharge;
 }
 
 double CharmmPSF::getTotalMass(void) const {
+  APOCHARMM_REQUIRE(m_NumAtoms >= 0, ApoCharmmErrorCode::NotInitialized,
+                    "CharmmPSF atom count is not initialized");
+
+  APOCHARMM_REQUIRE(
+      m_Masses.size() == static_cast<std::size_t>(m_NumAtoms),
+      ApoCharmmErrorCode::Runtime,
+      "CharmmPSF mass count does not match atom count; expected " +
+          std::to_string(m_NumAtoms) + ", observed " +
+          std::to_string(m_Masses.size()));
+
   double totalMass = 0.0;
   for (int i = 0; i < m_NumAtoms; i++)
     totalMass += m_Masses[i];
+
   return totalMass;
 }
 
 InclusionExclusion CharmmPSF::getInclusionExclusionLists(void) const {
+  APOCHARMM_REQUIRE(m_NumAtoms >= 0, ApoCharmmErrorCode::NotInitialized,
+                    "CharmmPSF atom count is not initialized");
+
+  const std::size_t expectedSize = static_cast<std::size_t>(m_NumAtoms);
+  APOCHARMM_REQUIRE(
+      (m_Connected12.size() == expectedSize) &&
+          (m_Connected13.size() == expectedSize) &&
+          (m_Connected14.size() == expectedSize),
+      ApoCharmmErrorCode::Runtime,
+      "CharmmPSF connectivity list sizes do not match atom count; expected " +
+          std::to_string(m_NumAtoms) + ", observed " +
+          std::to_string(m_Connected12.size()) + ", " +
+          std::to_string(m_Connected13.size()) + ", " +
+          std::to_string(m_Connected14.size()));
+
   // Fill in from 1-2, 1-3, 1-4 connections
   std::vector<int> inclusion, exclusion;
   for (int iatom = 0; iatom < m_NumAtoms; iatom++) {
@@ -388,6 +565,9 @@ void CharmmPSF::buildTopologicalExclusions(void) {
 }
 
 void CharmmPSF::readCharmmPSF(const std::string &fileName) {
+  APOCHARMM_REQUIRE(!fileName.empty(), ApoCharmmErrorCode::InvalidArgument,
+                    "CHARMM PSF file path must not be empty");
+
   // Store file name
   m_FileName = fileName;
 
@@ -395,81 +575,80 @@ void CharmmPSF::readCharmmPSF(const std::string &fileName) {
   apo::read_file_into_string(fileData, fileName);
 
   std::size_t pos = 0;
+  std::size_t lineNumber = 0;
   std::string line = "";
-  bool foundSection = false;
   std::vector<std::string> tokens;
 
   // Parse TITLE section
-  foundSection = false;
-  do {
-    if (pos >= fileData.length()) {
-      throw std::runtime_error("Could not find TITLE section in PSF \"" +
-                               fileName + "\"");
-    }
-    line.clear();
-    apo::get_line(line, pos, fileData);
-    tokens.clear();
-    tokens = apo::split(line);
-    if ((tokens.size() == 2) && (tokens[1] == "!NTITLE"))
-      foundSection = true;
-  } while (foundSection == false);
-  const unsigned long long int ntitle = std::stoull(tokens[0]);
+  tokens = FindPsfSection(line, pos, lineNumber, fileData, "!NTITLE", "TITLE",
+                          fileName);
+  const unsigned long long int ntitle = ParsePsfValue<unsigned long long int>(
+      tokens[0], "count", "TITLE", fileName, lineNumber);
   const unsigned long long int nlineTitle = ntitle;
-  for (unsigned long long int i = 0; i < nlineTitle; i++) {
-    line.clear();
-    apo::get_line(line, pos, fileData);
-  }
+  for (unsigned long long int i = 0; i < nlineTitle; i++)
+    ReadPsfLine(line, pos, lineNumber, fileData, "TITLE records", fileName);
 
   // Parse ATOM section
-  foundSection = false;
-  do {
-    if (pos >= fileData.length()) {
-      throw std::runtime_error("Could not find ATOM section in PSF \"" +
-                               fileName + "\"");
-    }
-    line.clear();
-    apo::get_line(line, pos, fileData);
-    tokens.clear();
-    tokens = apo::split(line);
-    if ((tokens.size() == 2) && (tokens[1] == "!NATOM"))
-      foundSection = true;
-  } while (foundSection == false);
-  const unsigned long long int natom = std::stoull(tokens[0]);
+  tokens = FindPsfSection(line, pos, lineNumber, fileData, "!NATOM", "ATOM",
+                          fileName);
+  const unsigned long long int natom = ParsePsfValue<unsigned long long int>(
+      tokens[0], "count", "ATOM", fileName, lineNumber);
+  RequireSupportedPsfCount(natom, "ATOM", fileName, lineNumber);
+
   const unsigned long long int nlineAtom = natom;
   this->setNumAtoms(static_cast<int>(natom));
+
+  bool hasResidue = false;
   int resiOld = 0;
-  int resiStartIdx = 0, resiEndIdx = -1;
+  int resiStartIdx = 0;
+  int resiEndIdx = -1;
+
   for (unsigned long long int i = 0; i < nlineAtom; i++) {
-    line.clear();
-    apo::get_line(line, pos, fileData);
-    tokens.clear();
+    ReadPsfLine(line, pos, lineNumber, fileData, "ATOM records", fileName);
     tokens = apo::split(line);
-    const std::string segi = tokens[1];
-    const int resi = std::stoi(tokens[2]);
-    const std::string resn = tokens[3];
-    const std::string anam = tokens[4];
-    const std::string atyp = tokens[5];
-    const double chrg = std::stod(tokens[6]);
-    const double mass = std::stod(tokens[7]);
 
-    m_SegmentIdentifiers[i] = segi;
-    m_ResidueIdentifiers[i] = resi;
-    m_ResidueNames[i] = resn;
-    m_AtomNames[i] = anam;
-    m_AtomTypes[i] = atyp;
-    m_Charges[i] = chrg;
-    m_Masses[i] = mass;
+    APOCHARMM_REQUIRE(tokens.size() >= 8, ApoCharmmErrorCode::Runtime,
+                      "Invalid ATOM record in PSF \"" + fileName +
+                          "\" at line " + std::to_string(lineNumber) + ": " +
+                          line);
 
-    if (resiOld == 0)
+    const std::string &segi = tokens[1];
+    const int resi = ParsePsfValue<int>(tokens[2], "residue identifier", "ATOM",
+                                        fileName, lineNumber);
+    const std::string &resn = tokens[3];
+    const std::string &anam = tokens[4];
+    const std::string &atyp = tokens[5];
+    const double chrg = ParsePsfValue<double>(tokens[6], "charge", "ATOM",
+                                              fileName, lineNumber);
+    const double mass =
+        ParsePsfValue<double>(tokens[7], "mass", "ATOM", fileName, lineNumber);
+
+    const std::size_t atomIndex = static_cast<std::size_t>(i);
+    m_SegmentIdentifiers[atomIndex] = segi;
+    m_ResidueIdentifiers[atomIndex] = resi;
+    m_ResidueNames[atomIndex] = resn;
+    m_AtomNames[atomIndex] = anam;
+    m_AtomTypes[atomIndex] = atyp;
+    m_Charges[atomIndex] = chrg;
+    m_Masses[atomIndex] = mass;
+
+    if (!hasResidue) {
       resiOld = resi;
-    if (resiOld != resi) {
-      resiEndIdx = i - 1;
-      m_Residues.push_back(make_int2(resiStartIdx, resiEndIdx));
-      resiStartIdx = i;
+      hasResidue = true;
     }
+
+    if (resiOld != resi) {
+      resiEndIdx = static_cast<int>(i) - 1;
+      m_Residues.push_back(make_int2(resiStartIdx, resiEndIdx));
+      resiStartIdx = static_cast<int>(i);
+    }
+
     resiOld = resi;
   }
-  m_Residues.push_back(make_int2(resiStartIdx, m_NumAtoms - 1));
+
+  if (m_NumAtoms > 0)
+    m_Residues.push_back(make_int2(resiStartIdx, m_NumAtoms - 1));
+
   m_Residues.shrink_to_fit();
 
   // Ensure no extra whitespace in string variables
@@ -483,226 +662,227 @@ void CharmmPSF::readCharmmPSF(const std::string &fileName) {
     apo::trim_ip(atyp);
 
   // Parse BOND section
-  foundSection = false;
-  do {
-    if (pos >= fileData.length()) {
-      throw std::runtime_error("Could not find BOND section in PSF \"" +
-                               fileName + "\"");
-    }
-    line.clear();
-    apo::get_line(line, pos, fileData);
-    tokens.clear();
-    tokens = apo::split(line);
-    if ((tokens.size() >= 2) && (tokens[1] == "!NBOND:"))
-      foundSection = true;
-  } while (foundSection == false);
-  const unsigned long long int nbond = std::stoull(tokens[0]);
+  tokens = FindPsfSection(line, pos, lineNumber, fileData, "!NBOND:", "BOND",
+                          fileName);
+  const unsigned long long int nbond = ParsePsfValue<unsigned long long int>(
+      tokens[0], "count", "BOND", fileName, lineNumber);
+  RequireSupportedPsfCount(nbond, "BOND", fileName, lineNumber);
+
   const unsigned long long int nlineBond =
       nbond / 4 + ((nbond % 4 == 0) ? 0 : 1);
   m_NumBonds = static_cast<int>(nbond);
   m_Bonds.resize(nbond);
+
   unsigned long long int ibond = 0;
   for (unsigned long long int i = 0; i < nlineBond; i++) {
-    line.clear();
-    apo::get_line(line, pos, fileData);
-    tokens.clear();
+    ReadPsfLine(line, pos, lineNumber, fileData, "BOND records", fileName);
     tokens = apo::split(line);
-    for (std::size_t j = 0; j < tokens.size(); j += 2) {
-      if (ibond < nbond) {
-        m_Bonds[ibond].iatom = std::stoi(tokens[j + 0]) - 1;
-        m_Bonds[ibond].jatom = std::stoi(tokens[j + 1]) - 1;
-        ibond++;
-      }
+
+    const std::size_t termsOnLine = static_cast<std::size_t>(
+        std::min<unsigned long long int>(4, nbond - ibond));
+    APOCHARMM_REQUIRE(
+        tokens.size() == 2 * termsOnLine, ApoCharmmErrorCode::Runtime,
+        "Invalid BOND record in PSF \"" + fileName + "\" at line " +
+            std::to_string(lineNumber) + ": " + line);
+
+    for (std::size_t term = 0; term < termsOnLine; term++) {
+      const std::size_t offset = 2 * term;
+      Bond &bond = m_Bonds[ibond];
+      bond.iatom = ParsePsfAtomNumber(tokens[offset + 0], "BOND", fileName,
+                                      lineNumber, m_NumAtoms) -
+                   1;
+      bond.jatom = ParsePsfAtomNumber(tokens[offset + 1], "BOND", fileName,
+                                      lineNumber, m_NumAtoms) -
+                   1;
+      ibond++;
     }
   }
 
   // Parse ANGLe section
-  foundSection = false;
-  do {
-    if (pos >= fileData.length()) {
-      throw std::runtime_error("Could not find ANGLE section in PSF \"" +
-                               fileName + "\"");
-    }
-    line.clear();
-    apo::get_line(line, pos, fileData);
-    tokens.clear();
-    tokens = apo::split(line);
-    if ((tokens.size() >= 2) && (tokens[1] == "!NTHETA:"))
-      foundSection = true;
-  } while (foundSection == false);
-  const unsigned long long int ntheta = std::stoull(tokens[0]);
+  tokens = FindPsfSection(line, pos, lineNumber, fileData, "!NTHETA:", "ANGLE",
+                          fileName);
+  const unsigned long long int ntheta = ParsePsfValue<unsigned long long int>(
+      tokens[0], "count", "ANGLE", fileName, lineNumber);
+  RequireSupportedPsfCount(ntheta, "ANGLE", fileName, lineNumber);
+
   const unsigned long long int nlineTheta =
       ntheta / 3 + ((ntheta % 3 == 0) ? 0 : 1);
   m_NumAngles = static_cast<int>(ntheta);
   m_Angles.resize(ntheta);
+
   unsigned long long int itheta = 0;
   for (unsigned long long int i = 0; i < nlineTheta; i++) {
-    line.clear();
-    apo::get_line(line, pos, fileData);
-    tokens.clear();
+    ReadPsfLine(line, pos, lineNumber, fileData, "ANGLE records", fileName);
     tokens = apo::split(line);
-    for (std::size_t j = 0; j < tokens.size(); j += 3) {
-      if (itheta < ntheta) {
-        m_Angles[itheta].iatom = std::stoi(tokens[j + 0]) - 1;
-        m_Angles[itheta].jatom = std::stoi(tokens[j + 1]) - 1;
-        m_Angles[itheta].katom = std::stoi(tokens[j + 2]) - 1;
-        itheta++;
-      }
+
+    const std::size_t termsOnLine = static_cast<std::size_t>(
+        std::min<unsigned long long int>(3, ntheta - itheta));
+    APOCHARMM_REQUIRE(
+        tokens.size() == 3 * termsOnLine, ApoCharmmErrorCode::Runtime,
+        "Invalid ANGLE record in PSF \"" + fileName + "\" at line " +
+            std::to_string(lineNumber) + ": " + line);
+
+    for (std::size_t term = 0; term < termsOnLine; term++) {
+      const std::size_t offset = 3 * term;
+      Angle &angle = m_Angles[itheta];
+      angle.iatom = ParsePsfAtomNumber(tokens[offset + 0], "ANGLE", fileName,
+                                       lineNumber, m_NumAtoms) -
+                    1;
+      angle.jatom = ParsePsfAtomNumber(tokens[offset + 1], "ANGLE", fileName,
+                                       lineNumber, m_NumAtoms) -
+                    1;
+      angle.katom = ParsePsfAtomNumber(tokens[offset + 2], "ANGLE", fileName,
+                                       lineNumber, m_NumAtoms) -
+                    1;
+      itheta++;
     }
   }
 
   // Parse DIHEdral section
-  foundSection = false;
-  do {
-    if (pos >= fileData.length()) {
-      throw std::runtime_error("Could not find DIHEDRAL section in PSF \"" +
-                               fileName + "\"");
-    }
-    line.clear();
-    apo::get_line(line, pos, fileData);
-    tokens.clear();
-    tokens = apo::split(line);
-    if ((tokens.size() >= 2) && (tokens[1] == "!NPHI:"))
-      foundSection = true;
-  } while (foundSection == false);
-  const unsigned long long int nphi = std::stoull(tokens[0]);
+  tokens = FindPsfSection(line, pos, lineNumber, fileData, "!NPHI:", "DIHEDRAL",
+                          fileName);
+  const unsigned long long int nphi = ParsePsfValue<unsigned long long int>(
+      tokens[0], "count", "DIHEDRAL", fileName, lineNumber);
+  RequireSupportedPsfCount(nphi, "DIHEDRAL", fileName, lineNumber);
+
   const unsigned long long int nlinePhi = nphi / 2 + ((nphi % 2 == 0) ? 0 : 1);
   m_NumDihedrals = static_cast<int>(nphi);
   m_Dihedrals.resize(nphi);
+
   unsigned long long int iphi = 0;
   for (unsigned long long int i = 0; i < nlinePhi; i++) {
-    line.clear();
-    apo::get_line(line, pos, fileData);
-    tokens.clear();
+    ReadPsfLine(line, pos, lineNumber, fileData, "DIHEDRAL records", fileName);
     tokens = apo::split(line);
-    for (std::size_t j = 0; j < tokens.size(); j += 4) {
-      if (iphi < nphi) {
-        m_Dihedrals[iphi].iatom = std::stoi(tokens[j + 0]) - 1;
-        m_Dihedrals[iphi].jatom = std::stoi(tokens[j + 1]) - 1;
-        m_Dihedrals[iphi].katom = std::stoi(tokens[j + 2]) - 1;
-        m_Dihedrals[iphi].latom = std::stoi(tokens[j + 3]) - 1;
-        iphi++;
-      }
+
+    const std::size_t termsOnLine = static_cast<std::size_t>(
+        std::min<unsigned long long int>(2, nphi - iphi));
+    APOCHARMM_REQUIRE(
+        tokens.size() == 4 * termsOnLine, ApoCharmmErrorCode::Runtime,
+        "Invalid DIHEDRAL record in PSF \"" + fileName + "\" at line " +
+            std::to_string(lineNumber) + ": " + line);
+
+    for (std::size_t term = 0; term < termsOnLine; term++) {
+      const std::size_t offset = 4 * term;
+      Dihedral &dihedral = m_Dihedrals[iphi];
+      dihedral.iatom = ParsePsfAtomNumber(tokens[offset + 0], "DIHEDRAL",
+                                          fileName, lineNumber, m_NumAtoms) -
+                       1;
+      dihedral.jatom = ParsePsfAtomNumber(tokens[offset + 1], "DIHEDRAL",
+                                          fileName, lineNumber, m_NumAtoms) -
+                       1;
+      dihedral.katom = ParsePsfAtomNumber(tokens[offset + 2], "DIHEDRAL",
+                                          fileName, lineNumber, m_NumAtoms) -
+                       1;
+      dihedral.latom = ParsePsfAtomNumber(tokens[offset + 3], "DIHEDRAL",
+                                          fileName, lineNumber, m_NumAtoms) -
+                       1;
+      iphi++;
     }
   }
 
   // Parse IMPRoper dihedral section
-  foundSection = false;
-  do {
-    if (pos >= fileData.length()) {
-      throw std::runtime_error("Could not find IMPROPER section in PSF \"" +
-                               fileName + "\"");
-    }
-    line.clear();
-    apo::get_line(line, pos, fileData);
-    tokens.clear();
-    tokens = apo::split(line);
-    if ((tokens.size() >= 2) && (tokens[1] == "!NIMPHI:"))
-      foundSection = true;
-  } while (foundSection == false);
-  const unsigned long long int nimphi = std::stoull(tokens[0]);
+  tokens = FindPsfSection(line, pos, lineNumber, fileData,
+                          "!NIMPHI:", "IMPROPER", fileName);
+  const unsigned long long int nimphi = ParsePsfValue<unsigned long long int>(
+      tokens[0], "count", "IMPROPER", fileName, lineNumber);
+  RequireSupportedPsfCount(nimphi, "IMPROPER", fileName, lineNumber);
+
   const unsigned long long int nlineImphi =
       nimphi / 2 + ((nimphi % 2 == 0) ? 0 : 1);
   m_NumImpropers = static_cast<int>(nimphi);
   m_Impropers.resize(nimphi);
+
   unsigned long long int iimphi = 0;
   for (unsigned long long int i = 0; i < nlineImphi; i++) {
-    line.clear();
-    apo::get_line(line, pos, fileData);
-    tokens.clear();
+    ReadPsfLine(line, pos, lineNumber, fileData, "IMPROPER records", fileName);
     tokens = apo::split(line);
-    for (std::size_t j = 0; j < tokens.size(); j += 4) {
-      if (iimphi < nimphi) {
-        m_Impropers[iimphi].iatom = std::stoi(tokens[j + 0]) - 1;
-        m_Impropers[iimphi].jatom = std::stoi(tokens[j + 1]) - 1;
-        m_Impropers[iimphi].katom = std::stoi(tokens[j + 2]) - 1;
-        m_Impropers[iimphi].latom = std::stoi(tokens[j + 3]) - 1;
-        iimphi++;
-      }
+
+    const std::size_t termsOnLine = static_cast<std::size_t>(
+        std::min<unsigned long long int>(2, nimphi - iimphi));
+    APOCHARMM_REQUIRE(
+        tokens.size() == 4 * termsOnLine, ApoCharmmErrorCode::Runtime,
+        "Invalid IMPROPER record in PSF \"" + fileName + "\" at line " +
+            std::to_string(lineNumber) + ": " + line);
+
+    for (std::size_t term = 0; term < termsOnLine; term++) {
+      const std::size_t offset = 4 * term;
+      Dihedral &improper = m_Impropers[iimphi];
+      improper.iatom = ParsePsfAtomNumber(tokens[offset + 0], "IMPROPER",
+                                          fileName, lineNumber, m_NumAtoms) -
+                       1;
+      improper.jatom = ParsePsfAtomNumber(tokens[offset + 1], "IMPROPER",
+                                          fileName, lineNumber, m_NumAtoms) -
+                       1;
+      improper.katom = ParsePsfAtomNumber(tokens[offset + 2], "IMPROPER",
+                                          fileName, lineNumber, m_NumAtoms) -
+                       1;
+      improper.latom = ParsePsfAtomNumber(tokens[offset + 3], "IMPROPER",
+                                          fileName, lineNumber, m_NumAtoms) -
+                       1;
+      iimphi++;
     }
   }
 
   // Parse DONOr section
-  foundSection = false;
-  do {
-    if (pos >= fileData.length()) {
-      throw std::runtime_error("Could not find DONOR section in PSF \"" +
-                               fileName + "\"");
-    }
-    line.clear();
-    apo::get_line(line, pos, fileData);
-    tokens.clear();
-    tokens = apo::split(line);
-    if ((tokens.size() >= 2) && (tokens[1] == "!NDON:"))
-      foundSection = true;
-  } while (foundSection == false);
-  const unsigned long long int ndon = std::stoull(tokens[0]);
+  tokens = FindPsfSection(line, pos, lineNumber, fileData, "!NDON:", "DONOR",
+                          fileName);
+  const unsigned long long int ndon = ParsePsfValue<unsigned long long int>(
+      tokens[0], "count", "DONOR", fileName, lineNumber);
   const unsigned long long int nlineDon = ndon / 4 + ((ndon % 4 == 0) ? 0 : 1);
   // unsigned long long int idon = 0;
-  for (unsigned long long int i = 0; i < nlineDon; i++) {
-    line.clear();
-    apo::get_line(line, pos, fileData);
-    // tokens.clear();
-    // tokens = apo::split(line);
-  }
+  for (unsigned long long int i = 0; i < nlineDon; i++)
+    ReadPsfLine(line, pos, lineNumber, fileData, "DONOR records", fileName);
 
   // Parse ACCEptor section
-  foundSection = false;
-  do {
-    if (pos >= fileData.length()) {
-      throw std::runtime_error("Could not find ACCEPTOR section in PSF \"" +
-                               fileName + "\"");
-    }
-    line.clear();
-    apo::get_line(line, pos, fileData);
-    tokens.clear();
-    tokens = apo::split(line);
-    if ((tokens.size() >= 2) && (tokens[1] == "!NACC:"))
-      foundSection = true;
-  } while (foundSection == false);
-  const unsigned long long int nacc = std::stoull(tokens[0]);
+  tokens = FindPsfSection(line, pos, lineNumber, fileData, "!NACC:", "ACCEPTOR",
+                          fileName);
+  const unsigned long long int nacc = ParsePsfValue<unsigned long long int>(
+      tokens[0], "count", "ACCEPTOR", fileName, lineNumber);
   const unsigned long long int nlineAcc = nacc / 4 + ((nacc % 4 == 0) ? 0 : 1);
   // unsigned long long int iacc = 0;
-  for (unsigned long long int i = 0; i < nlineAcc; i++) {
-    line.clear();
-    apo::get_line(line, pos, fileData);
-    // tokens.clear();
-    // tokens = apo::split(line);
-  }
+  for (unsigned long long int i = 0; i < nlineAcc; i++)
+    ReadPsfLine(line, pos, lineNumber, fileData, "ACCEPTOR records", fileName);
 
-  // Other sections are optional
+  // Sections between ACCEPTOR and CROSS-TERM are ignored.
 
-  // Parse CRoss TERM section
-  foundSection = false;
-  do {
-    if (pos >= fileData.length()) {
-      throw std::runtime_error("Could not find CROSS-TERM section in PSF \"" +
-                               fileName + "\"");
-    }
-    line.clear();
-    apo::get_line(line, pos, fileData);
-    tokens.clear();
-    tokens = apo::split(line);
-    if ((tokens.size() >= 2) && (tokens[1] == "!NCRTERM:"))
-      foundSection = true;
-  } while (foundSection == false);
-  const unsigned long long int ncrterm = std::stoull(tokens[0]);
+  // Parse CRoss-TERM section
+  tokens = FindPsfSection(line, pos, lineNumber, fileData,
+                          "!NCRTERM:", "CROSS-TERM", fileName);
+  const unsigned long long int ncrterm = ParsePsfValue<unsigned long long int>(
+      tokens[0], "count", "CROSS-TERM", fileName, lineNumber);
+  RequireSupportedPsfCount(ncrterm, "CROSS-TERM", fileName, lineNumber);
+
   const unsigned long long int nlineCrterm = ncrterm;
   m_NumCrossTerms = static_cast<int>(ncrterm);
   m_CrossTerms.resize(ncrterm);
+
   for (unsigned long long int i = 0; i < nlineCrterm; i++) {
-    line.clear();
-    apo::get_line(line, pos, fileData);
-    tokens.clear();
+    ReadPsfLine(line, pos, lineNumber, fileData, "CROSS-TERM records",
+                fileName);
     tokens = apo::split(line);
-    m_CrossTerms[i].iatom1 = std::stoi(tokens[0]);
-    m_CrossTerms[i].jatom1 = std::stoi(tokens[1]);
-    m_CrossTerms[i].katom1 = std::stoi(tokens[2]);
-    m_CrossTerms[i].latom1 = std::stoi(tokens[3]);
-    m_CrossTerms[i].iatom2 = std::stoi(tokens[4]);
-    m_CrossTerms[i].jatom2 = std::stoi(tokens[5]);
-    m_CrossTerms[i].katom2 = std::stoi(tokens[6]);
-    m_CrossTerms[i].latom2 = std::stoi(tokens[7]);
+
+    APOCHARMM_REQUIRE(tokens.size() == 8, ApoCharmmErrorCode::Runtime,
+                      "Invalid CROSS-TERM record in PSF \"" + fileName +
+                          "\" at line " + std::to_string(lineNumber) + ": " +
+                          line);
+
+    CrossTerm &crossTerm = m_CrossTerms[i];
+    crossTerm.iatom1 = ParsePsfAtomNumber(tokens[0], "CROSS-TERM", fileName,
+                                          lineNumber, m_NumAtoms);
+    crossTerm.jatom1 = ParsePsfAtomNumber(tokens[1], "CROSS-TERM", fileName,
+                                          lineNumber, m_NumAtoms);
+    crossTerm.katom1 = ParsePsfAtomNumber(tokens[2], "CROSS-TERM", fileName,
+                                          lineNumber, m_NumAtoms);
+    crossTerm.latom1 = ParsePsfAtomNumber(tokens[3], "CROSS-TERM", fileName,
+                                          lineNumber, m_NumAtoms);
+    crossTerm.iatom2 = ParsePsfAtomNumber(tokens[4], "CROSS-TERM", fileName,
+                                          lineNumber, m_NumAtoms);
+    crossTerm.jatom2 = ParsePsfAtomNumber(tokens[5], "CROSS-TERM", fileName,
+                                          lineNumber, m_NumAtoms);
+    crossTerm.katom2 = ParsePsfAtomNumber(tokens[6], "CROSS-TERM", fileName,
+                                          lineNumber, m_NumAtoms);
+    crossTerm.latom2 = ParsePsfAtomNumber(tokens[7], "CROSS-TERM", fileName,
+                                          lineNumber, m_NumAtoms);
   }
 
   return;

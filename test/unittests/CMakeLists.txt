@@ -43,6 +43,7 @@ set(SOURCES_CAPI_TESTS
 
   # Object tests
   unittest-capiCharmmParameters.cpp
+  unittest-capiCharmmPsf.cpp
   unittest-capiAtomSelection.cpp
 
   # Subscriber tests

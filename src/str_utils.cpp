@@ -110,8 +110,8 @@ void apo::get_line(std::string &line, std::size_t &pos,
 void apo::read_file_into_string(std::string &file_data,
                                 const std::string &file_name) {
   std::ifstream ifs(file_name, std::ios::in | std::ios::binary | std::ios::ate);
-  if (ifs.is_open() == false)
-    throw std::runtime_error("Failed to open file \"" + file_name + "\"");
+  APOCHARMM_REQUIRE(ifs.is_open(), ApoCharmmErrorCode::Runtime,
+                    "Failed to open file \"" + file_name + "\"");
 
   // Store the size of the file
   const std::size_t fsize = ifs.tellg();

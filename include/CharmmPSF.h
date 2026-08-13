@@ -45,24 +45,12 @@ struct InclusionExclusion {
 
 class CharmmPSF {
 public:
-  /**
-   * @brief Base constructor
-   */
   CharmmPSF(void);
 
-  /**
-   * @brief Construct a CharmmPSF object from a CHARMM formatted PSF.
-   */
   CharmmPSF(const std::string &fileName);
 
-  /**
-   * @brief Copy constructor
-   */
   CharmmPSF(const CharmmPSF &other);
 
-  /**
-   * @brief Move constructor
-   */
   CharmmPSF(const CharmmPSF &&other);
 
 public:

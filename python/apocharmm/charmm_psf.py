@@ -12,7 +12,7 @@ import ctypes
 from ._base import _ApoObject
 from ._lib import encode_path, lib
 from ._types import FilePath
-from .error import check_status
+from .error import configure_status_function
 
 _prototypes_initialized: bool = False
 
@@ -23,118 +23,110 @@ def _initialize_prototypes() -> None:
     if _prototypes_initialized:
         return
 
-    lib().apo_charmm_psf_create.argtypes = [
-        ctypes.POINTER(ctypes.c_void_p),
-        ctypes.c_char_p,
-    ]
-    lib().apo_charmm_psf_create.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_charmm_psf_create,
+        [ctypes.POINTER(ctypes.c_void_p), ctypes.c_char_p],
+        "CharmmPsf construction",
+    )
 
     lib().apo_charmm_psf_destroy.argtypes = [ctypes.c_void_p]
     lib().apo_charmm_psf_destroy.restype = None
 
-    lib().apo_charmm_psf_get_num_atoms.argtypes = [
-        ctypes.POINTER(ctypes.c_size_t),
-        ctypes.c_void_p,
-    ]
-    lib().apo_charmm_psf_get_num_atoms.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_charmm_psf_get_num_atoms,
+        [ctypes.POINTER(ctypes.c_size_t), ctypes.c_void_p],
+        "CharmmPsf.getNumAtoms()",
+    )
 
-    lib().apo_charmm_psf_get_num_bonds.argtypes = [
-        ctypes.POINTER(ctypes.c_size_t),
-        ctypes.c_void_p,
-    ]
-    lib().apo_charmm_psf_get_num_bonds.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_charmm_psf_get_num_bonds,
+        [ctypes.POINTER(ctypes.c_size_t), ctypes.c_void_p],
+        "CharmmPsf.getNumBonds()",
+    )
 
-    lib().apo_charmm_psf_get_num_angles.argtypes = [
-        ctypes.POINTER(ctypes.c_size_t),
-        ctypes.c_void_p,
-    ]
-    lib().apo_charmm_psf_get_num_angles.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_charmm_psf_get_num_angles,
+        [ctypes.POINTER(ctypes.c_size_t), ctypes.c_void_p],
+        "CharmmPsf.getNumAngles()",
+    )
 
-    lib().apo_charmm_psf_get_num_dihedrals.argtypes = [
-        ctypes.POINTER(ctypes.c_size_t),
-        ctypes.c_void_p,
-    ]
-    lib().apo_charmm_psf_get_num_dihedrals.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_charmm_psf_get_num_dihedrals,
+        [ctypes.POINTER(ctypes.c_size_t), ctypes.c_void_p],
+        "CharmmPsf.getNumDihedrals()",
+    )
 
-    lib().apo_charmm_psf_get_num_impropers.argtypes = [
-        ctypes.POINTER(ctypes.c_size_t),
-        ctypes.c_void_p,
-    ]
-    lib().apo_charmm_psf_get_num_impropers.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_charmm_psf_get_num_impropers,
+        [ctypes.POINTER(ctypes.c_size_t), ctypes.c_void_p],
+        "CharmmPsf.getNumImpropers()",
+    )
 
-    lib().apo_charmm_psf_get_num_cross_terms.argtypes = [
-        ctypes.POINTER(ctypes.c_size_t),
-        ctypes.c_void_p,
-    ]
-    lib().apo_charmm_psf_get_num_cross_terms.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_charmm_psf_get_num_cross_terms,
+        [ctypes.POINTER(ctypes.c_size_t), ctypes.c_void_p],
+        "CharmmPsf.getNumCrossTerms()",
+    )
 
-    lib().apo_charmm_psf_get_segment_identifiers.argtypes = [
-        ctypes.POINTER(ctypes.c_char),
-        ctypes.c_size_t,
-        ctypes.c_void_p,
-    ]
-    lib().apo_charmm_psf_get_segment_identifiers.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_charmm_psf_get_segment_identifiers,
+        [ctypes.POINTER(ctypes.c_char), ctypes.c_size_t, ctypes.c_void_p],
+        "CharmmPsf.getSegmentIdentifiers()",
+    )
 
-    lib().apo_charmm_psf_get_residue_identifiers.argtypes = [
-        ctypes.POINTER(ctypes.c_int),
-        ctypes.c_size_t,
-        ctypes.c_void_p,
-    ]
-    lib().apo_charmm_psf_get_residue_identifiers.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_charmm_psf_get_residue_identifiers,
+        [ctypes.POINTER(ctypes.c_int), ctypes.c_size_t, ctypes.c_void_p],
+        "CharmmPsf.getResidueIdentifiers()",
+    )
 
-    lib().apo_charmm_psf_get_residue_names.argtypes = [
-        ctypes.POINTER(ctypes.c_char),
-        ctypes.c_size_t,
-        ctypes.c_void_p,
-    ]
-    lib().apo_charmm_psf_get_residue_names.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_charmm_psf_get_residue_names,
+        [ctypes.POINTER(ctypes.c_char), ctypes.c_size_t, ctypes.c_void_p],
+        "CharmmPsf.getResidueNames()",
+    )
 
-    lib().apo_charmm_psf_get_atom_names.argtypes = [
-        ctypes.POINTER(ctypes.c_char),
-        ctypes.c_size_t,
-        ctypes.c_void_p,
-    ]
-    lib().apo_charmm_psf_get_atom_names.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_charmm_psf_get_atom_names,
+        [ctypes.POINTER(ctypes.c_char), ctypes.c_size_t, ctypes.c_void_p],
+        "CharmmPsf.getAtomNames()",
+    )
 
-    lib().apo_charmm_psf_get_atom_types.argtypes = [
-        ctypes.POINTER(ctypes.c_char),
-        ctypes.c_size_t,
-        ctypes.c_void_p,
-    ]
-    lib().apo_charmm_psf_get_atom_types.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_charmm_psf_get_atom_types,
+        [ctypes.POINTER(ctypes.c_char), ctypes.c_size_t, ctypes.c_void_p],
+        "CharmmPsf.getAtomTypes()",
+    )
 
-    lib().apo_charmm_psf_get_charges.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_size_t,
-        ctypes.c_void_p,
-    ]
-    lib().apo_charmm_psf_get_charges.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_charmm_psf_get_charges,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_size_t, ctypes.c_void_p],
+        "CharmmPsf.getCharges()",
+    )
 
-    lib().apo_charmm_psf_get_masses.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_size_t,
-        ctypes.c_void_p,
-    ]
-    lib().apo_charmm_psf_get_masses.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_charmm_psf_get_masses,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_size_t, ctypes.c_void_p],
+        "CharmmPsf.getMasses()",
+    )
 
-    lib().apo_charmm_psf_get_net_charge.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_void_p,
-    ]
-    lib().apo_charmm_psf_get_net_charge.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_charmm_psf_get_net_charge,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_void_p],
+        "CharmmPsf.getNetCharge()",
+    )
 
-    lib().apo_charmm_psf_get_total_mass.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_void_p,
-    ]
-    lib().apo_charmm_psf_get_total_mass.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_charmm_psf_get_total_mass,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_void_p],
+        "CharmmPsf.getTotalMass()",
+    )
 
-    lib().apo_charmm_psf_get_file_name.argtypes = [
-        ctypes.POINTER(ctypes.c_char),
-        ctypes.c_size_t,
-        ctypes.c_void_p,
-    ]
-    lib().apo_charmm_psf_get_file_name.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_charmm_psf_get_file_name,
+        [ctypes.POINTER(ctypes.c_char), ctypes.c_size_t, ctypes.c_void_p],
+        "CharmmPsf.getFileName()",
+    )
 
     _prototypes_initialized = True
 
@@ -153,9 +145,7 @@ class CharmmPsf(_ApoObject):
         encoded_path: bytes = encode_path(path)
         c_path: ctypes.c_char_p = ctypes.c_char_p(encoded_path)
 
-        status = lib().apo_charmm_psf_create(ctypes.byref(handle), c_path)
-
-        check_status(status, "CharmmPsf construction failed")
+        lib().apo_charmm_psf_create(ctypes.byref(handle), c_path)
 
         if handle.value is None:
             raise RuntimeError(
@@ -171,11 +161,7 @@ class CharmmPsf(_ApoObject):
 
         c_num_atoms = ctypes.c_size_t()
 
-        status = lib().apo_charmm_psf_get_num_atoms(
-            ctypes.byref(c_num_atoms), self.handle
-        )
-
-        check_status(status, "CharmmPsf.getNumAtoms() failed")
+        lib().apo_charmm_psf_get_num_atoms(ctypes.byref(c_num_atoms), self.handle)
 
         return int(c_num_atoms.value)
 
@@ -184,11 +170,7 @@ class CharmmPsf(_ApoObject):
 
         c_num_bonds = ctypes.c_size_t()
 
-        status = lib().apo_charmm_psf_get_num_bonds(
-            ctypes.byref(c_num_bonds), self.handle
-        )
-
-        check_status(status, "CharmmPsf.getNumBonds() failed")
+        lib().apo_charmm_psf_get_num_bonds(ctypes.byref(c_num_bonds), self.handle)
 
         return int(c_num_bonds.value)
 
@@ -197,11 +179,7 @@ class CharmmPsf(_ApoObject):
 
         c_num_angles = ctypes.c_size_t()
 
-        status = lib().apo_charmm_psf_get_num_angles(
-            ctypes.byref(c_num_angles), self.handle
-        )
-
-        check_status(status, "CharmmPsf.getNumAngles() failed")
+        lib().apo_charmm_psf_get_num_angles(ctypes.byref(c_num_angles), self.handle)
 
         return int(c_num_angles.value)
 
@@ -210,11 +188,9 @@ class CharmmPsf(_ApoObject):
 
         c_num_dihedrals = ctypes.c_size_t()
 
-        status = lib().apo_charmm_psf_get_num_dihedrals(
+        lib().apo_charmm_psf_get_num_dihedrals(
             ctypes.byref(c_num_dihedrals), self.handle
         )
-
-        check_status(status, "CharmmPsf.getNumDihedrals() failed")
 
         return int(c_num_dihedrals.value)
 
@@ -223,11 +199,9 @@ class CharmmPsf(_ApoObject):
 
         c_num_impropers = ctypes.c_size_t()
 
-        status = lib().apo_charmm_psf_get_num_impropers(
+        lib().apo_charmm_psf_get_num_impropers(
             ctypes.byref(c_num_impropers), self.handle
         )
-
-        check_status(status, "CharmmPsf.getNumImpropers() failed")
 
         return int(c_num_impropers.value)
 
@@ -236,11 +210,9 @@ class CharmmPsf(_ApoObject):
 
         c_num_cross_terms = ctypes.c_size_t()
 
-        status = lib().apo_charmm_psf_get_num_cross_terms(
+        lib().apo_charmm_psf_get_num_cross_terms(
             ctypes.byref(c_num_cross_terms), self.handle
         )
-
-        check_status(status, "CharmmPsf.getNumCrossTerms() failed")
 
         return int(c_num_cross_terms.value)
 
@@ -253,11 +225,9 @@ class CharmmPsf(_ApoObject):
         c_buffer = c_buffer_type()
         c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(num_segis * 8)
 
-        status = lib().apo_charmm_psf_get_segment_identifiers(
+        lib().apo_charmm_psf_get_segment_identifiers(
             c_buffer, c_buffer_len, self.handle
         )
-
-        check_status(status, "CharmmPsf.getSegmentIdentifiers() failed")
 
         raw_buffer = c_buffer.raw
 
@@ -279,11 +249,9 @@ class CharmmPsf(_ApoObject):
         c_buffer = c_buffer_type()
         c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(num_resis)
 
-        status = lib().apo_charmm_psf_get_residue_identifiers(
+        lib().apo_charmm_psf_get_residue_identifiers(
             c_buffer, c_buffer_len, self.handle
         )
-
-        check_status(status, "CharmmPsf.getResidueIdentifiers() failed")
 
         resis: list[int] = []
         for i in range(num_resis):
@@ -300,11 +268,7 @@ class CharmmPsf(_ApoObject):
         c_buffer = c_buffer_type()
         c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(num_resns * 8)
 
-        status = lib().apo_charmm_psf_get_residue_names(
-            c_buffer, c_buffer_len, self.handle
-        )
-
-        check_status(status, "CharmmPsf.getResidueNames() failed")
+        lib().apo_charmm_psf_get_residue_names(c_buffer, c_buffer_len, self.handle)
 
         raw_buffer = c_buffer.raw
 
@@ -326,11 +290,7 @@ class CharmmPsf(_ApoObject):
         c_buffer = c_buffer_type()
         c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(num_names * 8)
 
-        status = lib().apo_charmm_psf_get_atom_names(
-            c_buffer, c_buffer_len, self.handle
-        )
-
-        check_status(status, "CharmmPsf.getAtomNames() failed")
+        lib().apo_charmm_psf_get_atom_names(c_buffer, c_buffer_len, self.handle)
 
         raw_buffer = c_buffer.raw
 
@@ -352,11 +312,7 @@ class CharmmPsf(_ApoObject):
         c_buffer = c_buffer_type()
         c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(num_types * 8)
 
-        status = lib().apo_charmm_psf_get_atom_types(
-            c_buffer, c_buffer_len, self.handle
-        )
-
-        check_status(status, "CharmmPsf.getAtomTypes() failed")
+        lib().apo_charmm_psf_get_atom_types(c_buffer, c_buffer_len, self.handle)
 
         raw_buffer = c_buffer.raw
 
@@ -378,9 +334,7 @@ class CharmmPsf(_ApoObject):
         c_buffer = c_buffer_type()
         c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(num_atoms)
 
-        status = lib().apo_charmm_psf_get_charges(c_buffer, c_buffer_len, self.handle)
-
-        check_status(status, "CharmmPsf.getCharges() failed")
+        lib().apo_charmm_psf_get_charges(c_buffer, c_buffer_len, self.handle)
 
         charges: list[float] = []
         for i in range(num_atoms):
@@ -397,9 +351,7 @@ class CharmmPsf(_ApoObject):
         c_buffer = c_buffer_type()
         c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(num_atoms)
 
-        status = lib().apo_charmm_psf_get_masses(c_buffer, c_buffer_len, self.handle)
-
-        check_status(status, "CharmmPsf.getMasses() failed")
+        lib().apo_charmm_psf_get_masses(c_buffer, c_buffer_len, self.handle)
 
         masses: list[float] = []
         for i in range(num_atoms):
@@ -412,11 +364,7 @@ class CharmmPsf(_ApoObject):
 
         c_net_charge = ctypes.c_double()
 
-        status = lib().apo_charmm_psf_get_net_charge(
-            ctypes.byref(c_net_charge), self.handle
-        )
-
-        check_status(status, "CharmmPsf.getNetCharge() failed")
+        lib().apo_charmm_psf_get_net_charge(ctypes.byref(c_net_charge), self.handle)
 
         return float(c_net_charge.value)
 
@@ -425,11 +373,7 @@ class CharmmPsf(_ApoObject):
 
         c_total_mass = ctypes.c_double()
 
-        status = lib().apo_charmm_psf_get_total_mass(
-            ctypes.byref(c_total_mass), self.handle
-        )
-
-        check_status(status, "CharmmPsf.getTotalMass() failed")
+        lib().apo_charmm_psf_get_total_mass(ctypes.byref(c_total_mass), self.handle)
 
         return float(c_total_mass.value)
 
@@ -441,9 +385,7 @@ class CharmmPsf(_ApoObject):
         c_buffer = c_buffer_type()
         c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(1024)
 
-        status = lib().apo_charmm_psf_get_file_name(c_buffer, c_buffer_len, self.handle)
-
-        check_status(status, "CharmmPsf.getFileName() failed")
+        lib().apo_charmm_psf_get_file_name(c_buffer, c_buffer_len, self.handle)
 
         file_name = c_buffer.raw.decode("utf-8")
 

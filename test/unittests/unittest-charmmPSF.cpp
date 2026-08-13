@@ -8,9 +8,51 @@
 //
 // ENDLICENSE
 
+#include "ApoCharmmError.h"
 #include "CharmmPSF.h"
 #include "apo_test_helpers.h"
 #include "catch.hpp"
+
+#include <string>
+#include <type_traits>
+
+static_assert(std::is_nothrow_destructible_v<CharmmPSF>);
+
+namespace {
+
+const std::string SINGLE_ATOM_PSF_PREFIX = R"PSF(PSF
+
+       0 !NTITLE
+       1 !NATOM
+       1 SEG1     1 RES1 C1   CT1    0.000000  12.0110           0
+)PSF";
+
+const std::string EMPTY_BOND_SECTION = "       0 !NBOND: bonds\n";
+const std::string EMPTY_ANGLE_SECTION = "       0 !NTHETA: angles\n";
+const std::string EMPTY_DIHEDRAL_SECTION = "       0 !NPHI: dihedrals\n";
+const std::string EMPTY_IMPROPER_SECTION = "       0 !NIMPHI: impropers\n";
+const std::string EMPTY_DONOR_SECTION = "       0 !NDON: donors\n";
+const std::string EMPTY_ACCEPTOR_SECTION = "       0 !NACC: acceptors\n";
+
+void CheckPsfFileError(const std::string &fileName, const std::string &contents,
+                       const ApoCharmmErrorCode expectedCode,
+                       const std::string &expectedMessage) {
+  apo_test::RemoveIfExists(fileName);
+  apo_test::WriteTextFile(fileName, contents);
+
+  apo_test::CheckApoCharmmError(
+      [&fileName](void) {
+        CharmmPSF psf(fileName);
+        static_cast<void>(psf);
+      },
+      expectedCode, expectedMessage);
+
+  apo_test::RemoveIfExists(fileName);
+
+  return;
+}
+
+} // namespace
 
 TEST_CASE("CharmPSFDefaultConstructor") {
   CharmmPSF psf;
@@ -264,19 +306,286 @@ TEST_CASE("CharmmPSFDetectsWaterMolecules") {
   apo_test::RemoveIfExists(fileName);
 }
 
-TEST_CASE("CharmmPSFMalformedInpuThrows") {
-  const std::string fileName = "tmp_charmm_psf_malformed.psf";
-  const std::string psfText = R"PSF(PSF
+TEST_CASE("CharmmPSFParserValidationUsesApoCharmmError") {
+  SECTION("EmptyFileName") {
+    apo_test::CheckApoCharmmError(
+        [](void) {
+          CharmmPSF psf("");
+          static_cast<void>(psf);
+        },
+        ApoCharmmErrorCode::InvalidArgument,
+        "CHARMM PSF file path must not be empty");
+  }
 
-       1 !NTITLE
- REMARKS missing required sections
-       1 !NATOM
-       1 SEG1     1 RES1 C1   CT1    0.000000  12.0110           0
-)PSF";
+  SECTION("MissingFile") {
+    const std::string fileName = "tmp_charmm_psf_missing.psf";
+    apo_test::RemoveIfExists(fileName);
 
-  apo_test::WriteTextFile(fileName, psfText);
+    apo_test::CheckApoCharmmError(
+        [&fileName](void) {
+          CharmmPSF psf(fileName);
+          static_cast<void>(psf);
+        },
+        ApoCharmmErrorCode::Runtime,
+        "Failed to open file \"" + fileName + "\"");
+  }
 
-  CHECK_THROWS_AS(CharmmPSF(fileName), std::runtime_error);
+  SECTION("MissingTitleSection") {
+    const std::string fileName = "tmp_charmm_psf_missing_title.psf";
+    CheckPsfFileError(fileName, "PSF\n", ApoCharmmErrorCode::Runtime,
+                      "Could not find TITLE section in PSF \"" + fileName +
+                          "\"");
+  }
 
-  apo_test::RemoveIfExists(fileName);
+  SECTION("MissingAtomSection") {
+    const std::string fileName = "tmp_charmm_psf_missing_atom.psf";
+    CheckPsfFileError(
+        fileName, "PSF\n\n       0 !NTITLE\n", ApoCharmmErrorCode::Runtime,
+        "Could not find ATOM section in PSF \"" + fileName + "\"");
+  }
+
+  SECTION("MissingBondSection") {
+    const std::string fileName = "tmp_charmm_psf_missing_bond.psf";
+    CheckPsfFileError(
+        fileName, SINGLE_ATOM_PSF_PREFIX, ApoCharmmErrorCode::Runtime,
+        "Could not find BOND section in PSF \"" + fileName + "\"");
+  }
+
+  SECTION("MissingAngleSection") {
+    const std::string fileName = "tmp_charmm_psf_missing_angle.psf";
+    CheckPsfFileError(fileName, SINGLE_ATOM_PSF_PREFIX + EMPTY_BOND_SECTION,
+                      ApoCharmmErrorCode::Runtime,
+                      "Could not find ANGLE section in PSF \"" + fileName +
+                          "\"");
+  }
+
+  SECTION("MissingDihedralSection") {
+    const std::string fileName = "tmp_charmm_psf_missing_dihedral.psf";
+    CheckPsfFileError(
+        fileName,
+        SINGLE_ATOM_PSF_PREFIX + EMPTY_BOND_SECTION + EMPTY_ANGLE_SECTION,
+        ApoCharmmErrorCode::Runtime,
+        "Could not find DIHEDRAL section in PSF \"" + fileName + "\"");
+  }
+
+  SECTION("MissingImproperSection") {
+    const std::string fileName = "tmp_charmm_psf_missing_improper.psf";
+    CheckPsfFileError(fileName,
+                      SINGLE_ATOM_PSF_PREFIX + EMPTY_BOND_SECTION +
+                          EMPTY_ANGLE_SECTION + EMPTY_DIHEDRAL_SECTION,
+                      ApoCharmmErrorCode::Runtime,
+                      "Could not find IMPROPER section in PSF \"" + fileName +
+                          "\"");
+  }
+
+  SECTION("MissingDonorSection") {
+    const std::string fileName = "tmp_charmm_psf_missing_donor.psf";
+    CheckPsfFileError(
+        fileName,
+        SINGLE_ATOM_PSF_PREFIX + EMPTY_BOND_SECTION + EMPTY_ANGLE_SECTION +
+            EMPTY_DIHEDRAL_SECTION + EMPTY_IMPROPER_SECTION,
+        ApoCharmmErrorCode::Runtime,
+        "Could not find DONOR section in PSF \"" + fileName + "\"");
+  }
+
+  SECTION("MissingAcceptorSection") {
+    const std::string fileName = "tmp_charmm_psf_missing_acceptor.psf";
+    CheckPsfFileError(fileName,
+                      SINGLE_ATOM_PSF_PREFIX + EMPTY_BOND_SECTION +
+                          EMPTY_ANGLE_SECTION + EMPTY_DIHEDRAL_SECTION +
+                          EMPTY_IMPROPER_SECTION + EMPTY_DONOR_SECTION,
+                      ApoCharmmErrorCode::Runtime,
+                      "Could not find ACCEPTOR section in PSF \"" + fileName +
+                          "\"");
+  }
+
+  SECTION("MissingCrossTermSection") {
+    const std::string fileName = "tmp_charmm_psf_missing_cross_term.psf";
+    CheckPsfFileError(
+        fileName,
+        SINGLE_ATOM_PSF_PREFIX + EMPTY_BOND_SECTION + EMPTY_ANGLE_SECTION +
+            EMPTY_DIHEDRAL_SECTION + EMPTY_IMPROPER_SECTION +
+            EMPTY_DONOR_SECTION + EMPTY_ACCEPTOR_SECTION,
+        ApoCharmmErrorCode::Runtime,
+        "Could not find CROSS-TERM section in PSF \"" + fileName + "\"");
+  }
+
+  SECTION("TruncatedTitleRecords") {
+    const std::string fileName = "tmp_charmm_psf_truncated_title.psf";
+    CheckPsfFileError(
+        fileName, "PSF\n\n       1 !NTITLE\n", ApoCharmmErrorCode::Runtime,
+        "Unexpected end of file while reading TITLE records in PSF \"" +
+            fileName + "\"");
+  }
+
+  SECTION("UnsupportedAtomCount") {
+    const std::string fileName = "tmp_charmm_psf_atom_count_range.psf";
+    CheckPsfFileError(fileName, "PSF\n\n       0 !NTITLE\n2147483648 !NATOM\n",
+                      ApoCharmmErrorCode::Runtime,
+                      "ATOM count exceeds supported range in PSF \"" +
+                          fileName + "\" at line 4");
+  }
+
+  SECTION("InvalidAtomRecord") {
+    const std::string fileName = "tmp_charmm_psf_invalid_atom_record.psf";
+    const std::string contents =
+        "PSF\n\n       0 !NTITLE\n       1 !NATOM\n1 SEG1 1 RES1 C1\n";
+    CheckPsfFileError(fileName, contents, ApoCharmmErrorCode::Runtime,
+                      "Invalid ATOM record in PSF \"" + fileName +
+                          "\" at line 5: 1 SEG1 1 RES1 C1");
+  }
+
+  SECTION("InvalidAtomCharge") {
+    const std::string fileName = "tmp_charmm_psf_invalid_atom_charge.psf";
+    const std::string contents = "PSF\n\n       0 !NTITLE\n       1 !NATOM\n"
+                                 "1 SEG1 1 RES1 C1 CT1 BAD 12.0110 0\n";
+    CheckPsfFileError(fileName, contents, ApoCharmmErrorCode::Runtime,
+                      "Invalid charge value \"BAD\" in ATOM section of PSF \"" +
+                          fileName + "\" at line 5");
+  }
+
+  SECTION("InvalidBondRecord") {
+    const std::string fileName = "tmp_charmm_psf_invalid_bond_record.psf";
+    CheckPsfFileError(
+        fileName, SINGLE_ATOM_PSF_PREFIX + "       1 !NBOND: bonds\n1\n",
+        ApoCharmmErrorCode::Runtime,
+        "Invalid BOND record in PSF \"" + fileName + "\" at line 7: 1");
+  }
+
+  SECTION("BondAtomIndexOutOfRange") {
+    const std::string fileName = "tmp_charmm_psf_bond_index_range.psf";
+    CheckPsfFileError(fileName,
+                      SINGLE_ATOM_PSF_PREFIX + "       1 !NBOND: bonds\n1 2\n",
+                      ApoCharmmErrorCode::Runtime,
+                      "BOND atom index \"2\" is out of range in PSF \"" +
+                          fileName + "\" at line 7");
+  }
+
+  SECTION("InvalidAngleRecord") {
+    const std::string fileName = "tmp_charmm_psf_invalid_angle_record.psf";
+    CheckPsfFileError(fileName,
+                      SINGLE_ATOM_PSF_PREFIX + EMPTY_BOND_SECTION +
+                          "       1 !NTHETA: angles\n1 1\n",
+                      ApoCharmmErrorCode::Runtime,
+                      "Invalid ANGLE record in PSF \"" + fileName +
+                          "\" at line 8: 1 1");
+  }
+
+  SECTION("InvalidDihedralRecord") {
+    const std::string fileName = "tmp_charmm_psf_invalid_dihedral_record.psf";
+    CheckPsfFileError(
+        fileName,
+        SINGLE_ATOM_PSF_PREFIX + EMPTY_BOND_SECTION + EMPTY_ANGLE_SECTION +
+            "       1 !NPHI: dihedrals\n1 1 1\n",
+        ApoCharmmErrorCode::Runtime,
+        "Invalid DIHEDRAL record in PSF \"" + fileName + "\" at line 9: 1 1 1");
+  }
+
+  SECTION("InvalidImproperRecord") {
+    const std::string fileName = "tmp_charmm_psf_invalid_improper_record.psf";
+    CheckPsfFileError(fileName,
+                      SINGLE_ATOM_PSF_PREFIX + EMPTY_BOND_SECTION +
+                          EMPTY_ANGLE_SECTION + EMPTY_DIHEDRAL_SECTION +
+                          "       1 !NIMPHI: impropers\n1 1 1\n",
+                      ApoCharmmErrorCode::Runtime,
+                      "Invalid IMPROPER record in PSF \"" + fileName +
+                          "\" at line 10: 1 1 1");
+  }
+
+  SECTION("InvalidCrossTermRecord") {
+    const std::string fileName = "tmp_charmm_psf_invalid_cross_term_record.psf";
+    CheckPsfFileError(fileName,
+                      SINGLE_ATOM_PSF_PREFIX + EMPTY_BOND_SECTION +
+                          EMPTY_ANGLE_SECTION + EMPTY_DIHEDRAL_SECTION +
+                          EMPTY_IMPROPER_SECTION + EMPTY_DONOR_SECTION +
+                          EMPTY_ACCEPTOR_SECTION +
+                          "       1 !NCRTERM: cross-terms\n1 1 1 1\n",
+                      ApoCharmmErrorCode::Runtime,
+                      "Invalid CROSS-TERM record in PSF \"" + fileName +
+                          "\" at line 13: 1 1 1 1");
+  }
+}
+
+TEST_CASE("CharmmPSFSetterValidationUsesApoCharmmError") {
+  SECTION("NegativeAtomCount") {
+    CharmmPSF psf;
+    apo_test::CheckApoCharmmError(
+        [&psf](void) { psf.setNumAtoms(-1); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Number of atoms must be nonnegative; observed -1");
+  }
+
+  SECTION("ChargesBeforeAtomCount") {
+    CharmmPSF psf;
+    apo_test::CheckApoCharmmError([&psf](void) { psf.setAtomCharges({}); },
+                                  ApoCharmmErrorCode::NotInitialized,
+                                  "CharmmPSF atom count is not initialized");
+  }
+
+  SECTION("ChargeCountMismatch") {
+    CharmmPSF psf;
+    psf.setNumAtoms(2);
+    apo_test::CheckApoCharmmError(
+        [&psf](void) { psf.setAtomCharges({0.0}); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "CharmmPSF charge count must match atom count; expected 2, observed 1");
+  }
+}
+
+TEST_CASE("CharmmPSFAggregateValidationUsesApoCharmmError") {
+  SECTION("NetChargeBeforeInitialization") {
+    CharmmPSF psf;
+    apo_test::CheckApoCharmmError(
+        [&psf](void) { static_cast<void>(psf.getNetCharge()); },
+        ApoCharmmErrorCode::NotInitialized,
+        "CharmmPSF atom count is not initialized");
+  }
+
+  SECTION("TotalMassBeforeInitialization") {
+    CharmmPSF psf;
+    apo_test::CheckApoCharmmError(
+        [&psf](void) { static_cast<void>(psf.getTotalMass()); },
+        ApoCharmmErrorCode::NotInitialized,
+        "CharmmPSF atom count is not initialized");
+  }
+
+  SECTION("InclusionExclusionBeforeInitialization") {
+    CharmmPSF psf;
+    apo_test::CheckApoCharmmError(
+        [&psf](void) { static_cast<void>(psf.getInclusionExclusionLists()); },
+        ApoCharmmErrorCode::NotInitialized,
+        "CharmmPSF atom count is not initialized");
+  }
+
+  SECTION("ChargeCountMismatch") {
+    CharmmPSF psf;
+    psf.setNumAtoms(2);
+    psf.getCharges().resize(1);
+    apo_test::CheckApoCharmmError(
+        [&psf](void) { static_cast<void>(psf.getNetCharge()); },
+        ApoCharmmErrorCode::Runtime,
+        "CharmmPSF charge count does not match atom count; expected 2, "
+        "observed 1");
+  }
+
+  SECTION("MassCountMismatch") {
+    CharmmPSF psf;
+    psf.setNumAtoms(2);
+    psf.getMasses().resize(1);
+    apo_test::CheckApoCharmmError(
+        [&psf](void) { static_cast<void>(psf.getTotalMass()); },
+        ApoCharmmErrorCode::Runtime,
+        "CharmmPSF mass count does not match atom count; expected 2, observed "
+        "1");
+  }
+
+  SECTION("ConnectivityCountMismatch") {
+    CharmmPSF psf;
+    psf.setNumAtoms(2);
+    apo_test::CheckApoCharmmError(
+        [&psf](void) { static_cast<void>(psf.getInclusionExclusionLists()); },
+        ApoCharmmErrorCode::Runtime,
+        "CharmmPSF connectivity list sizes do not match atom count; expected "
+        "2, observed 0, 0, 0");
+  }
 }
