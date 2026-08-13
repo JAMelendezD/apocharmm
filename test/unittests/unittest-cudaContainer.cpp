@@ -8,6 +8,7 @@
 //
 // ENDLICENSE
 
+#include "ApoCharmmError.h"
 #include "CudaContainer.h"
 #include "apo_test_helpers.h"
 #include "catch.hpp"
@@ -123,8 +124,16 @@ TEST_CASE("CudaContainerElementAccess") {
 
   SECTION("AtThrowsOutOfRange") {
     CudaContainer<int> c(std::vector<int>{1, 2, 3});
+    const CudaContainer<int> &constContainer = c;
 
-    CHECK_THROWS_AS(c.at(3), std::out_of_range);
+    apo_test::CheckApoCharmmError(
+        [&c](void) -> void { (void)c.at(3); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "CudaContainer index is out of range; expected [0, 3), observed 3");
+    apo_test::CheckApoCharmmError(
+        [&constContainer](void) -> void { (void)constContainer.at(3); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "CudaContainer index is out of range; expected [0, 3), observed 3");
   }
 
   SECTION("OperatorIndexReadsAndWritesHostArray") {

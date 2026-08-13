@@ -10,9 +10,11 @@
 
 #include "CudaContainer.h"
 
+#include "ApoCharmmError.h"
 #include "cuda_utils.h"
 
 #include <cstdio>
+#include <string>
 
 template <typename T>
 CudaContainer<T>::CudaContainer(void) : m_HostArray(), m_DeviceArray() {}
@@ -103,11 +105,23 @@ CudaContainer<T> &CudaContainer<T>::operator=(const CudaContainer<T> &&other) {
 
 template <typename T>
 const T &CudaContainer<T>::at(const std::size_t pos) const {
-  return m_HostArray.at(pos);
+  APOCHARMM_REQUIRE(pos < m_HostArray.size(),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "CudaContainer index is out of range; expected [0, " +
+                        std::to_string(m_HostArray.size()) + "), observed " +
+                        std::to_string(pos));
+
+  return m_HostArray[pos];
 }
 
 template <typename T> T &CudaContainer<T>::at(const std::size_t pos) {
-  return m_HostArray.at(pos);
+  APOCHARMM_REQUIRE(pos < m_HostArray.size(),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "CudaContainer index is out of range; expected [0, " +
+                        std::to_string(m_HostArray.size()) + "), observed " +
+                        std::to_string(pos));
+
+  return m_HostArray[pos];
 }
 
 template <typename T>
@@ -196,6 +210,8 @@ template <typename T> void CudaContainer<T>::setToValue(const T value) {
 }
 
 template <typename T> void CudaContainer<T>::transferToDevice(void) {
+  if (m_HostArray.empty())
+    return;
   cudaCheck(cudaMemcpy(static_cast<void *>(m_DeviceArray.data()),
                        static_cast<const void *>(m_HostArray.data()),
                        m_HostArray.size() * sizeof(T), cudaMemcpyHostToDevice));
@@ -204,6 +220,8 @@ template <typename T> void CudaContainer<T>::transferToDevice(void) {
 }
 
 template <typename T> void CudaContainer<T>::transferToHost(void) {
+  if (m_HostArray.empty())
+    return;
   cudaCheck(cudaMemcpy(static_cast<void *>(m_HostArray.data()),
                        static_cast<const void *>(m_DeviceArray.data()),
                        m_DeviceArray.size() * sizeof(T),
