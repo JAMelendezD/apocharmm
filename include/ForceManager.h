@@ -168,12 +168,17 @@ public:
 
 public:
   /**
-   * @brief Sets this ForceManager's CharmmContext and vice-versa
+   * @brief Stores a non-owning association with a CharmmContext.
    *
-   * Sets context to input CharmmContext, and if context' forceManager is not
-   * this object, sets context' forceManager to this ForceManager.
+   * The manager stores `ctx` as a `std::weak_ptr`. Passing `nullptr` clears the
+   * association. This function does not modify the supplied context or call
+   * `CharmmContext::setForceManager()`.
    *
-   * @param ctx CharmmContext object
+   * @param[in] ctx Shared context whose control block is observed. The pointer
+   * may be null and is not retained through shared ownership.
+   *
+   * @post `hasCharmmContext()` reports whether the stored weak reference can be
+   * locked.
    */
   void setContext(std::shared_ptr<CharmmContext> ctx);
 
@@ -244,14 +249,21 @@ public:
 
 public:
   /**
-   * @brief Returns current CharmmContext
+   * @brief Returns the associated CharmmContext when it is still alive.
+   *
+   * @return A newly acquired shared owner of the associated context, or an
+   * empty `std::shared_ptr` when the weak association is unset or expired.
    */
   std::shared_ptr<CharmmContext> getContext(void);
 
   /**
-   * @brief Test if this ForceManager has a CharmmContext
+   * @brief Reports whether the associated CharmmContext is still alive.
    *
-   * Returns false if context is nullptr, true otherwise
+   * @return `true` when the stored weak reference is not expired; otherwise
+   * `false`.
+   *
+   * @note The result can become stale immediately if another thread releases
+   * the final context owner. `ForceManager` provides no internal locking.
    */
   bool hasCharmmContext(void) const;
 

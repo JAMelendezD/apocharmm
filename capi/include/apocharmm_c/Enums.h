@@ -15,9 +15,17 @@
 extern "C" {
 #endif
 
+/**
+ * @brief Identifies the periodic boundary condition used by the C ABI.
+ *
+ * The values map one-to-one to the native `PBC` enumeration.
+ */
 typedef enum apo_pbc {
+  /** Selects no periodic boundary condition. */
   APO_PBC_NONE = 0,
+  /** Selects conventional three-dimensional translational periodicity. */
   APO_PBC_P1 = 1,
+  /** Selects the P2_1 screw-symmetry periodic boundary condition. */
   APO_PBC_P21 = 2
 } apo_pbc;
 

@@ -964,6 +964,21 @@ void CharmmContext::computePressure(void) {
                   "Pressure computation is not implemented");
 }
 
+/**
+ * @brief Images contiguous PSF groups on device storage.
+ *
+ * Each `int2` group is interpreted as an inclusive atom-index range. The
+ * kernel computes the arithmetic coordinate center of the range and translates
+ * every member by one box length when that center lies outside a half-box
+ * boundary. It updates both coordinate precisions in place.
+ *
+ * For `PBC::P21`, crossing an X boundary additionally reflects Y and Z
+ * coordinates, Y and Z velocities, and Y and Z force components. Translational
+ * Y and Z imaging is applied after the possible X transformation.
+ *
+ * The caller launches this kernel on the default stream and performs a
+ * device-wide synchronization. Host mirrors are intentionally not updated.
+ */
 __global__ static void ImageCenteringKernel(
     double4 *__restrict__ coordinatesChargesDP,
     float4 *__restrict__ coordinatesChargesSP,
@@ -1102,6 +1117,17 @@ void CharmmContext::resetNeighborList(void) {
   return;
 }
 
+/**
+ * @brief Reduces per-atom kinetic energy into one device scalar.
+ *
+ * Each thread accumulates
+ * `0.5 * (vx^2 + vy^2 + vz^2) / inverse_mass` over a grid-stride loop. A
+ * block-wide reduction produces one value per block, and thread zero adds that
+ * value to `kineticEnergy`.
+ *
+ * The current caller launches exactly one 1024-thread block after clearing the
+ * output scalar and synchronizes the current CUDA device before consuming it.
+ */
 __global__ static void CalculateKineticEnergyKernel(
     double *__restrict__ kineticEnergy,
     const double4 *__restrict__ velocitiesInverseMasses, const int numAtoms) {
@@ -1185,6 +1211,18 @@ void CharmmContext::linkBackForceManager(void) {
   return;
 }
 
+/**
+ * @brief Implements CHARMM-style energy-table formatting and print history.
+ *
+ * The formatter expects the standard component keys used by the current
+ * ForceManager implementation, transfers total potential energy to host,
+ * synchronizes and extracts forces, and computes GRMS as the square root of
+ * the sum of squared force components divided by the atom count.
+ *
+ * The first printed delta is zero. Later deltas are measured relative to the
+ * previous table printed by this context, not relative to the previous force
+ * evaluation.
+ */
 void CharmmContext::printEnergyTable(void) {
   const std::map<std::string, double> energyComponents =
       m_ForceManager->getEnergyComponents();
@@ -1392,6 +1430,19 @@ void CharmmContext::requireInitializedForceManager(void) const {
   return;
 }
 
+/**
+ * @brief Implements the context-to-force-manager setup transition.
+ *
+ * A present manager first receives a weak backlink when possible. Complete
+ * state then triggers one initialization transition. Every initialized state
+ * recomputes degree-of-freedom accounting, and a transition that occurs after
+ * coordinates were supplied performs one image-centering and neighbor-list
+ * rebuild.
+ *
+ * The `forceManagerWasInitialized` and
+ * `forceManagerWasInitializedHere` flags prevent the initialization path from
+ * rebuilding the neighbor list twice.
+ */
 void CharmmContext::finalizeSetupIfReady(void) {
   if (m_ForceManager == nullptr)
     return;

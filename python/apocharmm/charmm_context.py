@@ -25,6 +25,21 @@ from .force_manager import ForceManager
 def _flatten_rows(
     values: Sequence[Sequence[float]], width: int, argument_name: str
 ) -> list[float]:
+    """
+    @brief Converts fixed-width nested rows to one flat float list.
+
+    Each scalar is converted with `float()` before row-width validation.
+
+    @param[in] values Borrowed outer sequence of borrowed row sequences.
+    @param[in] width Required number of scalar values per row.
+    @param[in] argument_name Name used in a row-width diagnostic.
+    @return Newly allocated row-major list.
+
+    @throws TypeError If a row is not iterable or a scalar cannot be converted
+    with `float()`.
+    @throws ValueError If scalar conversion fails or a converted row does not
+    contain exactly `width` elements.
+    """
     flattened: list[float] = []
 
     for index, row in enumerate(values):
@@ -320,6 +335,29 @@ def _initialize_prototypes() -> None:
 
 
 class CharmmContext(_ApoObject):
+    """
+    @anchor python_charmm_context
+    @brief Represents mutable molecular state for apoCHARMM calculations.
+
+    Construct the wrapper from a `ForceManager`, or from a `CharmmPsf` together
+    with `CharmmParameters`. The wrapper owns its C handle and retains Python
+    references to collaborators whose native objects participate in the
+    context.
+
+    Array setters copy Python values into temporary C buffers. Array getters
+    return new Python lists or tuples; they do not expose native storage.
+
+    `close()` releases the owned context handle and is idempotent. The wrapper
+    supports the context-manager protocol. Using a method that accesses
+    `self.handle` after closure raises `RuntimeError`. Native nonzero statuses
+    are raised as `ApoCharmmError`.
+
+    The wrapper and its native object provide no internal thread
+    synchronization.
+
+    @see charmm_context
+    """
+
     _destroy_function_name = "apo_charmm_context_destroy"
 
     def __init__(
@@ -327,6 +365,26 @@ class CharmmContext(_ApoObject):
         force_manager_or_psf: ForceManager | CharmmPsf,
         parameters: CharmmParameters | None = None,
     ) -> None:
+        """
+        @brief Constructs a Python CharmmContext wrapper.
+
+        Pass either a live `ForceManager` and leave `parameters` as `None`, or
+        pass a live `CharmmPsf` together with a live `CharmmParameters`.
+        Collaborator wrappers are retained to preserve their Python and native
+        lifetimes.
+
+        @param[in] force_manager_or_psf `ForceManager` or `CharmmPsf` selecting
+        the construction path.
+        @param[in] parameters `CharmmParameters` required with `CharmmPsf`, or
+        `None` with `ForceManager`.
+
+        @throws TypeError If the argument combination does not match either
+        supported construction path.
+        @throws RuntimeError If a supplied wrapper is closed, or native
+        construction reports success but produces a NULL handle.
+        @throws ApoCharmmError If native validation, GPU setup, allocation, or
+        force-manager initialization fails.
+        """
         _initialize_prototypes()
         super().__init__()
 
@@ -365,6 +423,19 @@ class CharmmContext(_ApoObject):
         return
 
     def setPrm(self, parameters: CharmmParameters) -> None:
+        """
+        @brief Sets the CHARMM parameter set.
+
+        The wrapper requires a `CharmmParameters`, passes its borrowed handle to
+        the C ABI, and retains the Python object after success.
+
+        @param[in] parameters Live `CharmmParameters` wrapper.
+
+        @throws TypeError If `parameters` is not a `CharmmParameters`.
+        @throws RuntimeError If this context or `parameters` is closed.
+        @throws ApoCharmmError If native synchronization or initialization
+        fails.
+        """
         _initialize_prototypes()
 
         if not isinstance(parameters, CharmmParameters):
@@ -376,6 +447,19 @@ class CharmmContext(_ApoObject):
         return
 
     def setPsf(self, psf: CharmmPsf) -> None:
+        """
+        @brief Sets the PSF and imports its atom charges and masses.
+
+        The wrapper requires a `CharmmPsf`, passes its borrowed handle to the C
+        ABI, and retains the Python object after success.
+
+        @param[in] psf Live `CharmmPsf` wrapper.
+
+        @throws TypeError If `psf` is not a `CharmmPsf`.
+        @throws RuntimeError If this context or `psf` is closed.
+        @throws ApoCharmmError If the atom count conflicts, storage or transfer
+        fails, or force-manager initialization fails.
+        """
         _initialize_prototypes()
 
         if not isinstance(psf, CharmmPsf):
@@ -387,6 +471,20 @@ class CharmmContext(_ApoObject):
         return
 
     def setForceManager(self, force_manager: ForceManager) -> None:
+        """
+        @brief Sets the ForceManager associated with the context.
+
+        The wrapper retains `force_manager` after a successful native state
+        reconciliation and clears retained PSF and parameter wrappers because
+        the new manager becomes their native source.
+
+        @param[in] force_manager Live `ForceManager` wrapper.
+
+        @throws TypeError If `force_manager` is not a `ForceManager`.
+        @throws RuntimeError If this context or `force_manager` is closed.
+        @throws ApoCharmmError If native state reconciliation or initialization
+        fails.
+        """
         _initialize_prototypes()
 
         if not isinstance(force_manager, ForceManager):
@@ -402,6 +500,25 @@ class CharmmContext(_ApoObject):
     def setCoordinatesCharges(
         self, coordinates_charges: Sequence[Sequence[float]]
     ) -> None:
+        """
+        @brief Sets coordinates and charges from nested Python rows.
+
+        `coordinates_charges` must contain one row per atom and exactly four
+        values per row in `[x, y, z, charge]` order. Coordinates use angstroms
+        and charges use elementary-charge units. Every scalar is converted with
+        `float()`, flattened into a temporary `ctypes` buffer, and copied by the
+        native context.
+
+        @param[in] coordinates_charges Sequence of fixed-width row sequences.
+
+        @throws TypeError If a row is not iterable or a scalar cannot be
+        converted to `float`.
+        @throws ValueError If scalar conversion fails or a row does not contain
+        exactly four values.
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If the atom count is unset, the row count is
+        wrong, or native transfer or neighbor-list work fails.
+        """
         _initialize_prototypes()
 
         values: list[float] = _flatten_rows(
@@ -420,6 +537,26 @@ class CharmmContext(_ApoObject):
     def setCoordinates(
         self, coordinates: CharmmCrd | Sequence[Sequence[float]]
     ) -> None:
+        """
+        @brief Sets coordinates from a CharmmCrd or nested Python rows.
+
+        A `CharmmCrd` is borrowed for the native call and is not retained.
+        Otherwise, `coordinates` must contain one `[x, y, z]` row per atom.
+        Scalars are converted with `float()` and copied through a temporary C
+        buffer. Coordinates use angstroms and existing charges are preserved.
+
+        @param[in] coordinates Live `CharmmCrd` wrapper or sequence of
+        three-value row sequences.
+
+        @throws TypeError If a row is not iterable, a scalar cannot be
+        converted, or a closed `CharmmCrd` is accessed.
+        @throws ValueError If scalar conversion fails or a row does not contain
+        exactly three values.
+        @throws RuntimeError If this context or a supplied `CharmmCrd` is
+        closed.
+        @throws ApoCharmmError If the atom count is unset, the coordinate count
+        is wrong, or native transfer or neighbor-list work fails.
+        """
         _initialize_prototypes()
 
         if isinstance(coordinates, CharmmCrd):
@@ -438,6 +575,22 @@ class CharmmContext(_ApoObject):
         return
 
     def setCharges(self, charges: Sequence[float]) -> None:
+        """
+        @brief Sets per-atom charges while preserving coordinates.
+
+        Each scalar is converted with `float()`, copied to a temporary C buffer,
+        and then copied by the native context. Charges use elementary-charge
+        units.
+
+        @param[in] charges Sequence containing exactly one value per atom.
+
+        @throws TypeError If `charges` is not iterable or a value cannot be
+        converted with `float()`.
+        @throws ValueError If scalar conversion raises `ValueError`.
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If the atom count is unset, the sequence length
+        is wrong, or native transfer fails.
+        """
         _initialize_prototypes()
 
         values: list[float] = [float(value) for value in charges]
@@ -452,6 +605,24 @@ class CharmmContext(_ApoObject):
     def setVelocitiesInverseMasses(
         self, velocities_inverse_masses: Sequence[Sequence[float]]
     ) -> None:
+        """
+        @brief Sets velocities and inverse masses from nested rows.
+
+        Every row must be `[vx, vy, vz, inverse_mass]`. Velocity components use
+        angstroms per AKMA time unit and inverse mass uses reciprocal atomic mass
+        units. Scalars are converted with `float()` and copied through a
+        temporary C buffer.
+
+        @param[in] velocities_inverse_masses Sequence of four-value rows.
+
+        @throws TypeError If a row is not iterable or a scalar cannot be
+        converted to `float`.
+        @throws ValueError If scalar conversion fails or a row does not contain
+        exactly four values.
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If the atom count is unset, the row count is
+        wrong, or native transfer fails.
+        """
         _initialize_prototypes()
 
         values: list[float] = _flatten_rows(
@@ -468,6 +639,23 @@ class CharmmContext(_ApoObject):
         return
 
     def setVelocities(self, velocities: Sequence[Sequence[float]]) -> None:
+        """
+        @brief Sets velocity components while preserving inverse masses.
+
+        Every row must be `[vx, vy, vz]` in angstroms per AKMA time unit.
+        Scalars are converted with `float()` and copied through a temporary C
+        buffer.
+
+        @param[in] velocities Sequence containing one three-value row per atom.
+
+        @throws TypeError If a row is not iterable or a scalar cannot be
+        converted to `float`.
+        @throws ValueError If scalar conversion fails or a row does not contain
+        exactly three values.
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If the atom count is unset, the row count is
+        wrong, or native transfer fails.
+        """
         _initialize_prototypes()
 
         values: list[float] = _flatten_rows(velocities, 3, "velocities")
@@ -480,6 +668,23 @@ class CharmmContext(_ApoObject):
         return
 
     def setVelocitiesFromCHARMMVelocityFile(self, path: FilePath) -> None:
+        """
+        @brief Loads velocities from a CHARMM velocity file.
+
+        `path` is encoded with `os.fsencode()` through `encode_path()` and is
+        borrowed by the C ABI for the duration of the call. The native parser
+        requires a matching atom count and one parseable velocity record per
+        atom.
+
+        @param[in] path `str`, `bytes`, or `os.PathLike` path accepted by
+        `os.fsencode()`.
+
+        @throws TypeError If `path` cannot be encoded as a filesystem path.
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If the atom count is unset, the path is empty,
+        the file cannot be opened or parsed, the atom count differs, or native
+        transfer fails.
+        """
         _initialize_prototypes()
 
         encoded_path: bytes = encode_path(path)
@@ -492,6 +697,25 @@ class CharmmContext(_ApoObject):
         return
 
     def setMasses(self, masses: Sequence[float]) -> None:
+        """
+        @brief Sets masses and stores native inverse masses.
+
+        Each scalar is converted with `float()` and interpreted as an atomic
+        mass-unit value. The native context stores its reciprocal and preserves
+        existing velocity components.
+
+        @param[in] masses Sequence containing exactly one mass per atom.
+
+        @throws TypeError If `masses` is not iterable or a value cannot be
+        converted to `float`.
+        @throws ValueError If scalar conversion raises `ValueError`.
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If the atom count is unset, the sequence length
+        is wrong, or native transfer fails.
+
+        @warning The current native implementation does not reject zero,
+        negative, infinite, or NaN masses before division.
+        """
         _initialize_prototypes()
 
         values: list[float] = [float(value) for value in masses]
@@ -504,6 +728,19 @@ class CharmmContext(_ApoObject):
         return
 
     def setTemperature(self, temperature: float) -> None:
+        """
+        @brief Sets the stored target temperature.
+
+        This method does not generate or rescale velocities.
+
+        @param[in] temperature Python `int` or `float` accepted by
+        `ctypes.c_double`, in kelvin. The native value must be finite and
+        non-negative.
+
+        @throws TypeError If `temperature` cannot initialize `ctypes.c_double`.
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If the native value is non-finite or negative.
+        """
         _initialize_prototypes()
 
         c_temperature: ctypes.c_double = ctypes.c_double(temperature)
@@ -515,6 +752,21 @@ class CharmmContext(_ApoObject):
     def setPeriodicBoundaryCondition(
         self, pbc: PeriodicBoundaryCondition | int
     ) -> None:
+        """
+        @brief Sets the periodic boundary condition.
+
+        `pbc` is normalized through `PeriodicBoundaryCondition` before its
+        integer value is passed to the C ABI.
+
+        @param[in] pbc `PeriodicBoundaryCondition` or matching integer value
+        `0`, `1`, or `2`.
+
+        @throws TypeError If `pbc` cannot be interpreted by the enumeration.
+        @throws ValueError If the integer is not a declared enum value.
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If native propagation, initialization, imaging,
+        or neighbor-list rebuilding fails.
+        """
         _initialize_prototypes()
 
         try:
@@ -529,6 +781,22 @@ class CharmmContext(_ApoObject):
         return
 
     def setBoxDimensions(self, box_dimensions: Sequence[float]) -> None:
+        """
+        @brief Sets orthorhombic box dimensions.
+
+        `box_dimensions` is converted to a temporary contiguous `double`
+        buffer. It must contain exactly `[x, y, z]` lengths in angstroms.
+
+        @param[in] box_dimensions Sequence of exactly three numeric values.
+
+        @throws TypeError If the input is not iterable or a value cannot be
+        converted with `float()`.
+        @throws ValueError If scalar conversion raises `ValueError`.
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If the length is not three, a dimension is not
+        positive, attached force configuration is invalid, or native
+        initialization or neighbor-list work fails.
+        """
         _initialize_prototypes()
 
         values: list[float] = [float(value) for value in box_dimensions]
@@ -542,6 +810,18 @@ class CharmmContext(_ApoObject):
         return
 
     def setRandomSeed(self, seed: int) -> None:
+        """
+        @brief Sets the random seed used for velocity assignment.
+
+        @param[in] seed Python `int` in the inclusive range
+        `[0, 2**64 - 1]`.
+
+        @throws TypeError If `seed` is not comparable with integers or cannot
+        initialize `ctypes.c_uint64`.
+        @throws ValueError If `seed` is outside the unsigned 64-bit range.
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If the native context rejects the update.
+        """
         _initialize_prototypes()
 
         if seed < 0 or seed > 2**64 - 1:
@@ -554,6 +834,19 @@ class CharmmContext(_ApoObject):
         return
 
     def useHolonomicConstraints(self, flag: bool) -> None:
+        """
+        @brief Selects constrained degree-of-freedom accounting.
+
+        The value is converted with `ctypes.c_bool`. The native context
+        recomputes its degree-of-freedom count but does not execute a
+        constraint solver.
+
+        @param[in] flag Boolean selection.
+
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If the native context has no PSF or no force
+        manager.
+        """
         _initialize_prototypes()
 
         c_flag: ctypes.c_bool = ctypes.c_bool(flag)
@@ -563,6 +856,20 @@ class CharmmContext(_ApoObject):
         return
 
     def setKappa(self, kappa: float) -> None:
+        """
+        @brief Sets the Ewald splitting parameter.
+
+        @param[in] kappa Python `int` or `float` accepted by
+        `ctypes.c_double`, in inverse angstroms. The native float-converted
+        value must be finite and non-negative.
+
+        @throws TypeError If `kappa` cannot initialize `ctypes.c_double`.
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If no force manager is attached or native
+        validation fails.
+
+        @warning Configure this value before force-manager initialization.
+        """
         _initialize_prototypes()
 
         c_kappa: ctypes.c_double = ctypes.c_double(kappa)
@@ -572,6 +879,20 @@ class CharmmContext(_ApoObject):
         return
 
     def setCutoff(self, cutoff: float) -> None:
+        """
+        @brief Sets the direct-space cutoff.
+
+        @param[in] cutoff Python `int` or `float` accepted by
+        `ctypes.c_double`, in angstroms. The native float-converted value must
+        be finite and positive.
+
+        @throws TypeError If `cutoff` cannot initialize `ctypes.c_double`.
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If no force manager is attached or native
+        validation fails.
+
+        @warning Configure this value before force-manager initialization.
+        """
         _initialize_prototypes()
 
         c_cutoff: ctypes.c_double = ctypes.c_double(cutoff)
@@ -581,6 +902,21 @@ class CharmmContext(_ApoObject):
         return
 
     def setCtonnb(self, ctonnb: float) -> None:
+        """
+        @brief Sets the nonbonded distance exposed as `ctonnb`.
+
+        @param[in] ctonnb Python `int` or `float` accepted by
+        `ctypes.c_double`, in angstroms. The native float-converted value must
+        be finite and positive.
+
+        @throws TypeError If `ctonnb` cannot initialize `ctypes.c_double`.
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If no force manager is attached or native
+        validation fails.
+
+        @warning The current backend forwards this value as `roff`. Configure
+        it before force-manager initialization.
+        """
         _initialize_prototypes()
 
         c_ctonnb: ctypes.c_double = ctypes.c_double(ctonnb)
@@ -590,6 +926,21 @@ class CharmmContext(_ApoObject):
         return
 
     def setCtofnb(self, ctofnb: float) -> None:
+        """
+        @brief Sets the nonbonded distance exposed as `ctofnb`.
+
+        @param[in] ctofnb Python `int` or `float` accepted by
+        `ctypes.c_double`, in angstroms. The native float-converted value must
+        be finite and positive.
+
+        @throws TypeError If `ctofnb` cannot initialize `ctypes.c_double`.
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If no force manager is attached or native
+        validation fails.
+
+        @warning The current backend forwards this value as `ron`. Configure
+        it before force-manager initialization.
+        """
         _initialize_prototypes()
 
         c_ctofnb: ctypes.c_double = ctypes.c_double(ctofnb)
@@ -599,6 +950,24 @@ class CharmmContext(_ApoObject):
         return
 
     def setFFTGrid(self, grid: Sequence[int]) -> None:
+        """
+        @brief Sets the three-dimensional PME FFT grid.
+
+        Each element is converted with `int()` and copied to a temporary C
+        buffer. The sequence must contain exactly three positive dimensions in
+        X, Y, Z order.
+
+        @param[in] grid Sequence of three integer-convertible values.
+
+        @throws TypeError If `grid` is not iterable or an element cannot be
+        converted with `int()`.
+        @throws ValueError If integer conversion fails.
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If the length is not three, a dimension is not
+        positive, or no force manager is attached.
+
+        @warning Configure the grid before force-manager initialization.
+        """
         _initialize_prototypes()
 
         values: list[int] = [int(value) for value in grid]
@@ -611,6 +980,19 @@ class CharmmContext(_ApoObject):
         return
 
     def setPmeSplineOrder(self, order: int) -> None:
+        """
+        @brief Sets the PME interpolation spline order.
+
+        @param[in] order Python integer accepted by `ctypes.c_int`. The native
+        value must be positive.
+
+        @throws TypeError If `order` cannot initialize `ctypes.c_int`.
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If `order` is not positive or no force manager
+        is attached.
+
+        @warning Configure the order before force-manager initialization.
+        """
         _initialize_prototypes()
 
         c_order: ctypes.c_int = ctypes.c_int(order)
@@ -620,6 +1002,22 @@ class CharmmContext(_ApoObject):
         return
 
     def setVdwType(self, vdw_type: VdwType | int) -> None:
+        """
+        @brief Sets the van der Waals model identifier.
+
+        The argument is normalized through `VdwType`. Native CharmmContext
+        accepts values `VdwType.VSH` through `VdwType.DBEXP`.
+
+        @param[in] vdw_type `VdwType` or matching integer value.
+
+        @throws TypeError If `vdw_type` cannot be interpreted by the enum.
+        @throws ValueError If it is not a declared Python enum value.
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If the normalized value is `VdwType.NONE`, no
+        force manager is attached, or native validation fails.
+
+        @warning Configure the model before force-manager initialization.
+        """
         _initialize_prototypes()
 
         try:
@@ -634,6 +1032,14 @@ class CharmmContext(_ApoObject):
         return
 
     def getNumAtoms(self) -> int:
+        """
+        @brief Returns the context atom count.
+
+        @return Python `int` containing the dimensionless atom count.
+
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If the native getter fails.
+        """
         _initialize_prototypes()
 
         num_atoms: ctypes.c_int = ctypes.c_int()
@@ -643,6 +1049,14 @@ class CharmmContext(_ApoObject):
         return int(num_atoms.value)
 
     def getNumDegreesOfFreedom(self) -> int:
+        """
+        @brief Returns the current degree-of-freedom count.
+
+        @return Python `int` containing the dimensionless count.
+
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If the native getter fails.
+        """
         _initialize_prototypes()
 
         ndegf: ctypes.c_int = ctypes.c_int()
@@ -654,6 +1068,19 @@ class CharmmContext(_ApoObject):
         return int(ndegf.value)
 
     def getCoordinatesCharges(self) -> list[list[float]]:
+        """
+        @brief Returns a Python copy of coordinates and charges.
+
+        Native device storage is transferred to host before copying. The result
+        contains one `[x, y, z, charge]` list per atom. Coordinates use
+        angstroms and charges use elementary-charge units.
+
+        @return Newly allocated `list[list[float]]` with shape `(N, 4)`.
+
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If atom-count retrieval, output validation, or
+        the native device-to-host transfer fails.
+        """
         _initialize_prototypes()
 
         num_atoms: int = self.getNumAtoms()
@@ -680,6 +1107,19 @@ class CharmmContext(_ApoObject):
         return xyzq
 
     def getVelocityMass(self) -> list[list[float]]:
+        """
+        @brief Returns a Python copy of velocities and inverse masses.
+
+        Despite the method name, each fourth component is inverse mass, not
+        mass. Rows are `[vx, vy, vz, inverse_mass]`; velocity uses angstroms per
+        AKMA time unit and inverse mass uses reciprocal atomic mass units.
+
+        @return Newly allocated `list[list[float]]` with shape `(N, 4)`.
+
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If atom-count retrieval, output validation, or
+        the native device-to-host transfer fails.
+        """
         _initialize_prototypes()
 
         num_atoms: int = self.getNumAtoms()
@@ -704,6 +1144,16 @@ class CharmmContext(_ApoObject):
         return xyzm
 
     def getPeriodicBoundaryCondition(self) -> PeriodicBoundaryCondition:
+        """
+        @brief Returns the periodic boundary condition.
+
+        @return `PeriodicBoundaryCondition` mapped from the native value.
+
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If the C ABI getter fails.
+        @throws ValueError If a successful C ABI call returns an integer not
+        represented by `PeriodicBoundaryCondition`.
+        """
         _initialize_prototypes()
 
         c_pbc = ctypes.c_int()
@@ -715,6 +1165,14 @@ class CharmmContext(_ApoObject):
         return PeriodicBoundaryCondition(c_pbc.value)
 
     def getBoxDimensions(self) -> tuple[float, float, float]:
+        """
+        @brief Returns the three stored box dimensions.
+
+        @return New `(x, y, z)` tuple of lengths in angstroms.
+
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If native output validation fails.
+        """
         _initialize_prototypes()
 
         c_buffer_type = ctypes.c_double * 3
@@ -726,6 +1184,14 @@ class CharmmContext(_ApoObject):
         return (float(c_buffer[0]), float(c_buffer[1]), float(c_buffer[2]))
 
     def getRandomSeed(self) -> int:
+        """
+        @brief Returns the stored random seed.
+
+        @return Python `int` in the unsigned 64-bit range.
+
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If the native getter fails.
+        """
         _initialize_prototypes()
 
         c_seed: ctypes.c_uint64 = ctypes.c_uint64()
@@ -735,6 +1201,15 @@ class CharmmContext(_ApoObject):
         return int(c_seed.value)
 
     def getVolume(self) -> float:
+        """
+        @brief Returns the orthorhombic box volume.
+
+        @return Python `float` in cubic angstroms.
+
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If valid positive box dimensions have not been
+        set or the native getter otherwise fails.
+        """
         _initialize_prototypes()
 
         c_volume: ctypes.c_double = ctypes.c_double()
@@ -744,6 +1219,15 @@ class CharmmContext(_ApoObject):
         return float(c_volume.value)
 
     def getKappa(self) -> float:
+        """
+        @brief Returns the stored Ewald splitting parameter.
+
+        @return Python `float` in inverse angstroms.
+
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If no force manager is attached or the native
+        getter fails.
+        """
         _initialize_prototypes()
 
         c_kappa: ctypes.c_double = ctypes.c_double()
@@ -753,6 +1237,15 @@ class CharmmContext(_ApoObject):
         return float(c_kappa.value)
 
     def getCutoff(self) -> float:
+        """
+        @brief Returns the stored direct-space cutoff.
+
+        @return Python `float` in angstroms.
+
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If no force manager is attached or the native
+        getter fails.
+        """
         _initialize_prototypes()
 
         c_cutoff: ctypes.c_double = ctypes.c_double()
@@ -762,6 +1255,15 @@ class CharmmContext(_ApoObject):
         return float(c_cutoff.value)
 
     def getCtonnb(self) -> float:
+        """
+        @brief Returns the distance exposed as `ctonnb`.
+
+        @return Python `float` in angstroms.
+
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If no force manager is attached or the native
+        getter fails.
+        """
         _initialize_prototypes()
 
         c_ctonnb: ctypes.c_double = ctypes.c_double()
@@ -771,6 +1273,15 @@ class CharmmContext(_ApoObject):
         return float(c_ctonnb.value)
 
     def getCtofnb(self) -> float:
+        """
+        @brief Returns the distance exposed as `ctofnb`.
+
+        @return Python `float` in angstroms.
+
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If no force manager is attached or the native
+        getter fails.
+        """
         _initialize_prototypes()
 
         c_ctofnb: ctypes.c_double = ctypes.c_double()
@@ -780,6 +1291,15 @@ class CharmmContext(_ApoObject):
         return float(c_ctofnb.value)
 
     def getFFTGrid(self) -> tuple[int, int, int]:
+        """
+        @brief Returns the stored PME FFT grid.
+
+        @return New `(nfftx, nffty, nfftz)` tuple of dimensionless grid sizes.
+
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If no force manager is attached, the native grid
+        does not contain exactly three values, or output validation fails.
+        """
         _initialize_prototypes()
 
         c_buffer_type = ctypes.c_int * 3
@@ -791,6 +1311,15 @@ class CharmmContext(_ApoObject):
         return (int(c_buffer[0]), int(c_buffer[1]), int(c_buffer[2]))
 
     def getPmeSplineOrder(self) -> int:
+        """
+        @brief Returns the stored PME interpolation spline order.
+
+        @return Python `int` containing the dimensionless order.
+
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If no force manager is attached or the native
+        getter fails.
+        """
         _initialize_prototypes()
 
         c_order: ctypes.c_int = ctypes.c_int()
@@ -802,6 +1331,17 @@ class CharmmContext(_ApoObject):
         return int(c_order.value)
 
     def getVdwType(self) -> VdwType:
+        """
+        @brief Returns the stored van der Waals model identifier.
+
+        @return `VdwType` mapped from the native model code.
+
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If no force manager is attached or the native
+        getter fails.
+        @throws ValueError If a successful native call returns an integer not
+        represented by `VdwType`.
+        """
         _initialize_prototypes()
 
         c_vdw_type: ctypes.c_int = ctypes.c_int()
@@ -811,6 +1351,24 @@ class CharmmContext(_ApoObject):
         return VdwType(c_vdw_type.value)
 
     def getForceManager(self) -> ForceManager:
+        """
+        @brief Returns a Python wrapper for the associated ForceManager.
+
+        When construction or `setForceManager()` retained a wrapper, that same
+        Python object is returned. Otherwise, the C ABI creates a newly owned
+        force-manager handle sharing the native manager; the wrapper takes
+        ownership of that handle and is cached by this context.
+
+        Closing the returned `ForceManager` releases only its C handle. The
+        native context continues to retain its native manager.
+
+        @return Cached or newly created `ForceManager` wrapper.
+
+        @throws RuntimeError If the context must access its native handle after
+        closure.
+        @throws ApoCharmmError If the native context has no force manager or C
+        handle creation fails.
+        """
         _initialize_prototypes()
 
         if self._force_manager is not None:
@@ -825,6 +1383,22 @@ class CharmmContext(_ApoObject):
         return self._force_manager
 
     def assignVelocitiesAtTemperature(self, temperature: float) -> None:
+        """
+        @brief Assigns sampled velocities at a temperature.
+
+        The native context samples independent Cartesian Gaussian components
+        using its stored seed. It does not remove center-of-mass motion or
+        rescale the sampled result.
+
+        @param[in] temperature Python `int` or `float` accepted by
+        `ctypes.c_double`, in kelvin. The value must be finite and
+        non-negative.
+
+        @throws TypeError If `temperature` cannot initialize `ctypes.c_double`.
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If the atom count is unset, native temperature
+        validation fails, or the velocity transfer fails.
+        """
         _initialize_prototypes()
 
         c_temperature: ctypes.c_double = ctypes.c_double(temperature)
@@ -836,6 +1410,18 @@ class CharmmContext(_ApoObject):
         return
 
     def computeTemperature(self) -> float:
+        """
+        @brief Computes the instantaneous kinetic temperature.
+
+        The native calculation evaluates kinetic energy on the GPU and divides
+        by `0.5 * ndegf * k_B`.
+
+        @return Python `float` in kelvin.
+
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If atom, velocity, or degree-of-freedom state is
+        incomplete, or native CUDA work fails.
+        """
         _initialize_prototypes()
 
         c_temperature = ctypes.c_double()
@@ -847,6 +1433,20 @@ class CharmmContext(_ApoObject):
         return float(c_temperature.value)
 
     def calculatePotentialEnergy(self, print_energy: bool = False) -> None:
+        """
+        @brief Computes forces, potential energy, and virial.
+
+        The Python wrapper always passes `reset=False`. When `print_energy` is
+        truthy, the native context writes a CHARMM-style energy table to
+        standard output.
+
+        @param[in] print_energy Boolean selecting native energy-table output.
+
+        @throws RuntimeError If this context is closed.
+        @throws ApoCharmmError If the force manager is not initialized,
+        composite-manager printing is unsupported, or native force or CUDA work
+        fails.
+        """
         _initialize_prototypes()
 
         c_reset: ctypes.c_bool = ctypes.c_bool(False)
