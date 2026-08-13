@@ -18,7 +18,6 @@
 #include <cstddef>
 #include <fstream>
 #include <set>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -101,6 +100,9 @@ CharmmParameters::CharmmParameters(const std::string &fileName)
 
 CharmmParameters::CharmmParameters(const std::vector<std::string> &fileNames)
     : CharmmParameters() {
+  APOCHARMM_REQUIRE(!fileNames.empty(), ApoCharmmErrorCode::InvalidArgument,
+                    "At least one CHARMM parameter file is required");
+
   for (const std::string &fileName : fileNames) {
     m_PrmFileNames.push_back(fileName);
     this->readCharmmParameterFile(fileName);
@@ -148,6 +150,9 @@ const std::vector<std::string> &CharmmParameters::getPrmFileNames(void) const {
 
 BondedParamsAndLists CharmmParameters::getBondedParamsAndLists(
     const std::shared_ptr<CharmmPSF> &psf) const {
+  APOCHARMM_REQUIRE(psf != nullptr, ApoCharmmErrorCode::InvalidArgument,
+                    "CharmmPSF must not be null");
+
   std::vector<int> paramsSize;
   std::vector<std::vector<float>> paramsVal;
 
@@ -160,7 +165,7 @@ BondedParamsAndLists CharmmParameters::getBondedParamsAndLists(
   const std::vector<Angle> &angles = psf->getAngles();
   const std::vector<Dihedral> &dihedrals = psf->getDihedrals();
   const std::vector<Dihedral> &impropers = psf->getImpropers();
-  const std::vector<CrossTerm> &cmaps = psf->getCrossTerms();
+  // const std::vector<CrossTerm> &cmaps = psf->getCrossTerms();
 
   std::vector<BondKey> bondKeysPresent;
   std::vector<AngleKey> ureybKeysPresent;
@@ -189,10 +194,10 @@ BondedParamsAndLists CharmmParameters::getBondedParamsAndLists(
       int bondType = findResult - std::begin(bondKeysPresent);
       listVal.push_back({bonds[bond].iatom, bonds[bond].jatom, bondType, 13});
     } else {
-      std::stringstream tmpexc;
-      tmpexc << "bond not found " << bond << " " << key << " "
-             << bonds[bond].iatom << " " << bonds[bond].jatom << "\n";
-      throw std::invalid_argument(tmpexc.str());
+      APOCHARMM_THROW(ApoCharmmErrorCode::Runtime,
+                      "Bond parameters were not found for bond " +
+                          std::to_string(bond) + " with atom types \"" + atom1 +
+                          "\" and \"" + atom2 + "\"");
     }
   }
   paramsSize.push_back(bondKeysPresent.size());
@@ -208,28 +213,26 @@ BondedParamsAndLists CharmmParameters::getBondedParamsAndLists(
       std::swap(atom1, atom3);
     auto key = AngleKey(atom1, atom2, atom3);
 
-    if (m_UreybParams.count(key)) {
-      const BondValues &value = m_UreybParams.at(key);
-      if (std::abs(value.kb) <= 0.01)
-        continue;
+    const auto parameter = m_UreybParams.find(key);
+    if (parameter == m_UreybParams.end())
+      continue;
 
-      auto findResult =
-          std::find(ureybKeysPresent.begin(), ureybKeysPresent.end(), key);
-      if (findResult == ureybKeysPresent.end()) {
-        ureybKeysPresent.push_back(key);
-        paramsVal.push_back(
-            {static_cast<float>(value.b0), static_cast<float>(value.kb)});
-      }
-      findResult =
-          std::find(ureybKeysPresent.begin(), ureybKeysPresent.end(), key);
-      int ureybType = findResult - ureybKeysPresent.begin();
-      listVal.push_back(
-          {angles[angle].iatom, angles[angle].katom, ureybType, 13});
-    } else {
-      std::stringstream tmpexc;
-      tmpexc << "Ureyb not found " << angle << " " << key << "\n";
-      throw std::invalid_argument(tmpexc.str());
+    const BondValues &value = m_UreybParams.at(key);
+    if (std::abs(value.kb) <= 0.01)
+      continue;
+
+    auto findResult =
+        std::find(ureybKeysPresent.begin(), ureybKeysPresent.end(), key);
+    if (findResult == ureybKeysPresent.end()) {
+      ureybKeysPresent.push_back(key);
+      paramsVal.push_back(
+          {static_cast<float>(value.b0), static_cast<float>(value.kb)});
     }
+    findResult =
+        std::find(ureybKeysPresent.begin(), ureybKeysPresent.end(), key);
+    int ureybType = findResult - ureybKeysPresent.begin();
+    listVal.push_back(
+        {angles[angle].iatom, angles[angle].katom, ureybType, 13});
   }
   paramsSize.push_back(ureybKeysPresent.size());
   listsSize.push_back(listVal.size() - listsSize[0]);
@@ -258,9 +261,11 @@ BondedParamsAndLists CharmmParameters::getBondedParamsAndLists(
                          angles[angle].katom, angleType, 13, 13});
 
     } else {
-      std::stringstream tmpexc;
-      tmpexc << "Angle not found " << angle << " " << key << "\n";
-      throw std::invalid_argument(tmpexc.str());
+      APOCHARMM_THROW(ApoCharmmErrorCode::Runtime,
+                      "Angle parameters were not found for angle " +
+                          std::to_string(angle) + " with atom types \"" +
+                          atom1 + "\", \"" + atom2 + "\", and \"" + atom3 +
+                          "\"");
     }
   }
   paramsSize.push_back(angleKeysPresent.size());
@@ -346,17 +351,18 @@ BondedParamsAndLists CharmmParameters::getBondedParamsAndLists(
                            dihedrals[dihedral].katom, dihedrals[dihedral].latom,
                            dihedralType, 13, 13, 13});
       } else {
-        std::stringstream tmpexc;
-        tmpexc << "dihedral not found " << dihedral << " "
-               << atomTypes[dihedrals[dihedral].iatom] << " "
-               << atomTypes[dihedrals[dihedral].jatom] << " "
-               << atomTypes[dihedrals[dihedral].katom] << " "
-               << atomTypes[dihedrals[dihedral].latom] << "\t"
-               << atomNames[dihedrals[dihedral].iatom] << " "
-               << atomNames[dihedrals[dihedral].jatom] << " "
-               << atomNames[dihedrals[dihedral].katom] << " "
-               << atomNames[dihedrals[dihedral].latom] << "\n";
-        throw std::invalid_argument(tmpexc.str());
+        APOCHARMM_THROW(
+            ApoCharmmErrorCode::Runtime,
+            "Dihedral parameters were not found for dihedral " +
+                std::to_string(dihedral) +
+                "; atom types: " + atomTypes[dihedrals[dihedral].iatom] + " " +
+                atomTypes[dihedrals[dihedral].jatom] + " " +
+                atomTypes[dihedrals[dihedral].katom] + " " +
+                atomTypes[dihedrals[dihedral].latom] +
+                "; atom names: " + atomNames[dihedrals[dihedral].iatom] + " " +
+                atomNames[dihedrals[dihedral].jatom] + " " +
+                atomNames[dihedrals[dihedral].katom] + " " +
+                atomNames[dihedrals[dihedral].latom]);
       }
     }
   }
@@ -411,17 +417,18 @@ BondedParamsAndLists CharmmParameters::getBondedParamsAndLists(
                            impropers[improper].katom, impropers[improper].latom,
                            improperType, 13, 13, 13});
       } else {
-        std::stringstream tmpexc;
-        tmpexc << "improper not found " << improper << " "
-               << atomTypes[impropers[improper].iatom] << " "
-               << atomTypes[impropers[improper].jatom] << " "
-               << atomTypes[impropers[improper].katom] << " "
-               << atomTypes[impropers[improper].latom] << "\t"
-               << atomNames[impropers[improper].iatom] << " "
-               << atomNames[impropers[improper].jatom] << " "
-               << atomNames[impropers[improper].katom] << " "
-               << atomNames[impropers[improper].latom] << "\n";
-        throw std::invalid_argument(tmpexc.str());
+        APOCHARMM_THROW(
+            ApoCharmmErrorCode::Runtime,
+            "Improper parameters were not found for improper " +
+                std::to_string(improper) +
+                "; atom types: " + atomTypes[impropers[improper].iatom] + " " +
+                atomTypes[impropers[improper].jatom] + " " +
+                atomTypes[impropers[improper].katom] + " " +
+                atomTypes[impropers[improper].latom] +
+                "; atom names: " + atomNames[impropers[improper].iatom] + " " +
+                atomNames[impropers[improper].jatom] + " " +
+                atomNames[impropers[improper].katom] + " " +
+                atomNames[impropers[improper].latom]);
       }
     }
   }
@@ -429,56 +436,17 @@ BondedParamsAndLists CharmmParameters::getBondedParamsAndLists(
   listsSize.push_back(listVal.size() - listsSize[0] - listsSize[1] -
                       listsSize[2] - listsSize[3]);
 
+  // CMAP are currently not being used
+  /*
   for (int i = 0; i < psf->getNumCrossTerms(); ++i) {
     auto cmap = cmaps[i];
-    // std::cout << cmap.atomi1 << " " << cmap.atomj1 << " " << cmap.atomk1 <<
-    // "
-    // "
-    //           << cmap.atoml1 << " " << cmap.atomi2 << " " << cmap.atomj2 <<
-    //           "
-    //           "
-    //           << cmap.atomk2 << " " << cmap.atoml2 << "\n";
-    // std::cout << atomTypes[cmap.atomi1] << " " << atomTypes[cmap.atomj1] <<
-    // "
-    // "
-    //           << atomTypes[cmap.atomk1] << " " << atomTypes[cmap.atoml1] <<
-    //           "
-    //           "
-    //           << atomTypes[cmap.atomi2] << " " << atomTypes[cmap.atomj2] <<
-    //           "
-    //           "
-    //           << atomTypes[cmap.atomk2] << " " << atomTypes[cmap.atoml2]
-    //           << "\n";
     auto dihe1 = DihedralKey(atomTypes[cmap.iatom1], atomTypes[cmap.jatom1],
                              atomTypes[cmap.katom1], atomTypes[cmap.latom1]);
     auto dihe2 = DihedralKey(atomTypes[cmap.iatom2], atomTypes[cmap.jatom2],
                              atomTypes[cmap.katom2], atomTypes[cmap.latom2]);
-    // std::cout << dihe1 << " " << dihe2 << "\n";
     auto key = CmapKey(dihe1, dihe2);
-    // auto key = CmapKey(atomTypes[cmap.atom1], atomTypes[cmap.atom2],
-    //                    atomTypes[cmap.atom3], atomTypes[cmap.atom4],
-    //                    atomTypes[cmap.atom5]);
-    // if (cmapParams.count(key)) {
-    //   auto findResult =
-    //       std::find(cmapKeysPresent.begin(), cmapKeysPresent.end(), key);
-    //   if (findResult == cmapKeysPresent.end()) {
-    //     cmapKeysPresent.push_back(key);
-    //     auto value = cmapParams[key];
-    //     paramsVal.push_back(value);
-    //   }
-    //   findResult =
-    //       std::find(cmapKeysPresent.begin(), cmapKeysPresent.end(), key);
-    //   int cmapType = findResult - cmapKeysPresent.begin();
-    //   listVal.push_back({cmap.atom1, cmap.atom2, cmap.atom3, cmap.atom4,
-    //                      cmap.atom5, cmapType, 13, 13, 13, 13});
-    // } else {
-    //   std::stringstream tmpexc;
-    //   tmpexc << "cmap not found " << i << " " << key << "\n";
-    //   throw std::invalid_argument(tmpexc.str());
-    // }
   }
-
-  // CMAP are currently not being used
+  */
   paramsSize.push_back(0);
   listsSize.push_back(0);
   return BondedParamsAndLists(paramsSize, paramsVal, listsSize, listVal);
@@ -486,6 +454,9 @@ BondedParamsAndLists CharmmParameters::getBondedParamsAndLists(
 
 VdwParamsAndTypes
 CharmmParameters::getVdwParamsAndTypes(std::shared_ptr<CharmmPSF> &psf) const {
+  APOCHARMM_REQUIRE(psf != nullptr, ApoCharmmErrorCode::InvalidArgument,
+                    "CharmmPSF must not be null");
+
   std::vector<float> psfVdwParams, psfVdw14Params;
   std::vector<int> psfVdwTypes, psfVdw14Types;
   std::set<std::string> vdwAtomTypesMap, vdw14AtomTypesMap;
@@ -501,6 +472,13 @@ CharmmParameters::getVdwParamsAndTypes(std::shared_ptr<CharmmPSF> &psf) const {
                                         vdwAtomTypesMap.end());
   std::vector<std::string> vdw14AtomTypes(vdw14AtomTypesMap.begin(),
                                           vdw14AtomTypesMap.end());
+
+  for (const std::string &atomType : vdwAtomTypes) {
+    APOCHARMM_REQUIRE(m_VdwParams.find(atomType) != m_VdwParams.end(),
+                      ApoCharmmErrorCode::Runtime,
+                      "NONBONDED parameters were not found for atom type \"" +
+                          atomType + "\"");
+  }
 
   for (std::size_t i = 0; i < vdwAtomTypes.size(); i++) {
     for (std::size_t j = 0; j <= i; j++) {
@@ -608,6 +586,9 @@ void CharmmParameters::readCharmmParameterFile(const std::string &fileName) {
     NBFIX,
     HBOND
   };
+
+  APOCHARMM_REQUIRE(!fileName.empty(), ApoCharmmErrorCode::InvalidArgument,
+                    "CHARMM parameter file path must not be empty");
 
   std::ifstream prmFile(fileName);
   APOCHARMM_REQUIRE(prmFile.is_open(), ApoCharmmErrorCode::Runtime,
@@ -759,281 +740,6 @@ void CharmmParameters::readCharmmParameterFile(const std::string &fileName) {
 
   return;
 }
-
-/*
-void CharmmParameters::readCharmmParameterFile(const std::string &fileName) {
-  enum class State {
-    NONE,
-    ATOMS,
-    BONDS,
-    ANGLES,
-    DIHEDRALS,
-    IMPROPERS,
-    CMAP,
-    NONBONDED,
-    NBFIX,
-    HBOND
-  };
-  State state = State::NONE;
-  std::vector<std::string> tokens;
-
-  enum class FileType { NONE, PAR, TOPPAR };
-  FileType fileType = FileType::NONE;
-  std::size_t pos = fileName.find_last_of('/');
-  if (pos != std::string::npos) {
-    std::size_t topparPos = fileName.find("toppar", pos);
-    if (topparPos != std::string::npos)
-      fileType = FileType::TOPPAR;
-    else
-      fileType = FileType::PAR;
-  }
-
-  std::ifstream prmFile(fileName);
-  std::string line;
-  if (!prmFile.is_open()) {
-    // std::cerr << "ERROR: Cannot open the file " << fileName << "\nExiting\n";
-    throw std::invalid_argument("ERROR: Cannot open the file " + fileName +
-                                "\nExiting\n");
-    exit(0);
-  }
-
-  // If the file is toppar, skip the rtf portion
-  // if (fileName.find_first_of("toppar") == 0 && fileName.find_last_of(".str")
-  // != std::string::npos ) {
-
-  if (fileType == FileType::TOPPAR) {
-
-    while (!prmFile.eof()) {
-      std::getline(prmFile, line);
-      // std::cout << "toppar --" << line << "\n";
-      apo::trim_ip(line);
-      std::size_t pos = line.find_first_of('!');
-      line = line.substr(0, pos);
-      apo::trim_ip(line);
-      apo::to_upper_ip(line);
-      if (line.find_first_of('*') == 0 || line.find_first_of('!') == 0 ||
-          line.size() == 0) {
-        // Skip the line
-      } else {
-        if (line.find("READ") != std::string::npos &&
-            line.find("PARA") != std::string::npos) {
-          break;
-        }
-      }
-    }
-  }
-
-  const float pi_180 = std::acos(-1) / 180.0;
-  while (!prmFile.eof()) {
-    std::getline(prmFile, line);
-    apo::trim_ip(line);
-    std::size_t pos = line.find_first_of('!');
-    line = line.substr(0, pos);
-    apo::trim_ip(line);
-    apo::to_upper_ip(line);
-
-    // std::cout << line << "\n";
-    if (line.find_first_of('*') == 0 || line.find_first_of('!') == 0 ||
-        line.size() == 0) {
-      // Skip the line
-    } else {
-      if (line.find("ATOMS") == 0)
-        state = State::ATOMS;
-      if (line.find("BONDS") == 0)
-        state = State::BONDS;
-      if (line.find("ANGLES") == 0)
-        state = State::ANGLES;
-      if (line.find("DIHEDRALS") == 0)
-        state = State::DIHEDRALS;
-      if (line.find("IMPR") == 0)
-        state = State::IMPROPERS;
-      if (line.find("CMAP") == 0)
-        state = State::CMAP;
-      if (line.find("NONBONDED") == 0)
-        state = State::NONBONDED;
-      if (line.find("END") == 0)
-        state = State::NONE;
-      if (line.find("HBOND") == 0)
-        state = State::HBOND;
-      if (line.find("NBFIX") == 0)
-        state = State::NBFIX;
-
-      if (state == State::BONDS) {
-        tokens = apo::split(line);
-        if (tokens.size() >= 4) {
-          if (tokens[0] > tokens[1])
-            std::swap(tokens[0], tokens[1]);
-          bondParams.insert(
-              {BondKey(tokens[0], tokens[1]),
-               BondValues(std::stof(tokens[2]), std::stof(tokens[3]))});
-        }
-      }
-      if (state == State::ANGLES) {
-        tokens = apo::split(line);
-        // std::cout << "Tokens size : " << tokens.size() << "\n";
-        if (tokens.size() >= 5) {
-          if (tokens[0] > tokens[2])
-            std::swap(tokens[0], tokens[2]);
-          angleParams.insert({AngleKey(tokens[0], tokens[1], tokens[2]),
-                              AngleValues(std::stof(tokens[3]),
-                                          pi_180 * std::stof(tokens[4]))});
-          // try {
-          //   // std::cout << tokens[5] << "\n";
-          //   float kub = std::stof(tokens[5]);
-          //   float s0 = std::stof(tokens[6]);
-          //   ureybParams.insert({AngleKey(tokens[0], tokens[1], tokens[2]),
-          //                       BondValues(kub, s0)});
-          //   // if (tokens[0] == "CT1" && tokens[2]=="CT2") std::cout << line
-<<
-          //   // "\n";
-          // } catch (const std::exception &e) {
-          //   ureybParams.insert({AngleKey(tokens[0], tokens[1], tokens[2]),
-          //                       BondValues(0.0, 0.0)});
-          //   // std::cout << line << " "  << e.what() << "\n";
-          // }
-          //
-          if (tokens.size() > 5) {
-            // std::cout << tokens[5] << "\n";
-            float kub = std::stof(tokens[5]);
-            float s0 = std::stof(tokens[6]);
-            ureybParams.insert({AngleKey(tokens[0], tokens[1], tokens[2]),
-                                BondValues(kub, s0)});
-          } else {
-            ureybParams.insert({AngleKey(tokens[0], tokens[1], tokens[2]),
-                                BondValues(0.0, 0.0)});
-          }
-
-          //
-        }
-      }
-
-      if (state == State::DIHEDRALS) {
-        tokens = apo::split(line);
-        if (tokens.size() >= 7) {
-          if (tokens[0] > tokens[3]) {
-            std::swap(tokens[0], tokens[3]);
-            std::swap(tokens[2], tokens[1]);
-          } else if ((tokens[0] == tokens[3]) && (tokens[1] > tokens[2]))
-            std::swap(tokens[2], tokens[1]);
-
-          auto key = DihedralKey(tokens[0], tokens[1], tokens[2], tokens[3]);
-          auto elem = DihedralValues(std::stof(tokens[4]), std::stoi(tokens[5]),
-                                     std::stof(tokens[6]));
-          dihedralParams[key].push_back(elem);
-          // std::cout << "new size " << dihedralParams[key].size() << "\n";
-        }
-      }
-
-      if (state == State::IMPROPERS) {
-        tokens = apo::split(line);
-        if (tokens.size() >= 7) {
-          if (tokens[0] > tokens[3]) {
-            std::swap(tokens[0], tokens[3]);
-            std::swap(tokens[2], tokens[1]);
-          } else if ((tokens[0] == tokens[3]) && (tokens[1] > tokens[2]))
-            std::swap(tokens[2], tokens[1]);
-          improperParams.insert(
-              {DihedralKey(tokens[0], tokens[1], tokens[2], tokens[3]),
-               ImDihedralValues(std::stof(tokens[4]), std::stof(tokens[6]))});
-        }
-      }
-
-      if (state == State::NONBONDED) {
-        tokens = apo::split(line);
-        if (tokens[0] == "NONBONDED") {
-          while (*(tokens.end() - 1) == "-") {
-            std::getline(prmFile, line);
-            apo::ltrim_ip(line);
-            std::vector<std::string> tokens1 = apo::split(line);
-            tokens.insert(tokens.end(), tokens1.begin(), tokens1.end());
-          }
-        } else {
-          apo::trim_ip(line);
-          std::size_t pos = line.find_first_of('!');
-          line = line.substr(0, pos);
-          apo::trim_ip(line);
-          tokens = apo::split(line);
-          // if (tokens[0] == "HGA2")
-          //   std::cout << line << " " << tokens.size() << "\n";
-          //  std::cout << line << " " << tokens.size() << "\n";
-          if (tokens.size() == 4) {
-            if (vdwParams.find(tokens[0]) == vdwParams.end()) {
-              vdwParams.insert(
-                  {tokens[0],
-                   VdwParameters(std::stod(tokens[2]), std::stod(tokens[3]))});
-            } else {
-              std::cerr << "Duplicate entry for " << tokens[0] << "\n";
-              vdwParams[tokens[0]] =
-                  VdwParameters(std::stod(tokens[2]), std::stod(tokens[3]));
-              // throw std::invalid_argument("Duplicate entry for " + tokens[0]
-              // +
-              //                             "\n");
-              // exit(0);
-            }
-            // vdwParams.insert({tokens[0], VdwParameters(std::stod(tokens[2]),
-            // std::stod(tokens[3]))}); } else if (tokens.size() == 7) { if
-(vdwParams.find(tokens[0]) == vdwParams.end()) { vdwParams.insert( {tokens[0],
-                   VdwParameters(std::stod(tokens[2]), std::stod(tokens[3]))});
-              vdw14Params.insert(
-                  {tokens[0],
-                   VdwParameters(std::stod(tokens[5]), std::stod(tokens[6]))});
-            } else {
-              std::cerr << "Duplicate entry for " << tokens[0] << "\n";
-              vdwParams[tokens[0]] =
-                  VdwParameters(std::stod(tokens[2]), std::stod(tokens[3]));
-              vdw14Params[tokens[0]] =
-                  VdwParameters(std::stod(tokens[5]), std::stod(tokens[6]));
-              // throw std::invalid_argument("Duplicate entry for " + tokens[0]
-              // +
-              //                             "\n");
-              // exit(0);
-            }
-            // vdwParams.insert({tokens[0], VdwParameters(std::stod(tokens[2]),
-            // std::stod(tokens[3]))});
-            // vdw14Params.insert(
-            //     {tokens[0],
-            //      VdwParameters(std::stod(tokens[5]), std::stod(tokens[6]))});
-          } else {
-            // std::cerr << "Extra tokens in line " << line << "\n";
-            throw std::invalid_argument("Extra tokens in line " + line + "\n");
-            exit(0);
-          }
-        }
-
-      } // state : NONBONDED
-
-      if (state == State::CMAP) {
-        // std::cout << line << std::endl;
-      }
-
-      if (state == State::NBFIX) {
-        // std::cout << "NBFIX : " << line << "\t";
-        tokens = apo::split(line);
-        if (tokens.size() >= 4) {
-          if (tokens[0] > tokens[1])
-            std::swap(tokens[0], tokens[1]);
-          double emin = std::abs(std::stod(tokens[2]));
-          double rmin = std::stod(tokens[3]);
-          double emin14 = emin;
-          double rmin14 = rmin;
-          if (tokens.size() >= 5) {
-            emin14 = std::stod(tokens[4]);
-            rmin14 = std::stod(tokens[5]);
-          }
-
-          // std::cout << emin << " " << rmin << " " << emin14 << " " << rmin14
-          //           << std::endl;
-          NBFixParameters nbf{tokens[0], tokens[1], emin, rmin, emin14, rmin14};
-          std::tuple<std::string, std::string> key{tokens[0], tokens[1]};
-          // BondKey key{tokens[0], tokens[1]};
-          //  nbfixParams[key] = nbf;
-          nbfixParams.insert({key, nbf});
-        }
-      }
-    }
-  }
-}
-*/
 
 void CharmmParameters::parseBondRecord(const std::vector<std::string> &tokens,
                                        const std::string &line,

@@ -19,6 +19,7 @@ from python_api_test_helpers import (
     require_file,
     remove_if_exists,
     expect_exception,
+    expect_apo_error,
 )
 
 PARAMETER_TEXT: str = """* generated CharmmParameters Python API test file
@@ -42,12 +43,8 @@ BONDS
 END
 """
 
-MALFORMED_PARAMETER_TEXT: str = """* generated malformed CharmmParameters Python API test file
-*
-
-NONBONDED
-SOD      0.0      -0.0469      1.41075      99.0
-
+MALFORMED_PARAMETER_TEXT: str = """NONBONDED
+SOD 0.0 -0.0469 1.41075 99.0
 END
 """
 
@@ -115,23 +112,44 @@ def check_validation(
     print("Checking CharmmParameters validation...")
 
     remove_if_exists(missing_parameter_path)
-    expect_exception(
+    expect_apo_error(
         "CharmmParameters rejects a missing parameter file",
-        apo.ApoCharmmError,
         lambda: apo.CharmmParameters(str(missing_parameter_path)),
+        apo.APO_STATUS_RUNTIME_ERROR,
+        f'Failed to open CHARMM parameter file "{missing_parameter_path}"',
+        "CharmmParameters construction",
     )
 
     write_text_file(malformed_parameter_path, MALFORMED_PARAMETER_TEXT)
-    expect_exception(
+    expect_apo_error(
         "CharmmParameters rejects a malformed parameter file",
-        apo.ApoCharmmError,
         lambda: apo.CharmmParameters(str(malformed_parameter_path)),
+        apo.APO_STATUS_RUNTIME_ERROR,
+        (
+            "Invalid NONBONDED parameter record in file "
+            f'"{malformed_parameter_path}" at line 2: '
+            "SOD 0.0 -0.0469 1.41075 99.0"
+        ),
+        "CharmmParameters construction",
     )
 
-    expect_exception(
+    expect_apo_error(
         "CharmmParameters rejects an empty parameter-file list",
-        apo.ApoCharmmError,
         lambda: apo.CharmmParameters([]),
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        (
+            "apo_charmm_parameters_create_from_files: paths must contain at "
+            "least one parameter file"
+        ),
+        "CharmmParameters construction",
+    )
+
+    expect_apo_error(
+        "CharmmParameters rejects an empty parameter-file path",
+        lambda: apo.CharmmParameters(""),
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        "apo_charmm_parameters_create: path is NULL or empty",
+        "CharmmParameters construction",
     )
 
     expect_exception(

@@ -42,6 +42,7 @@ set(SOURCES_CAPI_TESTS
   unittest-capiForceManager.cpp
 
   # Object tests
+  unittest-capiCharmmParameters.cpp
   unittest-capiAtomSelection.cpp
 
   # Subscriber tests

@@ -14,6 +14,10 @@
 #include "apo_test_helpers.h"
 #include "catch.hpp"
 
+#include <type_traits>
+
+static_assert(std::is_nothrow_destructible_v<CharmmParameters>);
+
 namespace {
 
 constexpr double DOUBLE_TOLERANCE = 1.0e-12;
@@ -80,15 +84,56 @@ B      C      200.0     1.2
 END
 )PRM";
 
-const std::string MALFORMED_PARAMETER_TEXT =
-    R"PRM(* generated malformed CharmmParameters unit test file
-*
-
-NONBONDED
-A      0.0    -0.1     1.0      2.0
+const std::string MISSING_ANGLE_PARAMETER_TEXT =
+    R"PRM(BONDS
+A B 100.0 1.1
+B C 200.0 1.2
+C D 300.0 1.3
 
 END
 )PRM";
+
+const std::string MISSING_DIHEDRAL_PARAMETER_TEXT =
+    R"PRM(BONDS
+A B 100.0 1.1
+B C 200.0 1.2
+C D 300.0 1.3
+
+ANGLES
+A B C 50.0 120.0
+B C D 60.0 110.0
+
+END
+)PRM";
+
+const std::string MISSING_IMPROPER_PARAMETER_TEXT =
+    R"PRM(BONDS
+A B 100.0 1.1
+B C 200.0 1.2
+C D 300.0 1.3
+
+ANGLES
+A B C 50.0 120.0
+B C D 60.0 110.0
+
+DIHEDRALS
+A B C D 0.5 3 180.0
+
+END
+)PRM";
+
+const std::string MISSING_VDW_PARAMETER_TEXT =
+    R"PRM(NONBONDED
+A 0.0 -0.1 1.0
+B 0.0 -0.2 1.1
+C 0.0 -0.3 1.2
+
+END
+)PRM";
+
+const std::string MALFORMED_PARAMETER_TEXT = "NONBONDED\n"
+                                             "A 0.0 -0.1 1.0 2.0\n"
+                                             "END\n";
 
 const std::string TEST_PSF_TEXT = R"PSF(PSF
 
@@ -111,6 +156,50 @@ const std::string TEST_PSF_TEXT = R"PSF(PSF
        0 !NACC: acceptors
        0 !NCRTERM: cross-terms
 )PSF";
+
+void CheckParameterFileError(const std::string &fileName,
+                             const std::string &contents,
+                             const ApoCharmmErrorCode expectedCode,
+                             const std::string &expectedMessage) {
+  apo_test::RemoveIfExists(fileName);
+  apo_test::WriteTextFile(fileName, contents);
+
+  apo_test::CheckApoCharmmError(
+      [&fileName](void) {
+        CharmmParameters parameters(fileName);
+        static_cast<void>(parameters);
+      },
+      expectedCode, expectedMessage);
+
+  apo_test::RemoveIfExists(fileName);
+  return;
+}
+
+void CheckBondedParameterError(const std::string &parameterContents,
+                               const std::string &psfContents,
+                               const ApoCharmmErrorCode expectedCode,
+                               const std::string &expectedMessage) {
+  const std::string parameterFile = "tmp_charmm_parameters_bonded_error.prm";
+  const std::string psfFile = "tmp_charmm_parameters_bonded_error.psf";
+
+  apo_test::RemoveIfExists(parameterFile);
+  apo_test::RemoveIfExists(psfFile);
+  apo_test::WriteTextFile(parameterFile, parameterContents);
+  apo_test::WriteTextFile(psfFile, psfContents);
+
+  CharmmParameters parameters(parameterFile);
+  const std::shared_ptr<CharmmPSF> psf = std::make_shared<CharmmPSF>(psfFile);
+
+  apo_test::CheckApoCharmmError(
+      [&parameters, &psf](void) {
+        static_cast<void>(parameters.getBondedParamsAndLists(psf));
+      },
+      expectedCode, expectedMessage);
+
+  apo_test::RemoveIfExists(parameterFile);
+  apo_test::RemoveIfExists(psfFile);
+  return;
+}
 
 } // namespace
 
@@ -349,34 +438,261 @@ TEST_CASE("CharmmParametersBuildsVdwParamsAndTypes") {
   apo_test::RemoveIfExists(psfFile);
 }
 
-TEST_CASE("CharmmParametersRejectsBadInputs") {
+TEST_CASE("CharmmParametersInputValidationUsesApoCharmmError") {
+  SECTION("EmptyPath") {
+    apo_test::CheckApoCharmmError(
+        [](void) {
+          CharmmParameters parameters("");
+          static_cast<void>(parameters);
+        },
+        ApoCharmmErrorCode::InvalidArgument,
+        "CHARMM parameter file path must not be empty");
+  }
+
+  SECTION("EmptyFileList") {
+    apo_test::CheckApoCharmmError(
+        [](void) {
+          CharmmParameters parameters{std::vector<std::string>{}};
+          static_cast<void>(parameters);
+        },
+        ApoCharmmErrorCode::InvalidArgument,
+        "At least one CHARMM parameter file is required");
+  }
+
   SECTION("MissingFile") {
     const std::string parameterFile = "tmp_charmm_parameters_missing.prm";
     apo_test::RemoveIfExists(parameterFile);
 
-    CHECK_THROWS_AS(CharmmParameters(parameterFile), ApoCharmmError);
+    apo_test::CheckApoCharmmError(
+        [&parameterFile](void) {
+          CharmmParameters parameters(parameterFile);
+          static_cast<void>(parameters);
+        },
+        ApoCharmmErrorCode::Runtime,
+        "Failed to open CHARMM parameter file \"" + parameterFile + "\"");
+  }
+}
+
+TEST_CASE("CharmmParametersPsfValidationUsesApoCharmmError") {
+  const std::string parameterFile = "tmp_charmm_parameters_full.prm";
+  apo_test::WriteTextFile(parameterFile, TEST_PARAMETER_TEXT);
+
+  CharmmParameters parameters(parameterFile);
+  std::shared_ptr<CharmmPSF> psf;
+
+  SECTION("NullBondedPsf") {
+    apo_test::CheckApoCharmmError(
+        [&parameters, &psf](void) {
+          static_cast<void>(parameters.getBondedParamsAndLists(psf));
+        },
+        ApoCharmmErrorCode::InvalidArgument, "CharmmPSF must not be null");
   }
 
-  SECTION("MalformedNonbondedLine") {
-    const std::string parameterFile = "tmp_charmm_parameters_malformed.prm";
-    apo_test::WriteTextFile(parameterFile, MALFORMED_PARAMETER_TEXT);
-
-    CHECK_THROWS_AS(CharmmParameters(parameterFile), ApoCharmmError);
-
-    apo_test::RemoveIfExists(parameterFile);
+  SECTION("NullVdwPsf") {
+    apo_test::CheckApoCharmmError(
+        [&parameters, &psf](void) {
+          static_cast<void>(parameters.getVdwParamsAndTypes(psf));
+        },
+        ApoCharmmErrorCode::InvalidArgument, "CharmmPSF must not be null");
   }
 
+  apo_test::RemoveIfExists(parameterFile);
+}
+
+TEST_CASE("CharmmParametersParserValidationUsesApoCharmmError") {
+  SECTION("MissingTopparParameterBlock") {
+    const std::string parameterFile =
+        "tmp_charmm_parameters_toppar_missing_block.str";
+
+    CheckParameterFileError(parameterFile, "BONDS\nA B 100.0 1.0\nEND\n",
+                            ApoCharmmErrorCode::Runtime,
+                            "CHARMM parameter block was not found in file \"" +
+                                parameterFile + "\"");
+  }
+
+  SECTION("TruncatedNonbondedHeader") {
+    const std::string parameterFile =
+        "tmp_charmm_parameters_nonbonded_header.prm";
+
+    CheckParameterFileError(
+        parameterFile, "NONBONDED -\n", ApoCharmmErrorCode::Runtime,
+        "Unexpected end of file while reading the NONBONDED header in file \"" +
+            parameterFile + "\" beginning at line 1");
+  }
+
+#if defined(__linux__)
+  SECTION("ReadFailure") {
+    apo_test::CheckApoCharmmError(
+        [](void) {
+          CharmmParameters parameters(".");
+          static_cast<void>(parameters);
+        },
+        ApoCharmmErrorCode::Runtime,
+        "Failed while reading CHARMM parameter file \".\"");
+  }
+#endif
+
+  SECTION("InvalidBondRecord") {
+    const std::string parameterFile = "tmp_charmm_parameters_invalid_bond.prm";
+
+    CheckParameterFileError(parameterFile, "BONDS\nA B 100.0\nEND\n",
+                            ApoCharmmErrorCode::Runtime,
+                            "Invalid BONDS parameter record in file \"" +
+                                parameterFile + "\" at line 2: A B 100.0");
+  }
+
+  SECTION("InvalidAngleRecord") {
+    const std::string parameterFile = "tmp_charmm_parameters_invalid_angle.prm";
+
+    CheckParameterFileError(parameterFile, "ANGLES\nA B C 50.0\nEND\n",
+                            ApoCharmmErrorCode::Runtime,
+                            "Invalid ANGLES parameter record in file \"" +
+                                parameterFile + "\" at line 2: A B C 50.0");
+  }
+
+  SECTION("InvalidDihedralRecord") {
+    const std::string parameterFile =
+        "tmp_charmm_parameters_invalid_dihedral.prm";
+
+    CheckParameterFileError(parameterFile, "DIHEDRALS\nA B C D 0.5 3\nEND\n",
+                            ApoCharmmErrorCode::Runtime,
+                            "Invalid DIHEDRALS parameter record in file \"" +
+                                parameterFile + "\" at line 2: A B C D 0.5 3");
+  }
+
+  SECTION("InvalidImproperRecord") {
+    const std::string parameterFile =
+        "tmp_charmm_parameters_invalid_improper.prm";
+
+    CheckParameterFileError(parameterFile, "IMPROPER\nA B C D 1.5 0\nEND\n",
+                            ApoCharmmErrorCode::Runtime,
+                            "Invalid IMPROPER parameter record in file \"" +
+                                parameterFile + "\" at line 2: A B C D 1.5 0");
+  }
+
+  SECTION("InvalidNonbondedRecord") {
+    const std::string parameterFile =
+        "tmp_charmm_parameters_invalid_nonbonded.prm";
+
+    CheckParameterFileError(
+        parameterFile, MALFORMED_PARAMETER_TEXT, ApoCharmmErrorCode::Runtime,
+        "Invalid NONBONDED parameter record in file \"" + parameterFile +
+            "\" at line 2: A 0.0 -0.1 1.0 2.0");
+  }
+
+  SECTION("InvalidNbfixRecord") {
+    const std::string parameterFile = "tmp_charmm_parameters_invalid_nbfix.prm";
+
+    CheckParameterFileError(parameterFile, "NBFIX\nA B -0.05 2.5 0.0\nEND\n",
+                            ApoCharmmErrorCode::Runtime,
+                            "Invalid NBFIX parameter record in file \"" +
+                                parameterFile +
+                                "\" at line 2: A B -0.05 2.5 0.0");
+  }
+
+  SECTION("InvalidFloatingPointValue") {
+    const std::string parameterFile = "tmp_charmm_parameters_invalid_float.prm";
+
+    CheckParameterFileError(
+        parameterFile, "BONDS\nA B BAD 1.0\nEND\n", ApoCharmmErrorCode::Runtime,
+        "Invalid kb value \"BAD\" in BONDS parameter record in file \"" +
+            parameterFile + "\" at line 2: A B BAD 1.0");
+  }
+
+  SECTION("FloatingPointValueWithTrailingCharacters") {
+    const std::string parameterFile =
+        "tmp_charmm_parameters_trailing_float.prm";
+
+    CheckParameterFileError(
+        parameterFile, "BONDS\nA B 100.0BAD 1.0\nEND\n",
+        ApoCharmmErrorCode::Runtime,
+        "Invalid kb value \"100.0BAD\" in BONDS parameter record in file \"" +
+            parameterFile + "\" at line 2: A B 100.0BAD 1.0");
+  }
+
+  SECTION("OutOfRangeFloatingPointValue") {
+    const std::string parameterFile =
+        "tmp_charmm_parameters_out_of_range_float.prm";
+
+    CheckParameterFileError(
+        parameterFile, "BONDS\nA B 1E9999 1.0\nEND\n",
+        ApoCharmmErrorCode::Runtime,
+        "Invalid kb value \"1E9999\" in BONDS parameter record in file \"" +
+            parameterFile + "\" at line 2: A B 1E9999 1.0");
+  }
+
+  SECTION("NonfiniteFloatingPointValue") {
+    const std::string parameterFile =
+        "tmp_charmm_parameters_nonfinite_float.prm";
+
+    CheckParameterFileError(
+        parameterFile, "BONDS\nA B NAN 1.0\nEND\n", ApoCharmmErrorCode::Runtime,
+        "Invalid kb value \"NAN\" in BONDS parameter record in file \"" +
+            parameterFile + "\" at line 2: A B NAN 1.0");
+  }
+
+  SECTION("InvalidIntegerValue") {
+    const std::string parameterFile =
+        "tmp_charmm_parameters_invalid_integer.prm";
+
+    CheckParameterFileError(
+        parameterFile, "DIHEDRALS\nA B C D 0.5 BAD 180.0\nEND\n",
+        ApoCharmmErrorCode::Runtime,
+        "Invalid multiplicity value \"BAD\" in DIHEDRALS parameter record in "
+        "file \"" +
+            parameterFile + "\" at line 2: A B C D 0.5 BAD 180.0");
+  }
+}
+
+TEST_CASE("CharmmParametersAssemblyValidationUsesApoCharmmError") {
   SECTION("MissingBondParameter") {
-    const std::string parameterFile = "tmp_charmm_parameters_missing_bond.prm";
-    const std::string psfFile = "tmp_charmm_parameters_test.psf";
-    apo_test::WriteTextFile(parameterFile, MISSING_BOND_PARAMETER_TEXT);
+    CheckBondedParameterError(
+        MISSING_BOND_PARAMETER_TEXT, TEST_PSF_TEXT, ApoCharmmErrorCode::Runtime,
+        "Bond parameters were not found for bond 2 with atom types \"C\" and "
+        "\"D\"");
+  }
+
+  SECTION("MissingAngleParameter") {
+    CheckBondedParameterError(
+        MISSING_ANGLE_PARAMETER_TEXT, TEST_PSF_TEXT,
+        ApoCharmmErrorCode::Runtime,
+        "Angle parameters were not found for angle 0 with atom types \"A\", "
+        "\"B\", and \"C\"");
+  }
+
+  SECTION("MissingDihedralParameter") {
+    CheckBondedParameterError(
+        MISSING_DIHEDRAL_PARAMETER_TEXT, TEST_PSF_TEXT,
+        ApoCharmmErrorCode::Runtime,
+        "Dihedral parameters were not found for dihedral 0; atom types: A B C "
+        "D; atom names: A1 B1 C1 D1");
+  }
+
+  SECTION("MissingImproperParameter") {
+    CheckBondedParameterError(
+        MISSING_IMPROPER_PARAMETER_TEXT, TEST_PSF_TEXT,
+        ApoCharmmErrorCode::Runtime,
+        "Improper parameters were not found for improper 0; atom types: A B C "
+        "D; atom names: A1 B1 C1 D1");
+  }
+
+  SECTION("MissingNonbondedParameter") {
+    const std::string parameterFile =
+        "tmp_charmm_parameters_missing_nonbonded.prm";
+    const std::string psfFile = "tmp_charmm_parameters_missing_nonbonded.psf";
+
+    apo_test::WriteTextFile(parameterFile, MISSING_VDW_PARAMETER_TEXT);
     apo_test::WriteTextFile(psfFile, TEST_PSF_TEXT);
 
     CharmmParameters parameters(parameterFile);
     std::shared_ptr<CharmmPSF> psf = std::make_shared<CharmmPSF>(psfFile);
 
-    CHECK_THROWS_AS(parameters.getBondedParamsAndLists(psf),
-                    std::invalid_argument);
+    apo_test::CheckApoCharmmError(
+        [&parameters, &psf](void) {
+          static_cast<void>(parameters.getVdwParamsAndTypes(psf));
+        },
+        ApoCharmmErrorCode::Runtime,
+        "NONBONDED parameters were not found for atom type \"D\"");
 
     apo_test::RemoveIfExists(parameterFile);
     apo_test::RemoveIfExists(psfFile);
