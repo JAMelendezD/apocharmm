@@ -15,6 +15,11 @@
 
 #include <fstream>
 #include <iomanip>
+#include <limits>
+#include <sstream>
+#include <string>
+#include <string_view>
+#include <vector>
 
 namespace {
 
@@ -80,18 +85,47 @@ void WriteExtendedCharmmCrd(const std::string &fileName,
   return;
 }
 
-void WriteMalformedCharmmCrd(const std::string &fileName) {
-  std::ofstream file(fileName);
-  REQUIRE(file.good());
+std::string MakeStandardCharmmCrdRecord(const std::string &x,
+                                        const std::string &y,
+                                        const std::string &z) {
+  std::ostringstream record;
+  record << std::setw(5) << 1 << std::setw(5) << 1 << " " << std::left
+         << std::setw(4) << "RS1" << " " << std::setw(4) << "A1" << std::right
+         << std::setw(10) << x << std::setw(10) << y << std::setw(10) << z
+         << "\n";
+  return record.str();
+}
 
-  file << "* generated malformed CharmmCrd unit test\n";
-  file << "*\n";
-  file << std::setw(10) << 1 << "\n";
-  file << "short\n";
+std::string MakeExtendedCharmmCrdRecord(const std::string &x,
+                                        const std::string &y,
+                                        const std::string &z) {
+  std::ostringstream record;
+  record << std::setw(10) << 1 << std::setw(10) << 1 << " " << std::left
+         << std::setw(8) << "RES1" << " " << std::setw(8) << "ATOM1" << "  "
+         << std::right << std::setw(20) << x << std::setw(20) << y
+         << std::setw(20) << z << "\n";
+  return record.str();
+}
 
-  file.close();
-  REQUIRE(file.good());
+std::string MakeCharmmCrdText(const std::string &atomCountLine,
+                              const std::string &coordinateRecords) {
+  return "* generated invalid CharmmCrd unit test\n*\n" + atomCountLine + "\n" +
+         coordinateRecords;
+}
 
+void CheckCharmmCrdFileError(const std::string &fileName,
+                             const std::string &contents,
+                             const std::string_view expectedMessage) {
+  apo_test::WriteTextFile(fileName, contents);
+
+  apo_test::CheckApoCharmmError(
+      [&fileName](void) {
+        CharmmCrd crd(fileName);
+        static_cast<void>(crd);
+      },
+      ApoCharmmErrorCode::Runtime, expectedMessage);
+
+  apo_test::RemoveIfExists(fileName);
   return;
 }
 
@@ -151,20 +185,232 @@ TEST_CASE("CharmmCrdParsesRepositoryNaclPair") {
                                       FLOAT_TOLERANCE);
 }
 
-TEST_CASE("CharmmCrdRejectsMissingFile") {
-  const std::string fileName = "tmp_charmm_crd_missing.cor";
+TEST_CASE("CharmmCrdValidationUsesApoCharmmError") {
+  SECTION("EmptyPath") {
+    apo_test::CheckApoCharmmError(
+        [](void) {
+          CharmmCrd crd("");
+          static_cast<void>(crd);
+        },
+        ApoCharmmErrorCode::InvalidArgument,
+        "CHARMM coordinate file path must not be empty");
+  }
 
-  apo_test::RemoveIfExists(fileName);
+  SECTION("MissingFile") {
+    const std::string fileName = "tmp_charmm_crd_missing.cor";
+    apo_test::RemoveIfExists(fileName);
 
-  CHECK_THROWS_AS(CharmmCrd(fileName), std::runtime_error);
-}
+    apo_test::CheckApoCharmmError(
+        [&fileName](void) {
+          CharmmCrd crd(fileName);
+          static_cast<void>(crd);
+        },
+        ApoCharmmErrorCode::Runtime,
+        "Failed to open file \"" + fileName + "\"");
+  }
 
-TEST_CASE("CharmmCrdRejectsMalformedFile") {
-  const std::string fileName = "tmp_charmm_crd_malformed.cor";
+  SECTION("MissingAtomCountAtEndOfFile") {
+    const std::string fileName = "tmp_charmm_crd_missing_atom_count.cor";
 
-  WriteMalformedCharmmCrd(fileName);
+    CheckCharmmCrdFileError(
+        fileName, "* generated title-only CharmmCrd unit test\n",
+        "Unexpected end of file while reading atom count in CHARMM coordinate "
+        "file \"" +
+            fileName + "\"");
+  }
 
-  CHECK_THROWS(CharmmCrd(fileName));
+  SECTION("BlankAtomCount") {
+    const std::string fileName = "tmp_charmm_crd_blank_atom_count.cor";
 
-  apo_test::RemoveIfExists(fileName);
+    CheckCharmmCrdFileError(fileName, MakeCharmmCrdText("", ""),
+                            "Missing atom count in CHARMM coordinate file \"" +
+                                fileName + "\" at line 3");
+  }
+
+  SECTION("InvalidAtomCount") {
+    const std::string fileName = "tmp_charmm_crd_invalid_atom_count.cor";
+
+    CheckCharmmCrdFileError(
+        fileName, MakeCharmmCrdText("BAD", ""),
+        "Invalid atom count value \"BAD\" in CHARMM coordinate file \"" +
+            fileName + "\" at line 3");
+  }
+
+  SECTION("AtomCountWithTrailingCharacters") {
+    const std::string fileName = "tmp_charmm_crd_trailing_atom_count.cor";
+
+    CheckCharmmCrdFileError(
+        fileName, MakeCharmmCrdText("1BAD", ""),
+        "Invalid atom count value \"1BAD\" in CHARMM coordinate file \"" +
+            fileName + "\" at line 3");
+  }
+
+  SECTION("NegativeAtomCount") {
+    const std::string fileName = "tmp_charmm_crd_negative_atom_count.cor";
+
+    CheckCharmmCrdFileError(
+        fileName, MakeCharmmCrdText("-1", ""),
+        "Invalid atom count value \"-1\" in CHARMM coordinate file \"" +
+            fileName + "\" at line 3");
+  }
+
+  SECTION("OutOfRangeAtomCount") {
+    const std::string fileName = "tmp_charmm_crd_out_of_range_atom_count.cor";
+    const std::string atomCount =
+        std::to_string(std::numeric_limits<unsigned long long int>::max()) +
+        "0";
+
+    CheckCharmmCrdFileError(fileName, MakeCharmmCrdText(atomCount, ""),
+                            "Invalid atom count value \"" + atomCount +
+                                "\" in CHARMM coordinate file \"" + fileName +
+                                "\" at line 3");
+  }
+
+  SECTION("AtomCountExceedsSupportedRange") {
+    const std::string fileName = "tmp_charmm_crd_large_atom_count.cor";
+    const unsigned long long int unsupportedCount =
+        static_cast<unsigned long long int>(std::numeric_limits<int>::max()) +
+        1ULL;
+
+    CheckCharmmCrdFileError(
+        fileName, MakeCharmmCrdText(std::to_string(unsupportedCount), ""),
+        "Atom count exceeds supported range in CHARMM coordinate file \"" +
+            fileName + "\" at line 3");
+  }
+
+  SECTION("MissingCoordinateRecord") {
+    const std::string fileName = "tmp_charmm_crd_missing_record.cor";
+
+    CheckCharmmCrdFileError(
+        fileName, MakeCharmmCrdText("1", ""),
+        "Unexpected end of file while reading coordinate record 1 in CHARMM "
+        "coordinate file \"" +
+            fileName + "\"");
+  }
+
+  SECTION("TruncatedCoordinateRecord") {
+    const std::string fileName = "tmp_charmm_crd_truncated_record.cor";
+
+    CheckCharmmCrdFileError(
+        fileName, MakeCharmmCrdText("1", "short\n"),
+        "Coordinate record 1 is truncated in CHARMM coordinate file \"" +
+            fileName + "\" at line 4");
+  }
+
+  SECTION("TruncatedExtendedCoordinateRecord") {
+    const std::string fileName = "tmp_charmm_crd_truncated_extended_record.cor";
+
+    CheckCharmmCrdFileError(
+        fileName, MakeCharmmCrdText("1 EXT", "short\n"),
+        "Coordinate record 1 is truncated in CHARMM coordinate file \"" +
+            fileName + "\" at line 4");
+  }
+
+  SECTION("InvalidXCoordinate") {
+    const std::string fileName = "tmp_charmm_crd_invalid_x.cor";
+
+    CheckCharmmCrdFileError(
+        fileName,
+        MakeCharmmCrdText("1",
+                          MakeStandardCharmmCrdRecord("BAD", "2.0", "3.0")),
+        "Invalid X coordinate value \"BAD\" in coordinate record 1 of CHARMM "
+        "coordinate file \"" +
+            fileName + "\" at line 4");
+  }
+
+  SECTION("InvalidYCoordinate") {
+    const std::string fileName = "tmp_charmm_crd_invalid_y.cor";
+
+    CheckCharmmCrdFileError(
+        fileName,
+        MakeCharmmCrdText("1",
+                          MakeStandardCharmmCrdRecord("1.0", "BAD", "3.0")),
+        "Invalid Y coordinate value \"BAD\" in coordinate record 1 of CHARMM "
+        "coordinate file \"" +
+            fileName + "\" at line 4");
+  }
+
+  SECTION("InvalidZCoordinate") {
+    const std::string fileName = "tmp_charmm_crd_invalid_z.cor";
+
+    CheckCharmmCrdFileError(
+        fileName,
+        MakeCharmmCrdText("1",
+                          MakeStandardCharmmCrdRecord("1.0", "2.0", "BAD")),
+        "Invalid Z coordinate value \"BAD\" in coordinate record 1 of CHARMM "
+        "coordinate file \"" +
+            fileName + "\" at line 4");
+  }
+
+  SECTION("InvalidExtendedXCoordinate") {
+    const std::string fileName = "tmp_charmm_crd_invalid_extended_x.cor";
+
+    CheckCharmmCrdFileError(
+        fileName,
+        MakeCharmmCrdText("1 EXT",
+                          MakeExtendedCharmmCrdRecord("BAD", "2.0", "3.0")),
+        "Invalid X coordinate value \"BAD\" in coordinate record 1 of "
+        "CHARMM coordinate file \"" +
+            fileName + "\" at line 4");
+  }
+
+  SECTION("InvalidExtendedYCoordinate") {
+    const std::string fileName = "tmp_charmm_crd_invalid_extended_y.cor";
+
+    CheckCharmmCrdFileError(
+        fileName,
+        MakeCharmmCrdText("1 EXT",
+                          MakeExtendedCharmmCrdRecord("1.0", "BAD", "3.0")),
+        "Invalid Y coordinate value \"BAD\" in coordinate record 1 of "
+        "CHARMM coordinate file \"" +
+            fileName + "\" at line 4");
+  }
+
+  SECTION("InvalidExtendedZCoordinate") {
+    const std::string fileName = "tmp_charmm_crd_invalid_extended_z.cor";
+
+    CheckCharmmCrdFileError(
+        fileName,
+        MakeCharmmCrdText("1 EXT",
+                          MakeExtendedCharmmCrdRecord("1.0", "2.0", "BAD")),
+        "Invalid Z coordinate value \"BAD\" in coordinate record 1 of "
+        "CHARMM coordinate file \"" +
+            fileName + "\" at line 4");
+  }
+
+  SECTION("CoordinateWithTrailingCharacters") {
+    const std::string fileName = "tmp_charmm_crd_trailing_coordinate.cor";
+
+    CheckCharmmCrdFileError(
+        fileName,
+        MakeCharmmCrdText("1",
+                          MakeStandardCharmmCrdRecord("1.0BAD", "2.0", "3.0")),
+        "Invalid X coordinate value \"1.0BAD\" in coordinate record 1 of "
+        "CHARMM coordinate file \"" +
+            fileName + "\" at line 4");
+  }
+
+  SECTION("OutOfRangeCoordinate") {
+    const std::string fileName = "tmp_charmm_crd_out_of_range_coordinate.cor";
+
+    CheckCharmmCrdFileError(
+        fileName,
+        MakeCharmmCrdText("1",
+                          MakeStandardCharmmCrdRecord("1E9999", "2.0", "3.0")),
+        "Invalid X coordinate value \"1E9999\" in coordinate record 1 of "
+        "CHARMM coordinate file \"" +
+            fileName + "\" at line 4");
+  }
+
+  SECTION("NonfiniteCoordinate") {
+    const std::string fileName = "tmp_charmm_crd_nonfinite_coordinate.cor";
+
+    CheckCharmmCrdFileError(
+        fileName,
+        MakeCharmmCrdText("1",
+                          MakeStandardCharmmCrdRecord("NAN", "2.0", "3.0")),
+        "Invalid X coordinate value \"NAN\" in coordinate record 1 of CHARMM "
+        "coordinate file \"" +
+            fileName + "\" at line 4");
+  }
 }

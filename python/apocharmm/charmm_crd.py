@@ -12,7 +12,7 @@ import ctypes
 from ._base import _ApoObject
 from ._lib import encode_path, lib
 from ._types import FilePath
-from .error import check_status
+from .error import configure_status_function
 
 _prototypes_initialized: bool = False
 
@@ -23,27 +23,26 @@ def _initialize_prototypes() -> None:
     if _prototypes_initialized:
         return
 
-    lib().apo_charmm_crd_create.argtypes = [
-        ctypes.POINTER(ctypes.c_void_p),
-        ctypes.c_char_p,
-    ]
-    lib().apo_charmm_crd_create.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_charmm_crd_create,
+        [ctypes.POINTER(ctypes.c_void_p), ctypes.c_char_p],
+        "CharmmCrd construction",
+    )
 
     lib().apo_charmm_crd_destroy.argtypes = [ctypes.c_void_p]
     lib().apo_charmm_crd_destroy.restype = None
 
-    lib().apo_charmm_crd_get_num_atoms.argtypes = [
-        ctypes.POINTER(ctypes.c_size_t),
-        ctypes.c_void_p,
-    ]
-    lib().apo_charmm_crd_get_num_atoms.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_charmm_crd_get_num_atoms,
+        [ctypes.POINTER(ctypes.c_size_t), ctypes.c_void_p],
+        "CharmmCrd.getNumAtoms()",
+    )
 
-    lib().apo_charmm_crd_get_coordinates.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_size_t,
-        ctypes.c_void_p,
-    ]
-    lib().apo_charmm_crd_get_coordinates.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_charmm_crd_get_coordinates,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_size_t, ctypes.c_void_p],
+        "CharmmCrd.getCoordinates()",
+    )
 
     _prototypes_initialized = True
 
@@ -62,9 +61,7 @@ class CharmmCrd(_ApoObject):
         encoded_path: bytes = encode_path(path)
         c_path: ctypes.c_char_p = ctypes.c_char_p(encoded_path)
 
-        status = lib().apo_charmm_crd_create(ctypes.byref(handle), c_path)
-
-        check_status(status, "CharmmCrd construction failed")
+        lib().apo_charmm_crd_create(ctypes.byref(handle), c_path)
 
         if handle.value is None:
             raise RuntimeError(
@@ -80,11 +77,7 @@ class CharmmCrd(_ApoObject):
 
         c_num_atoms = ctypes.c_size_t()
 
-        status = lib().apo_charmm_crd_get_num_atoms(
-            ctypes.byref(c_num_atoms), self.handle
-        )
-
-        check_status(status, "CharmmCrd.getNumAtoms() failed")
+        lib().apo_charmm_crd_get_num_atoms(ctypes.byref(c_num_atoms), self.handle)
 
         return int(c_num_atoms.value)
 
@@ -97,11 +90,7 @@ class CharmmCrd(_ApoObject):
         c_buffer = c_buffer_type()
         c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(num_atoms * 3)
 
-        status = lib().apo_charmm_crd_get_coordinates(
-            c_buffer, c_buffer_len, self.handle
-        )
-
-        check_status(status, "CharmmCrd.getCoordinates() failed")
+        lib().apo_charmm_crd_get_coordinates(c_buffer, c_buffer_len, self.handle)
 
         coordinates: list[list[float]] = []
         for i in range(num_atoms):

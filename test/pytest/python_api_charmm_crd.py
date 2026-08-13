@@ -19,9 +19,8 @@ from python_api_test_helpers import (
     require_file,
     remove_if_exists,
     assert_equal,
-    assert_sequence_close,
     assert_nested_sequence_close,
-    expect_exception,
+    expect_apo_error,
 )
 
 TOLERANCE: float = 1.0e-10
@@ -215,10 +214,12 @@ def check_missing_crd(path: Path) -> None:
 
     remove_if_exists(path)
 
-    expect_exception(
+    expect_apo_error(
         "CharmmCrd rejects a missing coordinate file",
-        apo.ApoCharmmError,
         lambda: apo.CharmmCrd(str(path)),
+        apo.APO_STATUS_RUNTIME_ERROR,
+        f'Failed to open file "{path}"',
+        "CharmmCrd construction",
     )
 
     return
@@ -229,10 +230,51 @@ def check_malformed_crd(path: Path) -> None:
 
     write_malformed_crd(path)
 
-    expect_exception(
+    expect_apo_error(
         "CharmmCrd rejects a malformed coordinate file",
-        apo.ApoCharmmError,
         lambda: apo.CharmmCrd(str(path)),
+        apo.APO_STATUS_RUNTIME_ERROR,
+        (
+            "Coordinate record 1 is truncated in CHARMM coordinate file "
+            f'"{path}" at line 4'
+        ),
+        "CharmmCrd construction",
+    )
+
+    return
+
+
+def check_invalid_atom_count_crd(path: Path) -> None:
+    print("Checking invalid CharmmCrd atom-count error path...")
+
+    path.write_text(
+        "* generated invalid-count CharmmCrd Python API test\n" "*\n" "BAD\n",
+        encoding="utf-8",
+    )
+
+    expect_apo_error(
+        "CharmmCrd rejects an invalid atom count",
+        lambda: apo.CharmmCrd(str(path)),
+        apo.APO_STATUS_RUNTIME_ERROR,
+        (
+            'Invalid atom count value "BAD" in CHARMM coordinate file '
+            f'"{path}" at line 3'
+        ),
+        "CharmmCrd construction",
+    )
+
+    return
+
+
+def check_empty_path() -> None:
+    print("Checking empty CharmmCrd path error path...")
+
+    expect_apo_error(
+        "CharmmCrd rejects an empty coordinate-file path",
+        lambda: apo.CharmmCrd(""),
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        "apo_charmm_crd_create: path is NULL or empty",
+        "CharmmCrd construction",
     )
 
     return
@@ -246,12 +288,16 @@ def main(argc: int, argv: list[str]) -> int:
     standard_crd_path: Path = output_dir / "tmp_python_api_charmm_crd_standard.cor"
     extended_crd_path: Path = output_dir / "tmp_python_api_charmm_crd_extended.cor"
     malformed_crd_path: Path = output_dir / "tmp_python_api_charmm_crd_malformed.cor"
+    invalid_count_crd_path: Path = (
+        output_dir / "tmp_python_api_charmm_crd_invalid_count.cor"
+    )
     missing_crd_path: Path = output_dir / "tmp_python_api_charmm_crd_missing.cor"
 
     generated_files: tuple[Path, ...] = (
         standard_crd_path,
         extended_crd_path,
         malformed_crd_path,
+        invalid_count_crd_path,
         missing_crd_path,
     )
 
@@ -264,6 +310,8 @@ def main(argc: int, argv: list[str]) -> int:
         check_repository_nacl_pair(repo_root)
         check_missing_crd(missing_crd_path)
         check_malformed_crd(malformed_crd_path)
+        check_invalid_atom_count_crd(invalid_count_crd_path)
+        check_empty_path()
     finally:
         print("Cleaning up CharmmCrd Python API test files...")
         for path in generated_files:
