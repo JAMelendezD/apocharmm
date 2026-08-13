@@ -10,6 +10,10 @@
 
 #include "Coordinates.h"
 
+#include "ApoCharmmError.h"
+
+#include <cstddef>
+#include <string>
 #include <vector_functions.h>
 
 Coordinates::Coordinates(void)
@@ -48,6 +52,12 @@ Coordinates::Coordinates(const std::vector<std::vector<double>> &coords)
   m_CoordinatesSP.resize(m_NumAtoms);
 
   for (int i = 0; i < m_NumAtoms; i++) {
+    APOCHARMM_REQUIRE(coords[i].size() == 3,
+                      ApoCharmmErrorCode::InvalidArgument,
+                      "Coordinate entry " + std::to_string(i) +
+                          " must contain exactly 3 values; observed " +
+                          std::to_string(coords[i].size()));
+
     m_CoordinatesDP[i] = make_double3(coords[i][0], coords[i][1], coords[i][2]);
     m_CoordinatesSP[i] = make_float3(static_cast<float>(coords[i][0]),
                                      static_cast<float>(coords[i][1]),
@@ -62,6 +72,12 @@ Coordinates::Coordinates(const std::vector<std::vector<float>> &coords)
   m_CoordinatesSP.resize(m_NumAtoms);
 
   for (int i = 0; i < m_NumAtoms; i++) {
+    APOCHARMM_REQUIRE(coords[i].size() == 3,
+                      ApoCharmmErrorCode::InvalidArgument,
+                      "Coordinate entry " + std::to_string(i) +
+                          " must contain exactly 3 values; observed " +
+                          std::to_string(coords[i].size()));
+
     m_CoordinatesDP[i] = make_double3(static_cast<double>(coords[i][0]),
                                       static_cast<double>(coords[i][1]),
                                       static_cast<double>(coords[i][2]));
@@ -70,6 +86,10 @@ Coordinates::Coordinates(const std::vector<std::vector<float>> &coords)
 }
 
 void Coordinates::setNumAtoms(const int numAtoms) {
+  APOCHARMM_REQUIRE(numAtoms >= 0, ApoCharmmErrorCode::InvalidArgument,
+                    "Atom count must be non-negative; observed " +
+                        std::to_string(numAtoms));
+
   m_NumAtoms = numAtoms;
   m_CoordinatesDP.resize(numAtoms);
   m_CoordinatesSP.resize(numAtoms);

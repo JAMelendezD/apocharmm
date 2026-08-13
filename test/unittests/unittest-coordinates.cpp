@@ -8,9 +8,14 @@
 //
 // ENDLICENSE
 
+#include "ApoCharmmError.h"
 #include "Coordinates.h"
 #include "apo_test_helpers.h"
 #include "catch.hpp"
+
+#include <type_traits>
+
+static_assert(std::is_nothrow_destructible_v<Coordinates>);
 
 namespace {
 
@@ -126,6 +131,48 @@ TEST_CASE("CoordinatesEmptyInputVectors") {
     CHECK(coordinates.getNumAtoms() == 0);
     CHECK(coordinates.getCoordinatesDP().empty() == true);
     CHECK(coordinates.getCoordinatesSP().empty() == true);
+  }
+}
+
+TEST_CASE("CoordinatesInputValidationUsesApoCharmmError") {
+  SECTION("DoubleNestedVectorEntryWidth") {
+    const std::vector<std::vector<double>> input = {{1.0, 2.0, 3.0},
+                                                    {4.0, 5.0}};
+
+    apo_test::CheckApoCharmmError(
+        [&input](void) {
+          Coordinates coordinates(input);
+          static_cast<void>(coordinates);
+        },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Coordinate entry 1 must contain exactly 3 values; observed 2");
+  }
+
+  SECTION("FloatNestedVectorEntryWidth") {
+    const std::vector<std::vector<float>> input = {{1.0f, 2.0f, 3.0f},
+                                                   {4.0f, 5.0f, 6.0f, 7.0f}};
+
+    apo_test::CheckApoCharmmError(
+        [&input](void) {
+          Coordinates coordinates(input);
+          static_cast<void>(coordinates);
+        },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Coordinate entry 1 must contain exactly 3 values; observed 4");
+  }
+
+  SECTION("NegativeAtomCount") {
+    Coordinates coordinates;
+    coordinates.setNumAtoms(2);
+
+    apo_test::CheckApoCharmmError(
+        [&coordinates](void) { coordinates.setNumAtoms(-1); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Atom count must be non-negative; observed -1");
+
+    CHECK(coordinates.getNumAtoms() == 2);
+    CHECK(coordinates.getCoordinatesDP().size() == 2);
+    CHECK(coordinates.getCoordinatesSP().size() == 2);
   }
 }
 
