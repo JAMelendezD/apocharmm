@@ -209,6 +209,11 @@ template <typename T> void CudaContainer<T>::setToValue(const T value) {
   return;
 }
 
+// JEG260813: Transfers intentionally do not resize either mirror. When entered
+// with equal active lengths, normal successful modifiers preserve that
+// relationship. Mutable mirror access is an escape hatch whose caller must
+// restore the invariant before copying. Both directions use cudaMemcpy without
+// a stream argument, then synchronize the current CUDA device.
 template <typename T> void CudaContainer<T>::transferToDevice(void) {
   if (m_HostArray.empty())
     return;
@@ -240,6 +245,10 @@ template <typename T> void CudaContainer<T>::transferFromHost(void) {
   return;
 }
 
+// JEG260813: The print-kernel overload set is restricted to the element types
+// explicitly instantiated in CudaContainer.h. Each thread prints at most one
+// element, and CUDA device printf does not guarantee line ordering across
+// threads.
 __global__ void printKernel(const int *data, const std::size_t size) {
   const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index < size)
@@ -390,6 +399,9 @@ __global__ void printKernel(const double4 *data, const std::size_t size) {
   return;
 }
 
+// JEG260813: Launch geometry and the device read range both use the host-side
+// logical length. This relies on equal mirror sizes, a nonzero length, and an
+// element count representable by unsigned int kernel indexing.
 template <typename T> void CudaContainer<T>::printDeviceArray(void) const {
   constexpr unsigned int blockDim = 256;
   const unsigned int gridDim = (this->size() + blockDim - 1) / blockDim;
