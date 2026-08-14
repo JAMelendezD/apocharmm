@@ -282,7 +282,15 @@ apo_force_manager_get_num_atoms(int *num_atoms,
             apocharmm_c::require_handle_object<apo_force_manager>(
                 force_manager, function_name, "ForceManager"));
 
-        *num_atoms = force_manager->object->getNumAtoms();
+        const std::shared_ptr<CharmmPSF> psf = force_manager->object->getPsf();
+
+        if (psf == nullptr) {
+          return apocharmm_c::set_last_error(APO_STATUS_NOT_INITIALIZED,
+                                             function_name,
+                                             "CharmmPSF is not set");
+        }
+
+        *num_atoms = psf->getNumAtoms();
 
         return APO_STATUS_OK;
       },

@@ -18,9 +18,24 @@
 
 #include <memory>
 
+/**
+ * @brief Defines the private owning state behind the public opaque handle.
+ *
+ * A successfully created handle retains native shared ownership of the PSF and
+ * parameter set independently of the source C handles. It also owns one shared
+ * `ForceManager` constructed from those retained collaborators.
+ *
+ * The public destroy function deletes this structure, releasing all three
+ * shared owners. Public C callers never access these members directly.
+ */
 struct apo_force_manager {
+  /** Retained native PSF owner. */
   std::shared_ptr<CharmmPSF> psf = nullptr;
+
+  /** Retained native parameter-set owner. */
   std::shared_ptr<CharmmParameters> parameters = nullptr;
+
+  /** Retained native ForceManager owner exposed through the C ABI. */
   std::shared_ptr<ForceManager> object = nullptr;
 };
 

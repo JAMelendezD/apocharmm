@@ -151,13 +151,8 @@ TEST_CASE("ForceManagerRejectsNullTopologyAndParameters") {
   apo_test::CheckApoCharmmError([&fm, &nullPrm](void) { fm.setPrm(nullPrm); },
                                 ApoCharmmErrorCode::InvalidArgument,
                                 "CharmmParameters must not be null");
-  apo_test::CheckApoCharmmError([&fm](void) { (void)fm.getNumAtoms(); },
-                                ApoCharmmErrorCode::NotInitialized,
-                                "CharmmPSF is not set");
-
-  auto uninitializedPsf = std::make_shared<CharmmPSF>();
-  fm.setPsf(uninitializedPsf);
-  CHECK(fm.getNumAtoms() == -1);
+  CHECK(fm.getPsf() == nullptr);
+  CHECK(fm.getPrm() == nullptr);
 }
 
 TEST_CASE("ForceManagerConstructsFromTopologyAndParameters") {
@@ -170,7 +165,7 @@ TEST_CASE("ForceManagerConstructsFromTopologyAndParameters") {
 
   CHECK(fm.getPsf() == psf);
   CHECK(fm.getPrm() == prm);
-  CHECK(fm.getNumAtoms() == 2);
+  CHECK(fm.getPsf()->getNumAtoms() == 2);
   CHECK(fm.isInitialized() == false);
   CHECK(fm.isComposite() == false);
 
@@ -370,7 +365,7 @@ TEST_CASE("ForceManagerCopyConstructorCopiesConfigurationOnly") {
 
   CHECK(copy.getPsf() != original.getPsf());
   CHECK(copy.getPrm() != original.getPrm());
-  CHECK(copy.getNumAtoms() == original.getNumAtoms());
+  CHECK(copy.getPsf()->getNumAtoms() == original.getPsf()->getNumAtoms());
   CHECK(copy.hasCharmmContext() == false);
   CHECK(copy.isInitialized() == false);
 

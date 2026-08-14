@@ -217,11 +217,11 @@ void CharmmContext::setCoordinatesCharges(
       !m_ForceManager->isComposite()) {
     APOCHARMM_REQUIRE(
         coordinatesCharges.size() ==
-            static_cast<std::size_t>(m_ForceManager->getNumAtoms()),
+            static_cast<std::size_t>(m_ForceManager->getPsf()->getNumAtoms()),
         ApoCharmmErrorCode::InvalidArgument,
         "Coordinate and charge count mismatch with ForceManager; expected " +
-            std::to_string(m_ForceManager->getNumAtoms()) + ", observed " +
-            std::to_string(coordinatesCharges.size()));
+            std::to_string(m_ForceManager->getPsf()->getNumAtoms()) +
+            ", observed " + std::to_string(coordinatesCharges.size()));
   }
 
   for (int i = 0; i < m_NumAtoms; i++) {

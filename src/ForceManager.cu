@@ -317,13 +317,6 @@ bool ForceManager::hasCharmmContext(void) const { return !m_Context.expired(); }
 
 std::shared_ptr<CharmmPSF> ForceManager::getPsf(void) { return m_Psf; }
 
-int ForceManager::getNumAtoms(void) const {
-  APOCHARMM_REQUIRE(m_Psf != nullptr, ApoCharmmErrorCode::NotInitialized,
-                    "CharmmPSF is not set");
-
-  return m_Psf->getNumAtoms();
-}
-
 std::shared_ptr<CharmmParameters> ForceManager::getPrm(void) { return m_Prm; }
 
 bool ForceManager::isInitialized(void) const { return m_IsInitialized; }
@@ -781,9 +774,28 @@ __global__ void convertLLIToFloat(int numAtoms, int stride,
   }
 }
 
-// Sums 10 potential enery terms given as pointers (e0-e9) into a double
-// pointer *pe
-__global__ void UpdatePotentialEnergyKernel(
+/**
+ * @brief Sums the eleven built-in potential-energy components on the device.
+ *
+ * A single thread writes the result. All input and output pointers address one
+ * device-resident `double` in kilocalories per mole.
+ *
+ * @param[out] potentialEnergy Aggregate energy destination.
+ * @param[in] bond Bond energy.
+ * @param[in] angl Angle energy.
+ * @param[in] urey Urey-Bradley energy.
+ * @param[in] dihe Dihedral energy.
+ * @param[in] impr Improper-dihedral energy.
+ * @param[in] cmap CMAP energy.
+ * @param[in] ewks reciprocal-space k-space energy.
+ * @param[in] ewse reciprocal-space self energy.
+ * @param[in] ewex Ewald exclusion energy.
+ * @param[in] elec Direct-space electrostatic energy.
+ * @param[in] vdwe Van der Waals energy.
+ *
+ * @internal
+ */
+__global__ static void UpdatePotentialEnergyKernel(
     double *__restrict__ potentialEnergy, const double *__restrict__ bond,
     const double *__restrict__ angl, const double *__restrict__ urey,
     const double *__restrict__ dihe, const double *__restrict__ impr,
@@ -797,6 +809,16 @@ __global__ void UpdatePotentialEnergyKernel(
   return;
 }
 
+/**
+ * @brief Adds one subscribed-force energy to the aggregate device value.
+ *
+ * @param[in,out] pe Device pointer to one aggregate energy value in
+ * kilocalories per mole.
+ * @param[in] en Device pointer to one subscribed-force energy value in
+ * kilocalories per mole.
+ *
+ * @internal
+ */
 __global__ static void
 UpdatePotentialEnergyKernel2(double *__restrict__ pe,
                              const double *__restrict__ en) {
@@ -985,8 +1007,8 @@ void ForceManager::calcForcePart3(const float4 *xyzq, const bool calcEnergy,
   return;
 }
 
-void ForceManager::calcForce(const float4 *xyzq, bool reset, bool calcEnergy,
-                             bool calcVirial) {
+void ForceManager::calcForce(const float4 *xyzq, const bool reset,
+                             const bool calcEnergy, const bool calcVirial) {
   // JEG260802: Did not add error checking here because this function is called
   // frequently. i.e. Did not want to slow dynamics down. Users should not be
   // calling this function themselves.
@@ -1007,10 +1029,33 @@ ForceManager::computeAllChildrenPotentialEnergy(const float4 *xyzq) {
       "ForceManager does not support child potential-energy evaluation");
 }
 
+/**
+ * @brief Tests the leading character of an atom-type string for hydrogen.
+ *
+ * @param[in] atomType Non-empty atom-type string.
+ * @return `true` when the first character is `H`; otherwise `false`.
+ *
+ * @pre `atomType` is not empty.
+ * @internal
+ */
 inline bool isHydrogen(const std::string &atomType) {
   return (atomType[0] == 'H');
 }
 
+/**
+ * @brief Groups selected heavy-atom-hydrogen bonds into SHAKE records.
+ *
+ * The first pass builds a hydrogen-neighbor list per heavy atom. The second
+ * pass encodes each non-empty group into one `int4` atom record and one
+ * `float4` parameter record before assigning both host vectors to CUDA
+ * containers.
+ *
+ * The implementation currently assumes no selected heavy atom has more than
+ * three hydrogens and uses one hydrogen-mass and equilibrium-bond value for the
+ * generated group.
+ *
+ * @internal
+ */
 void ForceManager::initializeHolonomicConstraintsVariables(void) {
   const int numAtoms = m_Psf->getNumAtoms();
 

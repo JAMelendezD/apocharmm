@@ -617,7 +617,7 @@ TEST_CASE("CapiForceManagerMapsNativeValidationErrors") {
                    "setVdwType");
 }
 
-TEST_CASE("CapiForceManagerMapsNotInitializedAndRuntimeErrors") {
+TEST_CASE("CapiForceManagerMapsMissingPsfAndUnknownNativePbc") {
   ForceManagerHandle forceManager = MakeDefaultForceManager();
   int numAtoms = 17;
   apo_status status = APO_STATUS_OK;
@@ -625,9 +625,9 @@ TEST_CASE("CapiForceManagerMapsNotInitializedAndRuntimeErrors") {
   CHECK_NOTHROW((
       status = apo_force_manager_get_num_atoms(&numAtoms, forceManager.get())));
   CHECK(numAtoms == 0);
-  CheckNativeError(status, APO_STATUS_NOT_INITIALIZED,
-                   "apo_force_manager_get_num_atoms", "NotInitialized",
-                   "CharmmPSF is not set", "getNumAtoms");
+  CheckStatusAndDiagnostic(
+      status, APO_STATUS_NOT_INITIALIZED,
+      "apo_force_manager_get_num_atoms: CharmmPSF is not set");
 
   auto uninitializedPsf = std::make_shared<CharmmPSF>();
   forceManager->object->setPsf(uninitializedPsf);

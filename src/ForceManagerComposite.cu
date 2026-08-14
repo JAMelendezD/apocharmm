@@ -44,7 +44,7 @@ void ForceManagerComposite::addForceManager(std::shared_ptr<ForceManager> fm) {
   const int numAtoms = m_Psf->getNumAtoms();
 
   if (m_Children.size() > 0)
-    assert(numAtoms == fm->getNumAtoms());
+    assert(numAtoms == fm->getPsf()->getNumAtoms());
 
   m_Children.push_back(fm);
 
