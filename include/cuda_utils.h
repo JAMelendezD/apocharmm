@@ -33,6 +33,28 @@
 #include <string_view>
 #include <vector>
 
+/**
+ * @brief Captures the source location of a CUDA utility invocation.
+ */
+struct CudaSourceLocation {
+  std::string_view sourceFile;
+  std::string_view sourceFunction;
+  int sourceLine;
+
+#if defined(__clang__) || defined(__GNUC__)
+  static constexpr CudaSourceLocation
+  current(const char *sourceFile = __builtin_FILE(),
+          const char *sourceFunction = __builtin_FUNCTION(),
+          const int sourceLine = __builtin_LINE()) noexcept {
+    return {sourceFile, sourceFunction, sourceLine};
+  }
+#else
+  static constexpr CudaSourceLocation current(void) noexcept {
+    return {"<unknown>", "<unknown>", 0}
+  }
+#endif
+};
+
 [[noreturn]]
 void ThrowCudaError(const cudaError_t error, const std::string_view failureKind,
                     const std::string_view expression,

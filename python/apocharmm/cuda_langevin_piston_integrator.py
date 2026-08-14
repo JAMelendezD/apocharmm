@@ -12,7 +12,7 @@ import ctypes
 
 from ._lib import lib
 from .enums import CrystalType
-from .error import check_status
+from .error import configure_status_function
 from .cuda_integrator import CudaIntegrator
 
 _prototypes_initialized: bool = False
@@ -24,202 +24,163 @@ def _initialize_prototypes() -> None:
     if _prototypes_initialized:
         return
 
-    lib().apo_cuda_langevin_piston_integrator_create.argtypes = [
-        ctypes.POINTER(ctypes.c_void_p),
-        ctypes.c_double,
-    ]
-    lib().apo_cuda_langevin_piston_integrator_create.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_create,
+        [ctypes.POINTER(ctypes.c_void_p), ctypes.c_double],
+        "CudaLangevinPistonIntegrator construction",
+    )
 
     lib().apo_cuda_langevin_piston_integrator_destroy.argtypes = [ctypes.c_void_p]
     lib().apo_cuda_langevin_piston_integrator_destroy.restype = None
 
-    lib().apo_cuda_langevin_piston_integrator_use_nose_hoover_thermostat.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_bool,
-    ]
-    lib().apo_cuda_langevin_piston_integrator_use_nose_hoover_thermostat.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_use_nose_hoover_thermostat,
+        [ctypes.c_void_p, ctypes.c_bool],
+        "CudaLangevinPistonIntegrator.useNoseHooverThermostat(flag)",
     )
 
-    lib().apo_cuda_langevin_piston_integrator_set_reference_temperature.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_double,
-    ]
-    lib().apo_cuda_langevin_piston_integrator_set_reference_temperature.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_set_reference_temperature,
+        [ctypes.c_void_p, ctypes.c_double],
+        "CudaLangevinPistonIntegrator.setReferenceTemperature(temperature)",
     )
 
-    lib().apo_cuda_langevin_piston_integrator_set_nose_hoover_piston_mass.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_double,
-    ]
-    lib().apo_cuda_langevin_piston_integrator_set_nose_hoover_piston_mass.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_set_nose_hoover_piston_mass,
+        [ctypes.c_void_p, ctypes.c_double],
+        "CudaLangevinPistonIntegrator.setNoseHooverPistonMass(mass)",
     )
 
-    lib().apo_cuda_langevin_piston_integrator_use_old_temperature.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_bool,
-    ]
-    lib().apo_cuda_langevin_piston_integrator_use_old_temperature.restype = ctypes.c_int
-
-    lib().apo_cuda_langevin_piston_integrator_set_reference_pressure.argtypes = [
-        ctypes.c_void_p,
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_size_t,
-    ]
-    lib().apo_cuda_langevin_piston_integrator_set_reference_pressure.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_use_old_temperature,
+        [ctypes.c_void_p, ctypes.c_bool],
+        "CudaLangevinPistonIntegrator.useOldTemperature(flag)",
     )
 
-    lib().apo_cuda_langevin_piston_integrator_set_constant_surface_tension.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_bool,
-    ]
-    lib().apo_cuda_langevin_piston_integrator_set_constant_surface_tension.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_set_reference_pressure,
+        [ctypes.c_void_p, ctypes.POINTER(ctypes.c_double), ctypes.c_size_t],
+        "CudaLangevinPistonIntegrator.setReferencePressure(pressure_tensor)",
     )
 
-    lib().apo_cuda_langevin_piston_integrator_set_crystal_type.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_int,
-    ]
-    lib().apo_cuda_langevin_piston_integrator_set_crystal_type.restype = ctypes.c_int
-
-    lib().apo_cuda_langevin_piston_integrator_set_langevin_piston_mass.argtypes = [
-        ctypes.c_void_p,
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_size_t,
-    ]
-    lib().apo_cuda_langevin_piston_integrator_set_langevin_piston_mass.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_set_constant_surface_tension,
+        [ctypes.c_void_p, ctypes.c_bool],
+        "CudaLangevinPistonIntegrator.setConstantSurfaceTension(flag)",
     )
 
-    lib().apo_cuda_langevin_piston_integrator_set_langevin_piston_friction_seed.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_uint64,
-    ]
-    lib().apo_cuda_langevin_piston_integrator_set_langevin_piston_friction_seed.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_set_crystal_type,
+        [ctypes.c_void_p, ctypes.c_int],
+        "CudaLangevinPistonIntegrator.setCrystalType(crystal_type)",
     )
 
-    lib().apo_cuda_langevin_piston_integrator_set_langevin_piston_friction.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_double,
-    ]
-    lib().apo_cuda_langevin_piston_integrator_set_langevin_piston_friction.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_set_langevin_piston_mass,
+        [ctypes.c_void_p, ctypes.POINTER(ctypes.c_double), ctypes.c_size_t],
+        "CudaLangevinPistonIntegrator.setLangevinPistonMass(mass)",
     )
 
-    lib().apo_cuda_langevin_piston_integrator_reset_averages.argtypes = [
-        ctypes.c_void_p
-    ]
-    lib().apo_cuda_langevin_piston_integrator_reset_averages.restype = ctypes.c_int
-
-    lib().apo_cuda_langevin_piston_integrator_get_reference_temperature.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_langevin_piston_integrator_get_reference_temperature.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_set_langevin_piston_friction_seed,
+        [ctypes.c_void_p, ctypes.c_uint64],
+        "CudaLangevinPistonIntegrator.setLangevinPistonFrictionSeed(seed)",
     )
 
-    lib().apo_cuda_langevin_piston_integrator_get_nose_hoover_piston_mass.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_langevin_piston_integrator_get_nose_hoover_piston_mass.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_set_langevin_piston_friction,
+        [ctypes.c_void_p, ctypes.c_double],
+        "CudaLangevinPistonIntegrator.setLangevinPistonFriction(friction)",
     )
 
-    lib().apo_cuda_langevin_piston_integrator_get_average_temperature.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_langevin_piston_integrator_get_average_temperature.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_reset_averages,
+        [ctypes.c_void_p],
+        "CudaLangevinPistonIntegrator.resetAverages()",
     )
 
-    lib().apo_cuda_langevin_piston_integrator_get_reference_pressure_tensor.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_size_t,
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_langevin_piston_integrator_get_reference_pressure_tensor.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_get_reference_temperature,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_void_p],
+        "CudaLangevinPistonIntegrator.getReferenceTemperature()",
     )
 
-    lib().apo_cuda_langevin_piston_integrator_get_crystal_type.argtypes = [
-        ctypes.POINTER(ctypes.c_int),
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_langevin_piston_integrator_get_crystal_type.restype = ctypes.c_int
-
-    lib().apo_cuda_langevin_piston_integrator_get_langevin_piston_mass.argtypes = [
-        ctypes.POINTER(ctypes.c_size_t),
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_size_t,
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_langevin_piston_integrator_get_langevin_piston_mass.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_get_nose_hoover_piston_mass,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_void_p],
+        "CudaLangevinPistonIntegrator.getNoseHooverPistonMass()",
     )
 
-    lib().apo_cuda_langevin_piston_integrator_get_instantaneous_pressure_tensor.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_size_t,
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_langevin_piston_integrator_get_instantaneous_pressure_tensor.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_get_average_temperature,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_void_p],
+        "CudaLangevinPistonIntegrator.getAverageTemperature()",
     )
 
-    lib().apo_cuda_langevin_piston_integrator_get_instantaneous_pressure_scalar.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_langevin_piston_integrator_get_instantaneous_pressure_scalar.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_get_reference_pressure_tensor,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_size_t, ctypes.c_void_p],
+        "CudaLangevinPistonIntegrator.getReferencePressureTensor()",
     )
 
-    lib().apo_cuda_langevin_piston_integrator_get_average_pressure_tensor.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_size_t,
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_langevin_piston_integrator_get_average_pressure_tensor.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_get_crystal_type,
+        [ctypes.POINTER(ctypes.c_int), ctypes.c_void_p],
+        "CudaLangevinPistonIntegrator.getCrystalType()",
     )
 
-    lib().apo_cuda_langevin_piston_integrator_get_average_pressure_scalar.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_langevin_piston_integrator_get_average_pressure_scalar.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_get_langevin_piston_mass,
+        [
+            ctypes.POINTER(ctypes.c_size_t),
+            ctypes.POINTER(ctypes.c_double),
+            ctypes.c_size_t,
+            ctypes.c_void_p,
+        ],
+        "CudaLangevinPistonIntegrator.getLangevinPistonMass()",
     )
 
-    lib().apo_cuda_langevin_piston_integrator_get_langevin_piston_friction_seed.argtypes = [
-        ctypes.POINTER(ctypes.c_uint64),
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_langevin_piston_integrator_get_langevin_piston_friction_seed.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_get_instantaneous_pressure_tensor,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_size_t, ctypes.c_void_p],
+        "CudaLangevinPistonIntegrator.getInstantaneousPressureTensor()",
     )
 
-    lib().apo_cuda_langevin_piston_integrator_get_instantaneous_temperature.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_langevin_piston_integrator_get_instantaneous_temperature.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_get_instantaneous_pressure_scalar,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_void_p],
+        "CudaLangevinPistonIntegrator.getInstantaneousPressureScalar()",
     )
 
-    lib().apo_cuda_langevin_piston_integrator_as_cuda_integrator.argtypes = [
-        ctypes.POINTER(ctypes.c_void_p),
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_langevin_piston_integrator_as_cuda_integrator.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_get_average_pressure_tensor,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_size_t, ctypes.c_void_p],
+        "CudaLangevinPistonIntegrator.getAveragePressureTensor()",
+    )
+
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_get_average_pressure_scalar,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_void_p],
+        "CudaLangevinPistonIntegrator.getAveragePressureScalar()",
+    )
+
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_get_langevin_piston_friction_seed,
+        [ctypes.POINTER(ctypes.c_uint64), ctypes.c_void_p],
+        "CudaLangevinPistonIntegrator.getLangevinPistonFrictionSeed()",
+    )
+
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_get_instantaneous_temperature,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_void_p],
+        "CudaLangevinPistonIntegrator.getInstantaneousTemperature()",
+    )
+
+    configure_status_function(
+        lib().apo_cuda_langevin_piston_integrator_as_cuda_integrator,
+        [ctypes.POINTER(ctypes.c_void_p), ctypes.c_void_p],
+        "CudaLangevinPistonIntegrator base-integrator conversion",
+    )
 
     _prototypes_initialized = True
 
@@ -236,11 +197,9 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
         handle: ctypes.c_void_p = ctypes.c_void_p()
         c_time_step: ctypes.c_double = ctypes.c_double(time_step)
 
-        status = lib().apo_cuda_langevin_piston_integrator_create(
+        lib().apo_cuda_langevin_piston_integrator_create(
             ctypes.byref(handle), c_time_step
         )
-
-        check_status(status, "CudaLangevinPistonIntegrator construction failed")
 
         if handle.value is None:
             raise RuntimeError(
@@ -251,12 +210,8 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
 
         integrator_handle: ctypes.c_void_p = ctypes.c_void_p()
 
-        status = lib().apo_cuda_langevin_piston_integrator_as_cuda_integrator(
+        lib().apo_cuda_langevin_piston_integrator_as_cuda_integrator(
             ctypes.byref(integrator_handle), self.handle
-        )
-
-        check_status(
-            status, "CudaLangevinPistonIntegrator base-integrator conversion failed"
         )
 
         if integrator_handle.value is None:
@@ -273,12 +228,8 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
 
         c_flag: ctypes.c_bool = ctypes.c_bool(flag)
 
-        status = lib().apo_cuda_langevin_piston_integrator_use_nose_hoover_thermostat(
+        lib().apo_cuda_langevin_piston_integrator_use_nose_hoover_thermostat(
             self.handle, c_flag
-        )
-
-        check_status(
-            status, "CudaLangevinPistonIntegrator.useNoseHooverThermostat(flag) failed"
         )
 
         return
@@ -288,13 +239,8 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
 
         c_temperature: ctypes.c_double = ctypes.c_double(temperature)
 
-        status = lib().apo_cuda_langevin_piston_integrator_set_reference_temperature(
+        lib().apo_cuda_langevin_piston_integrator_set_reference_temperature(
             self.handle, c_temperature
-        )
-
-        check_status(
-            status,
-            "CudaLangevinPistonIntegrator.setReferenceTemperature(temperature) failed",
         )
 
         return
@@ -304,12 +250,8 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
 
         c_mass: ctypes.c_double = ctypes.c_double(mass)
 
-        status = lib().apo_cuda_langevin_piston_integrator_set_nose_hoover_piston_mass(
+        lib().apo_cuda_langevin_piston_integrator_set_nose_hoover_piston_mass(
             self.handle, c_mass
-        )
-
-        check_status(
-            status, "CudaLangevinPistonIntegrator.setNoseHooverPistonMass(mass) failed"
         )
 
         return
@@ -319,12 +261,8 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
 
         c_flag: ctypes.c_bool = ctypes.c_bool(flag)
 
-        status = lib().apo_cuda_langevin_piston_integrator_use_old_temperature(
+        lib().apo_cuda_langevin_piston_integrator_use_old_temperature(
             self.handle, c_flag
-        )
-
-        check_status(
-            status, "CudaLangevinPistonIntegrator.useOldTemperature(flag) failed"
         )
 
         return
@@ -334,27 +272,15 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
 
         flattened_pressure_tensor: list[float] = []
 
-        for i, pressure in enumerate(pressure_tensor):
-            pressure_values: list[float] = [float(value) for value in pressure]
-
-            if len(pressure_values) != 3:
-                raise ValueError(
-                    f"pressure_tensor[{i}] must contain exactly 3 elements"
-                )
-
-            flattened_pressure_tensor.extend(pressure_values)
+        for pressure in pressure_tensor:
+            flattened_pressure_tensor.extend(float(value) for value in pressure)
 
         c_buffer_type = ctypes.c_double * len(flattened_pressure_tensor)
         c_buffer = c_buffer_type(*flattened_pressure_tensor)
         c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(len(flattened_pressure_tensor))
 
-        status = lib().apo_cuda_langevin_piston_integrator_set_reference_pressure(
+        lib().apo_cuda_langevin_piston_integrator_set_reference_pressure(
             self.handle, c_buffer, c_buffer_len
-        )
-
-        check_status(
-            status,
-            "CudaLangevinPistonIntegrator.setReferencePressure(pressure_tensor) failed",
         )
 
         return
@@ -364,13 +290,8 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
 
         c_flag: ctypes.c_bool = ctypes.c_bool(flag)
 
-        status = lib().apo_cuda_langevin_piston_integrator_set_constant_surface_tension(
+        lib().apo_cuda_langevin_piston_integrator_set_constant_surface_tension(
             self.handle, c_flag
-        )
-
-        check_status(
-            status,
-            "CudaLangevinPistonIntegrator.setConstantSurfaceTension(flag) failed",
         )
 
         return
@@ -378,19 +299,10 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
     def setCrystalType(self, crystal_type: CrystalType | int) -> None:
         _initialize_prototypes()
 
-        try:
-            crystal_type_value: CrystalType = CrystalType(crystal_type)
-        except ValueError as exc:
-            raise ValueError(f"invalid crystal_type: {crystal_type!r}") from exc
+        c_crystal_type: ctypes.c_int = ctypes.c_int(int(crystal_type))
 
-        c_crystal_type: ctypes.c_int = ctypes.c_int(int(crystal_type_value))
-
-        status = lib().apo_cuda_langevin_piston_integrator_set_crystal_type(
+        lib().apo_cuda_langevin_piston_integrator_set_crystal_type(
             self.handle, c_crystal_type
-        )
-
-        check_status(
-            status, "CudaLangevinPistonIntegrator.setCrystalType(crystal_type) failed"
         )
 
         return
@@ -404,12 +316,8 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
         c_buffer = c_buffer_type(*mass_values)
         c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(len(mass_values))
 
-        status = lib().apo_cuda_langevin_piston_integrator_set_langevin_piston_mass(
+        lib().apo_cuda_langevin_piston_integrator_set_langevin_piston_mass(
             self.handle, c_buffer, c_buffer_len
-        )
-
-        check_status(
-            status, "CudaLangevinPistonIntegrator.setLangevinPistonMass(mass) failed"
         )
 
         return
@@ -422,15 +330,8 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
 
         c_seed: ctypes.c_uint64 = ctypes.c_uint64(seed)
 
-        status = (
-            lib().apo_cuda_langevin_piston_integrator_set_langevin_piston_friction_seed(
-                self.handle, c_seed
-            )
-        )
-
-        check_status(
-            status,
-            "CudaLangevinPistonIntegrator.setLangevinPistonFrictionSeed(seed) failed",
+        lib().apo_cuda_langevin_piston_integrator_set_langevin_piston_friction_seed(
+            self.handle, c_seed
         )
 
         return
@@ -440,13 +341,8 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
 
         c_friction: ctypes.c_double = ctypes.c_double(friction)
 
-        status = lib().apo_cuda_langevin_piston_integrator_set_langevin_piston_friction(
+        lib().apo_cuda_langevin_piston_integrator_set_langevin_piston_friction(
             self.handle, c_friction
-        )
-
-        check_status(
-            status,
-            "CudaLangevinPistonIntegrator.setLangevinPistonFriction(friction) failed",
         )
 
         return
@@ -454,9 +350,7 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
     def resetAverages(self) -> None:
         _initialize_prototypes()
 
-        status = lib().apo_cuda_langevin_piston_integrator_reset_averages(self.handle)
-
-        check_status(status, "CudaLangevinPistonIntegrator.resetAverages() failed")
+        lib().apo_cuda_langevin_piston_integrator_reset_averages(self.handle)
 
         return
 
@@ -465,13 +359,8 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
 
         c_temperature = ctypes.c_double()
 
-        status = lib().apo_cuda_langevin_piston_integrator_get_reference_temperature(
+        lib().apo_cuda_langevin_piston_integrator_get_reference_temperature(
             ctypes.byref(c_temperature), self.handle
-        )
-
-        check_status(
-            status,
-            "CudaLangevinPistonIntegrator.getReferenceTemperature() failed",
         )
 
         return float(c_temperature.value)
@@ -481,12 +370,8 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
 
         c_mass = ctypes.c_double()
 
-        status = lib().apo_cuda_langevin_piston_integrator_get_nose_hoover_piston_mass(
+        lib().apo_cuda_langevin_piston_integrator_get_nose_hoover_piston_mass(
             ctypes.byref(c_mass), self.handle
-        )
-
-        check_status(
-            status, "CudaLangevinPistonIntegrator.getNoseHooverPistonMass() failed"
         )
 
         return float(c_mass.value)
@@ -496,12 +381,8 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
 
         c_temperature = ctypes.c_double()
 
-        status = lib().apo_cuda_langevin_piston_integrator_get_average_temperature(
+        lib().apo_cuda_langevin_piston_integrator_get_average_temperature(
             ctypes.byref(c_temperature), self.handle
-        )
-
-        check_status(
-            status, "CudaLangevinPistonIntegrator.getAverageTemperature() failed"
         )
 
         return float(c_temperature.value)
@@ -513,14 +394,8 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
         c_buffer = c_buffer_type()
         c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(9)
 
-        status = (
-            lib().apo_cuda_langevin_piston_integrator_get_reference_pressure_tensor(
-                c_buffer, c_buffer_len, self.handle
-            )
-        )
-
-        check_status(
-            status, "CudaLangevinPistonIntegrator.getReferencePressureTensor() failed"
+        lib().apo_cuda_langevin_piston_integrator_get_reference_pressure_tensor(
+            c_buffer, c_buffer_len, self.handle
         )
 
         pressure_tensor: list[list[float]] = []
@@ -540,11 +415,9 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
 
         c_crystal_type = ctypes.c_int()
 
-        status = lib().apo_cuda_langevin_piston_integrator_get_crystal_type(
+        lib().apo_cuda_langevin_piston_integrator_get_crystal_type(
             ctypes.byref(c_crystal_type), self.handle
         )
-
-        check_status(status, "CudaLangevinPistonIntegrator.getCrystalType() failed")
 
         return CrystalType(c_crystal_type.value)
 
@@ -557,20 +430,11 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
         c_buffer = c_buffer_type()
         c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(3)
 
-        status = lib().apo_cuda_langevin_piston_integrator_get_langevin_piston_mass(
+        lib().apo_cuda_langevin_piston_integrator_get_langevin_piston_mass(
             ctypes.byref(c_num_mass), c_buffer, c_buffer_len, self.handle
         )
 
-        check_status(
-            status, "CudaLangevinPistonIntegrator.getLangevinPistonMass() failed"
-        )
-
         num_mass: int = int(c_num_mass.value)
-
-        if num_mass > 3:
-            raise RuntimeError(
-                "apo_cuda_langevin_piston_integrator_get_langevin_piston_mass returned more than 3 masses"
-            )
 
         masses: list[float] = []
         for i in range(num_mass):
@@ -585,15 +449,8 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
         c_buffer = c_buffer_type()
         c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(9)
 
-        status = (
-            lib().apo_cuda_langevin_piston_integrator_get_instantaneous_pressure_tensor(
-                c_buffer, c_buffer_len, self.handle
-            )
-        )
-
-        check_status(
-            status,
-            "CudaLangevinPistonIntegrator.getInstantaneousPressureTensor() failed",
+        lib().apo_cuda_langevin_piston_integrator_get_instantaneous_pressure_tensor(
+            c_buffer, c_buffer_len, self.handle
         )
 
         pressure_tensor: list[list[float]] = []
@@ -613,15 +470,8 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
 
         c_pressure_scalar = ctypes.c_double()
 
-        status = (
-            lib().apo_cuda_langevin_piston_integrator_get_instantaneous_pressure_scalar(
-                ctypes.byref(c_pressure_scalar), self.handle
-            )
-        )
-
-        check_status(
-            status,
-            "CudaLangevinPistonIntegrator.getInstantaneousPressureScalar() failed",
+        lib().apo_cuda_langevin_piston_integrator_get_instantaneous_pressure_scalar(
+            ctypes.byref(c_pressure_scalar), self.handle
         )
 
         return float(c_pressure_scalar.value)
@@ -633,13 +483,8 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
         c_buffer = c_buffer_type()
         c_buffer_len: ctypes.c_size_t = ctypes.c_size_t(9)
 
-        status = lib().apo_cuda_langevin_piston_integrator_get_average_pressure_tensor(
+        lib().apo_cuda_langevin_piston_integrator_get_average_pressure_tensor(
             c_buffer, c_buffer_len, self.handle
-        )
-
-        check_status(
-            status,
-            "CudaLangevinPistonIntegrator.getAveragePressureTensor() failed",
         )
 
         pressure_tensor: list[list[float]] = []
@@ -659,13 +504,8 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
 
         c_pressure_scalar = ctypes.c_double()
 
-        status = lib().apo_cuda_langevin_piston_integrator_get_average_pressure_scalar(
+        lib().apo_cuda_langevin_piston_integrator_get_average_pressure_scalar(
             ctypes.byref(c_pressure_scalar), self.handle
-        )
-
-        check_status(
-            status,
-            "CudaLangevinPistonIntegrator.getAveragePressureScalar() failed",
         )
 
         return float(c_pressure_scalar.value)
@@ -675,15 +515,8 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
 
         c_seed = ctypes.c_uint64()
 
-        status = (
-            lib().apo_cuda_langevin_piston_integrator_get_langevin_piston_friction_seed(
-                ctypes.byref(c_seed), self.handle
-            )
-        )
-
-        check_status(
-            status,
-            "CudaLangevinPistonIntegrator.getLangevinPistonFrictionSeed() failed",
+        lib().apo_cuda_langevin_piston_integrator_get_langevin_piston_friction_seed(
+            ctypes.byref(c_seed), self.handle
         )
 
         return int(c_seed.value)
@@ -693,15 +526,8 @@ class CudaLangevinPistonIntegrator(CudaIntegrator):
 
         c_temperature = ctypes.c_double()
 
-        status = (
-            lib().apo_cuda_langevin_piston_integrator_get_instantaneous_temperature(
-                ctypes.byref(c_temperature), self.handle
-            )
-        )
-
-        check_status(
-            status,
-            "CudaLangevinPistonIntegrator.getInstantaneousTemperature() failed",
+        lib().apo_cuda_langevin_piston_integrator_get_instantaneous_temperature(
+            ctypes.byref(c_temperature), self.handle
         )
 
         return float(c_temperature.value)

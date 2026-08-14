@@ -73,20 +73,20 @@ public:
    *
    * @param[in] ctx CharmmContext to be linked
    */
-  virtual void setCharmmContext(std::shared_ptr<CharmmContext> ctx);
+  virtual void setCharmmContext(std::shared_ptr<CharmmContext> ctx) final;
 
   const std::shared_ptr<CharmmContext> getCharmmContext(void) const;
 
   std::shared_ptr<CharmmContext> getCharmmContext(void);
 
-  virtual void initialize(void);
+  virtual void initialize(void) final;
 
-  virtual void initializeFromRestartFile(const std::string &rstFileName);
+  virtual void initializeFromRestartFile(const std::string &rstFileName) final;
 
   /**
    * @brief Propagate a single time step
    */
-  virtual void propagateOneStep(void);
+  virtual void propagateOneStep(void) final;
 
   /**
    * @brief Propagate given number of steps
@@ -101,7 +101,7 @@ public:
 
   void setDebugPrintFrequency(const int freq);
 
-  void setNonbondedListUpdateFrequency(const int nfreq);
+  void setNonbondedListUpdateFrequency(const int freq);
 
   // SUBSCRIBER FUNCTIONS
   //======================
@@ -187,6 +187,15 @@ public:
   int getNumSteps(void) const;
 
 protected:
+  virtual void initializeImpl(void);
+
+  virtual void initializeFromRestartFileImpl(const std::string &rstFileName);
+
+  virtual void propagateOneStepImpl(void);
+
+  void requirePropagationReady(void) const;
+
+protected:
   /**
    * @brief Returns indices of Subscriber needing update
    *
@@ -260,11 +269,6 @@ protected:
    * reportFreq of Subscriber #i.
    */
   std::vector<int> m_ReportFreqList;
-
-  /**
-   * @brief Flag reporting if CharmmContext object has been set
-   */
-  bool m_IsCharmmContextSet;
 
   int m_NonbondedListUpdateFrequency;
 

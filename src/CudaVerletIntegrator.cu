@@ -9,12 +9,11 @@
 // ENDLICENSE
 
 #include "CudaVerletIntegrator.h"
+
 #include <iostream>
 
 CudaVerletIntegrator::CudaVerletIntegrator(double timeStep)
-    : CudaIntegrator(timeStep) {
-  m_IntegratorTypeName = "CudaVerletIntegrator";
-}
+    : CudaIntegrator(timeStep) {}
 
 extern __global__ void printKernel(int numAtoms, float4 *array);
 extern __global__ void printKernel(int numAtoms, double4 *array);
@@ -79,7 +78,7 @@ __global__ void initializeKernel(float4 *coords, float4 *oldCoords,
   }
 }
 
-void CudaVerletIntegrator::initialize(void) {
+void CudaVerletIntegrator::initializeImpl(void) {
   int numAtoms = m_Context->getNumAtoms();
   m_OldXYZQ.resize(numAtoms);
   m_NewXYZQ.resize(numAtoms);

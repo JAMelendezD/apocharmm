@@ -9,21 +9,14 @@
 // ENDLICENSE
 
 #pragma once
-#include "CharmmContext.h"
+
 #include "CudaIntegrator.h"
 
 class CudaLeapFrogIntegrator : public CudaIntegrator {
 public:
   CudaLeapFrogIntegrator(const double timeStep);
 
-  // Put these in the base class
-  void initialize(void) override;
-
-  void propagateOneStep(void) override;
-
-  std::map<std::string, std::string> getIntegratorDescriptors(void) override;
-
-private:
-  int m_StepsSinceLastReport;
-  std::string m_IntegratorTypeName;
+protected:
+  void initializeImpl(void) override;
+  void propagateOneStepImpl(void) override;
 };

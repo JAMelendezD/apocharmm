@@ -46,10 +46,10 @@ public:
   CudaContainer<double> &getAverageTemperature(void);
   double getInstantaneousTemperature(void);
 
-public:
-  void initialize(void) override;
-  void initializeFromRestartFile(const std::string &rstFileName) override;
-  void propagateOneStep(void) override;
+protected:
+  void initializeImpl(void) override;
+  void initializeFromRestartFileImpl(const std::string &rstFileName) override;
+  void propagateOneStepImpl(void) override;
 
 protected:
   void initializeRng(void);

@@ -13,6 +13,7 @@
 #include "str_utils.h"
 
 #include <limits>
+#include <sstream>
 #include <string>
 #include <string_view>
 
@@ -167,6 +168,119 @@ TEST_CASE("StrUtilsParsesFloatingPointValuesStrictly") {
       ApoCharmmErrorCode::Runtime,
       "Invalid charge value \"BAD\" in ATOM section of PSF \"test.psf\" at "
       "line 5");
+}
+
+TEST_CASE("StrUtilsReadsStreamsAndNormalizesLineEndings") {
+  std::istringstream input("first\r\nsecond\nthird");
+  std::size_t lineNumber = 0;
+  std::string line = "stale";
+
+  CHECK(apo::try_get_line(line, lineNumber, input));
+  CHECK(line == "first");
+  CHECK(lineNumber == 1);
+
+  apo::get_line(line, lineNumber, input, "second record", "test stream");
+  CHECK(line == "second");
+  CHECK(lineNumber == 2);
+
+  apo::get_line(line, lineNumber, input, "third record", "test stream");
+  CHECK(line == "third");
+  CHECK(lineNumber == 3);
+
+  CHECK_FALSE(apo::try_get_line(line, lineNumber, input));
+  CHECK(line.empty());
+  CHECK(lineNumber == 3);
+}
+
+TEST_CASE("StrUtilsFindsRequiredStreamLines") {
+  std::istringstream input("header\n"
+                           "ignored\n"
+                           " !TARGET\r\n"
+                           "payload\n");
+
+  std::size_t lineNumber = 0;
+  std::string line;
+
+  apo::find_required_line(input, lineNumber, " !TARGET", "target section",
+                          "test stream");
+  CHECK(lineNumber == 3);
+
+  apo::get_line(line, lineNumber, input, "payload record", "test stream");
+  CHECK(line == "payload");
+  CHECK(lineNumber == 4);
+}
+
+TEST_CASE("StrUtilsReportsStreamReadFailures") {
+  SECTION("UnexpectedEndOfFile") {
+    std::istringstream input("");
+    std::size_t lineNumber = 0;
+    std::string line;
+
+    apo_test::CheckApoCharmmError(
+        [&]() {
+          apo::get_line(line, lineNumber, input, "ATOM record", "test stream");
+        },
+        ApoCharmmErrorCode::Runtime,
+        "Unexpected end of file while reading ATOM record in test stream");
+  }
+
+  SECTION("MissingRequiredLine") {
+    std::istringstream input("header\npayload\n");
+    std::size_t lineNumber = 0;
+
+    apo_test::CheckApoCharmmError(
+        [&]() {
+          apo::find_required_line(input, lineNumber, " !TARGET",
+                                  "target section", "test stream");
+        },
+        ApoCharmmErrorCode::Runtime,
+        "Could not find target section in test stream");
+  }
+}
+
+TEST_CASE("StrUtilsParsesFixedWidthFields") {
+  CHECK(apo::get_fixed_width_field("0123456789", 2, 4, "digits",
+                                   "test record") == "2345");
+
+  CHECK(apo::parse_fixed_width_int("  -17  ", 0, 7, "count", "test record") ==
+        -17);
+
+  CHECK(apo::parse_fixed_width_ull("  42  ", 0, 6, "count", "test record") ==
+        42ULL);
+
+  CHECK(apo::parse_fixed_width_double(" 1.25D+02 ", 0, 10, "value",
+                                      "test record") == Approx(125.0));
+
+  apo_test::CheckApoCharmmError(
+      [](void) {
+        static_cast<void>(
+            apo::get_fixed_width_field("123", 2, 2, "count", "test record"));
+      },
+      ApoCharmmErrorCode::Runtime,
+      "Field \"count\" is truncated in test record");
+
+  apo_test::CheckApoCharmmError(
+      [](void) {
+        static_cast<void>(
+            apo::parse_fixed_width_int(" BAD ", 0, 5, "count", "test record"));
+      },
+      ApoCharmmErrorCode::Runtime,
+      "Invalid count value \"BAD\" in test record");
+
+  apo_test::CheckApoCharmmError(
+      [](void) {
+        static_cast<void>(
+            apo::parse_fixed_width_ull(" -1 ", 0, 4, "count", "test record"));
+      },
+      ApoCharmmErrorCode::Runtime, "Invalid count value \"-1\" in test record");
+
+  apo_test::CheckApoCharmmError(
+      [](void) {
+        static_cast<void>(apo::parse_fixed_width_double(
+            " INF ", 0, 5, "floating-point", "test record"));
+      },
+      ApoCharmmErrorCode::Runtime,
+      "Invalid floating-point value \"INF\" in test record");
 }
 
 TEST_CASE("StrUtilsSplitRejectsEmptyDelimiter") {

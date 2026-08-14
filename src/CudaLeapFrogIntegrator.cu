@@ -9,15 +9,13 @@
 // ENDLICENSE
 
 #include "CudaLeapFrogIntegrator.h"
+
 #include <iostream>
 
 CudaLeapFrogIntegrator::CudaLeapFrogIntegrator(const double timeStep)
-    : CudaIntegrator(timeStep) {
-  m_StepsSinceLastReport = 0;
-  m_IntegratorTypeName = "CudaLeapFrogIntegrator";
-}
+    : CudaIntegrator(timeStep) {}
 
-void CudaLeapFrogIntegrator::initialize(void) { return; }
+void CudaLeapFrogIntegrator::initializeImpl(void) { return; }
 
 __global__ static void leapFrogKernel(const int numAtoms, const int stride,
                                       const double timeStep,
@@ -40,7 +38,7 @@ __global__ static void leapFrogKernel(const int numAtoms, const int stride,
   }
 }
 
-void CudaLeapFrogIntegrator::propagateOneStep(void) {
+void CudaLeapFrogIntegrator::propagateOneStepImpl(void) {
   float4 *xyzq = m_Context->getCoordinatesChargesSP().getDeviceArray().data();
   double4 *velMass =
       m_Context->getVelocitiesInverseMasses().getDeviceArray().data();
@@ -70,19 +68,5 @@ void CudaLeapFrogIntegrator::propagateOneStep(void) {
 
   gpu_range_stop();
 
-  m_StepsSinceLastReport++;
-  if (m_DebugPrintFrequency > 0 &&
-      m_StepsSinceLastReport % m_DebugPrintFrequency == 0) {
-    m_StepsSinceLastReport = 0;
-  }
-
   return;
-}
-
-std::map<std::string, std::string>
-CudaLeapFrogIntegrator::getIntegratorDescriptors(void) {
-  std::map<std::string, std::string> descriptors;
-  descriptors["integratorType"] = "LeapFrog";
-  descriptors["timeStep"] = std::to_string(m_TimeStep);
-  return descriptors;
 }

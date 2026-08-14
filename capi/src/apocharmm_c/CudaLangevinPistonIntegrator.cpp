@@ -14,7 +14,6 @@
 #include "apocharmm_c/detail/SubscriberHandle.h"
 #include "apocharmm_c/detail/Validation.h"
 
-#include <cmath>
 #include <memory>
 #include <vector>
 
@@ -149,15 +148,8 @@ apo_cuda_langevin_piston_integrator_set_reference_pressure(
               function_name, "pressure_tensor must contain exactly 9 elements");
         }
 
-        std::vector<double> reference_pressure(9);
-        for (int i = 0; i < 9; i++) {
-          if (!std::isfinite(pressure_tensor[i])) {
-            return apocharmm_c::invalid_argument(
-                function_name, "pressure_tensor values must be finite");
-          }
-
-          reference_pressure[i] = pressure_tensor[i];
-        }
+        std::vector<double> reference_pressure(pressure_tensor,
+                                               pressure_tensor + 9);
 
         integrator->object->setReferencePressure(reference_pressure);
 
@@ -230,20 +222,7 @@ apo_cuda_langevin_piston_integrator_set_langevin_piston_mass(
                              "on crystal type");
         }
 
-        std::vector<double> piston_mass(mass_len);
-        for (size_t i = 0; i < mass_len; i++) {
-          if (!std::isfinite(mass[i])) {
-            return apocharmm_c::invalid_argument(function_name,
-                                                 "mass values must be finite");
-          }
-
-          if (mass[i] < 0.0) {
-            return apocharmm_c::invalid_argument(
-                function_name, "mass values must be non-negative");
-          }
-
-          piston_mass[i] = mass[i];
-        }
+        std::vector<double> piston_mass(mass, mass + mass_len);
 
         integrator->object->setLangevinPistonMass(piston_mass);
 
@@ -346,7 +325,17 @@ apo_cuda_langevin_piston_integrator_get_nose_hoover_piston_mass(
         APOCHARMM_C_RETURN_IF_ERROR(
             apocharmm_c::require_pointer<double>(mass, function_name, "mass"));
 
-        *mass = integrator->object->getNoseHooverPistonMass()[0];
+        CudaContainer<double> &piston_mass =
+            integrator->object->getNoseHooverPistonMass();
+
+        if (piston_mass.size() != 1) {
+          return apocharmm_c::set_last_error(
+              APO_STATUS_RUNTIME_ERROR, function_name,
+              "Nose-Hoover piston mass does not contain exactly 1 element");
+        }
+
+        piston_mass.transferToHost();
+        *mass = piston_mass[0];
 
         return APO_STATUS_OK;
       },
@@ -369,12 +358,21 @@ apo_cuda_langevin_piston_integrator_get_average_temperature(
         APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<double>(
             temperature, function_name, "temperature"));
 
-        integrator->object->getAverageTemperature().transferToHost();
+        CudaContainer<double> &average_temperature =
+            integrator->object->getAverageTemperature();
+
+        if (average_temperature.size() != 2) {
+          return apocharmm_c::set_last_error(
+              APO_STATUS_RUNTIME_ERROR, function_name,
+              "Average temperature does not contain exactly 2 elements");
+        }
+
+        average_temperature.transferToHost();
 
         if (integrator->object->usingOldTemperature())
-          *temperature = integrator->object->getAverageTemperature()[0];
+          *temperature = average_temperature[0];
         else
-          *temperature = integrator->object->getAverageTemperature()[1];
+          *temperature = average_temperature[1];
 
         return APO_STATUS_OK;
       },
@@ -544,9 +542,18 @@ apo_cuda_langevin_piston_integrator_get_instantaneous_pressure_scalar(
         APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<double>(
             pressure_scalar, function_name, "pressure_scalar"));
 
-        integrator->object->getInstantaneousPressureScalar().transferToHost();
-        *pressure_scalar =
-            integrator->object->getInstantaneousPressureScalar()[0];
+        CudaContainer<double> &instantaneous_pressure_scalar =
+            integrator->object->getInstantaneousPressureScalar();
+
+        if (instantaneous_pressure_scalar.size() != 1) {
+          return apocharmm_c::set_last_error(
+              APO_STATUS_RUNTIME_ERROR, function_name,
+              "Instantaneous pressure scalar does not contain exactly 1 "
+              "element");
+        }
+
+        instantaneous_pressure_scalar.transferToHost();
+        *pressure_scalar = instantaneous_pressure_scalar[0];
 
         return APO_STATUS_OK;
       },
@@ -609,8 +616,17 @@ apo_cuda_langevin_piston_integrator_get_average_pressure_scalar(
         APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<double>(
             pressure_scalar, function_name, "pressure_scalar"));
 
-        integrator->object->getAveragePressureScalar().transferToHost();
-        *pressure_scalar = integrator->object->getAveragePressureScalar()[0];
+        CudaContainer<double> &average_pressure_scalar =
+            integrator->object->getAveragePressureScalar();
+
+        if (average_pressure_scalar.size() != 1) {
+          return apocharmm_c::set_last_error(
+              APO_STATUS_RUNTIME_ERROR, function_name,
+              "Average pressure scalar does not contain exactly 1 element");
+        }
+
+        average_pressure_scalar.transferToHost();
+        *pressure_scalar = average_pressure_scalar[0];
 
         return APO_STATUS_OK;
       },

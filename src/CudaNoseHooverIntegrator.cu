@@ -24,14 +24,6 @@
 
 CudaNoseHooverIntegrator::CudaNoseHooverIntegrator(const double timeStep)
     : CudaIntegrator(timeStep) {
-  APOCHARMM_REQUIRE(
-      std::isfinite(timeStep), ApoCharmmErrorCode::InvalidArgument,
-      "Time step must be finitel observed " + std::to_string(timeStep));
-
-  APOCHARMM_REQUIRE(timeStep > 0.0, ApoCharmmErrorCode::InvalidArgument,
-                    "Time step must be positive; observed " +
-                        std::to_string(timeStep));
-
   m_UsingHolonomicConstraints = true;
 
   m_ReferenceTemperature = 300.0;
@@ -347,11 +339,7 @@ BackStepInitializationKernel2(double4 *__restrict__ coordsCharges,
   return;
 }
 
-void CudaNoseHooverIntegrator::initialize(void) {
-  APOCHARMM_REQUIRE(m_Context != nullptr, ApoCharmmErrorCode::NotInitialized,
-                    "CharmmContext must be set before initializing the "
-                    "Nose-Hoover integrator");
-
+void CudaNoseHooverIntegrator::initializeImpl(void) {
   const int numAtoms = m_Context->getNumAtoms();
   constexpr int numThreads = 256;
   const int numBlocks = (numAtoms + numThreads - 1) / numThreads;
@@ -417,15 +405,13 @@ void CudaNoseHooverIntegrator::initialize(void) {
   return;
 }
 
-void CudaNoseHooverIntegrator::initializeFromRestartFile(
+void CudaNoseHooverIntegrator::initializeFromRestartFileImpl(
     const std::string &rstFileName) {
-  APOCHARMM_REQUIRE(
-      m_Context != nullptr, ApoCharmmErrorCode::NotInitialized,
-      "CharmmContext must be set before initializing from a restart file");
-
   std::ifstream fin(rstFileName);
   APOCHARMM_REQUIRE(fin.is_open(), ApoCharmmErrorCode::Runtime,
                     "Could not open file \"" + rstFileName + "\"");
+
+  const std::string restartContext = "restart file \"" + rstFileName + "\"";
 
   std::string line = "";
   bool foundSection = false;
@@ -453,14 +439,20 @@ void CudaNoseHooverIntegrator::initializeFromRestartFile(
 
   line.clear();
   std::getline(fin, line);
-  XTLABC[0] = apo::parse_rst_double(line, 0, 22, "XTALABC[0]", rstFileName);
-  XTLABC[1] = apo::parse_rst_double(line, 22, 22, "XTALABC[1]", rstFileName);
-  XTLABC[2] = apo::parse_rst_double(line, 44, 22, "XTALABC[2]", rstFileName);
+  XTLABC[0] =
+      apo::parse_fixed_width_double(line, 0, 22, "XTALABC[0]", restartContext);
+  XTLABC[1] =
+      apo::parse_fixed_width_double(line, 22, 22, "XTALABC[1]", restartContext);
+  XTLABC[2] =
+      apo::parse_fixed_width_double(line, 44, 22, "XTALABC[2]", restartContext);
   line.clear();
   std::getline(fin, line);
-  XTLABC[3] = apo::parse_rst_double(line, 0, 22, "XTALABC[3]", rstFileName);
-  XTLABC[4] = apo::parse_rst_double(line, 22, 22, "XTALABC[4]", rstFileName);
-  XTLABC[5] = apo::parse_rst_double(line, 44, 22, "XTALABC[5]", rstFileName);
+  XTLABC[3] =
+      apo::parse_fixed_width_double(line, 0, 22, "XTALABC[3]", restartContext);
+  XTLABC[4] =
+      apo::parse_fixed_width_double(line, 22, 22, "XTALABC[4]", restartContext);
+  XTLABC[5] =
+      apo::parse_fixed_width_double(line, 44, 22, "XTALABC[5]", restartContext);
 
   // Not needed for Nose-Hoover thermostat
   line.clear();
@@ -476,10 +468,10 @@ void CudaNoseHooverIntegrator::initializeFromRestartFile(
 
   line.clear();
   std::getline(fin, line);
-  // PNH = apo::parse_rst_double(line, 0, 22, "PNH", rstFileName); // Not needed
-  // for NHT
-  PNHV = apo::parse_rst_double(line, 22, 22, "PNHV", rstFileName);
-  PNHF = apo::parse_rst_double(line, 44, 22, "PNHF", rstFileName);
+  // PNH = apo::parse_fixed_width_double(line, 0, 22, "PNH", restartContext); //
+  // Not needed for NHT
+  PNHV = apo::parse_fixed_width_double(line, 22, 22, "PNHV", restartContext);
+  PNHF = apo::parse_fixed_width_double(line, 44, 22, "PNHF", restartContext);
 
   // Not needed for Nose-Hoover thermostat
   line.clear();
@@ -571,14 +563,15 @@ void CudaNoseHooverIntegrator::initializeFromRestartFile(
 
   line.clear();
   std::getline(fin, line);
-  NATOM = apo::parse_rst_int(line, 0, 12, "NATOM", rstFileName);
-  NPRIV = apo::parse_rst_ull(line, 12, 12, "NPRIV", rstFileName);
-  NSTEP = apo::parse_rst_int(line, 24, 12, "NSTEP", rstFileName);
-  // NSAVC = apo::parse_rst_int(line, 36, 12, "NSAVC", rstFileName);
-  // NSAVV = apo::parse_rst_int(line, 48, 12, "NSAVV", rstFileName);
-  // JHSTRT = apo::parse_rst_int(line, 60, 12, "JHSTRT", rstFileName);
-  NDEGF = apo::parse_rst_int(line, 72, 12, "NDEGF", rstFileName);
-  // SEED = apo::parse_rst_ull(line, 84, 22, "SEED", rstFileName);
+  NATOM = apo::parse_fixed_width_int(line, 0, 12, "NATOM", restartContext);
+  NPRIV = apo::parse_fixed_width_ull(line, 12, 12, "NPRIV", restartContext);
+  NSTEP = apo::parse_fixed_width_int(line, 24, 12, "NSTEP", restartContext);
+  // NSAVC = apo::parse_fixed_width_int(line, 36, 12, "NSAVC", restartContext);
+  // NSAVV = apo::parse_fixed_width_int(line, 48, 12, "NSAVV", restartContext);
+  // JHSTRT = apo::parse_fixed_width_int(line, 60, 12, "JHSTRT",
+  // restartContext);
+  NDEGF = apo::parse_fixed_width_int(line, 72, 12, "NDEGF", restartContext);
+  // SEED = apo::parse_fixed_width_ull(line, 84, 22, "SEED", restartContext);
   // RNGSTATE = line.substr(106, std::string::npos);
 
   APOCHARMM_REQUIRE(NATOM == m_Context->getNumAtoms(),
@@ -615,12 +608,12 @@ void CudaNoseHooverIntegrator::initializeFromRestartFile(
   for (int i = 0; i < NATOM; i++) {
     line.clear();
     std::getline(fin, line);
-    XOLD[i] = apo::parse_rst_double(
-        line, 0, 22, "XOLD[" + std::to_string(i) + "]", rstFileName);
-    YOLD[i] = apo::parse_rst_double(
-        line, 22, 22, "YOLD[" + std::to_string(i) + "]", rstFileName);
-    ZOLD[i] = apo::parse_rst_double(
-        line, 44, 22, "ZOLD[" + std::to_string(i) + "]", rstFileName);
+    XOLD[i] = apo::parse_fixed_width_double(
+        line, 0, 22, "XOLD[" + std::to_string(i) + "]", restartContext);
+    YOLD[i] = apo::parse_fixed_width_double(
+        line, 22, 22, "YOLD[" + std::to_string(i) + "]", restartContext);
+    ZOLD[i] = apo::parse_fixed_width_double(
+        line, 44, 22, "ZOLD[" + std::to_string(i) + "]", restartContext);
   }
 
   // Find VX, VY, VZ section
@@ -641,12 +634,12 @@ void CudaNoseHooverIntegrator::initializeFromRestartFile(
   for (int i = 0; i < NATOM; i++) {
     line.clear();
     std::getline(fin, line);
-    VX[i] = apo::parse_rst_double(line, 0, 22, "VX[" + std::to_string(i) + "]",
-                                  rstFileName);
-    VY[i] = apo::parse_rst_double(line, 22, 22, "VY[" + std::to_string(i) + "]",
-                                  rstFileName);
-    VZ[i] = apo::parse_rst_double(line, 44, 22, "VZ[" + std::to_string(i) + "]",
-                                  rstFileName);
+    VX[i] = apo::parse_fixed_width_double(
+        line, 0, 22, "VX[" + std::to_string(i) + "]", restartContext);
+    VY[i] = apo::parse_fixed_width_double(
+        line, 22, 22, "VY[" + std::to_string(i) + "]", restartContext);
+    VZ[i] = apo::parse_fixed_width_double(
+        line, 44, 22, "VZ[" + std::to_string(i) + "]", restartContext);
   }
 
   // Find X, Y, Z section
@@ -667,12 +660,12 @@ void CudaNoseHooverIntegrator::initializeFromRestartFile(
   for (int i = 0; i < NATOM; i++) {
     line.clear();
     std::getline(fin, line);
-    X[i] = apo::parse_rst_double(line, 0, 22, "X[" + std::to_string(i) + "]",
-                                 rstFileName);
-    Y[i] = apo::parse_rst_double(line, 22, 22, "Y[" + std::to_string(i) + "]",
-                                 rstFileName);
-    Z[i] = apo::parse_rst_double(line, 44, 22, "Z[" + std::to_string(i) + "]",
-                                 rstFileName);
+    X[i] = apo::parse_fixed_width_double(
+        line, 0, 22, "X[" + std::to_string(i) + "]", restartContext);
+    Y[i] = apo::parse_fixed_width_double(
+        line, 22, 22, "Y[" + std::to_string(i) + "]", restartContext);
+    Z[i] = apo::parse_fixed_width_double(
+        line, 44, 22, "Z[" + std::to_string(i) + "]", restartContext);
   }
 
   for (int i = 0; i < NATOM; i++) {
@@ -937,11 +930,7 @@ UpdateAverageTemperatureKernel(double *__restrict__ averageTemperature,
   return;
 }
 
-void CudaNoseHooverIntegrator::propagateOneStep(void) {
-  APOCHARMM_REQUIRE(
-      m_Context != nullptr, ApoCharmmErrorCode::NotInitialized,
-      "CharmmContext must be set before propagating one Nose-Hoover step");
-
+void CudaNoseHooverIntegrator::propagateOneStepImpl(void) {
   const int numDegreesOfFreedom = m_Context->getNumDegreesOfFreedom();
   const double referenceKineticEnergy =
       0.5 * static_cast<double>(numDegreesOfFreedom) *

@@ -9,19 +9,18 @@
 // ENDLICENSE
 
 #include "CudaVelocityVerletIntegrator.h"
+
 #include "gpu_utils.h"
+
 #include <chrono>
 #include <iostream>
 #include <map>
 
 CudaVelocityVerletIntegrator::CudaVelocityVerletIntegrator(
     const double timeStep)
-    : CudaIntegrator(timeStep) {
-  m_StepsSinceLastReport = 0;
-  m_IntegratorTypeName = "VelocityVerlet";
-}
+    : CudaIntegrator(timeStep) {}
 
-void CudaVelocityVerletIntegrator::initialize(void) { return; }
+void CudaVelocityVerletIntegrator::initializeImpl(void) { return; }
 
 static __global__ void firstHalfKickAndDrift(const int numAtoms,
                                              const int stride,
@@ -81,7 +80,7 @@ updateSPKernel(int numAtoms, float4 *__restrict__ xyzq,
   }
 }
 
-void CudaVelocityVerletIntegrator::propagateOneStep(void) {
+void CudaVelocityVerletIntegrator::propagateOneStepImpl(void) {
   float4 *xyzq = m_Context->getCoordinatesChargesSP().getDeviceArray().data();
   auto coordsCharge =
       m_Context->getCoordinatesChargesDP().getDeviceArray().data();
@@ -135,9 +134,8 @@ void CudaVelocityVerletIntegrator::propagateOneStep(void) {
   mycccc.transferFromDevice();
   myccvm.transferFromDevice();
 
-  m_StepsSinceLastReport++;
   if (m_DebugPrintFrequency > 0 &&
-      (m_StepsSinceLastReport + 1) % m_DebugPrintFrequency == 0) {
+      m_CurrentPropagatedStep % m_DebugPrintFrequency == 0) {
     auto peContainer = m_Context->getPotentialEnergy();
     peContainer.transferFromDevice();
     auto pe = peContainer[0];
@@ -151,16 +149,7 @@ void CudaVelocityVerletIntegrator::propagateOneStep(void) {
 
     std::cout << "[VVER] pos0x/vel0x: " << mycccc[0].x << " " << myccvm[0].x
               << "\n";
-    m_StepsSinceLastReport = 0;
   }
 
   return;
-}
-
-std::map<std::string, std::string>
-CudaVelocityVerletIntegrator::getIntegratorDescriptors(void) {
-  std::map<std::string, std::string> ret;
-  ret["type"] = "VelocityVerlet";
-  ret["timestep"] = std::to_string(m_TimeStep);
-  return ret;
 }

@@ -65,10 +65,10 @@ void CudaLangevinThermostatIntegrator::setThermostatFriction(
   m_ThermostatGamma = m_TimeStep * m_Timfac * thermostatFriction;
   // JEG260409: If the friction changes before running a new simulation (i.e.
   // not from a restart file or continuing a previous one) AND the CHARMM
-  // context has previous been set, we need to call this->initialize() again so
+  // context has previous been set, initialize the derived state again so
   // m_CoordsDelta and m_CoordsDeltaPrevious can have correct values.
   if ((m_Context != nullptr) && (m_TotNumSteps == 0))
-    this->initialize();
+    this->initializeImpl();
   return;
 }
 
@@ -275,7 +275,7 @@ BackStepInitializationKernel2(double4 *__restrict__ coordsCharges,
   return;
 }
 
-void CudaLangevinThermostatIntegrator::initialize(void) {
+void CudaLangevinThermostatIntegrator::initializeImpl(void) {
   const int numAtoms = m_Context->getNumAtoms();
   constexpr int numThreads = 256;
   const int numBlocks = (numAtoms + numThreads - 1) / numThreads;
@@ -340,14 +340,8 @@ void CudaLangevinThermostatIntegrator::initialize(void) {
   return;
 }
 
-void CudaLangevinThermostatIntegrator::initializeFromRestartFile(
+void CudaLangevinThermostatIntegrator::initializeFromRestartFileImpl(
     const std::string &rstFileName) {
-  // Ensure that the CharmmContext has been set before we try to initialize
-  if (m_Context == nullptr) {
-    throw std::runtime_error(
-        "CharmmContext must be set before initializing from a restart file");
-  }
-
   std::ifstream fin(rstFileName);
   if (!fin.is_open())
     throw std::runtime_error("Could not open file \"" + rstFileName + "\"");
@@ -806,7 +800,7 @@ UpdateAverageTemperatureKernel(double *__restrict__ averageTemperature,
   return;
 }
 
-void CudaLangevinThermostatIntegrator::propagateOneStep(void) {
+void CudaLangevinThermostatIntegrator::propagateOneStepImpl(void) {
   const double kbt = charmm::constants::kBoltz * m_ReferenceTemperature;
   const int numAtoms = m_Context->getNumAtoms();
   double4 *coordsCharges =

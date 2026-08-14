@@ -28,8 +28,8 @@ CudaIntegrator::CudaIntegrator(void)
       m_HolonomicConstraint(nullptr), m_CoordsRef(), m_CoordsDelta(),
       m_CoordsDeltaPrevious(), m_IntegratorStream(nullptr),
       m_IntegratorMemcpyStream(nullptr), m_UsingHolonomicConstraints(false),
-      m_Subscribers(), m_ReportFreqList(), m_IsCharmmContextSet(false),
-      m_NonbondedListUpdateFrequency(20), m_RemoveCenterOfMassFrequency(1000),
+      m_Subscribers(), m_ReportFreqList(), m_NonbondedListUpdateFrequency(20),
+      m_RemoveCenterOfMassFrequency(1000),
       m_IntegratorTypeName("BaseClass integrator") {
   m_IntegratorStream = std::make_shared<cudaStream_t>();
   cudaCheck(cudaStreamCreate(m_IntegratorStream.get()));
@@ -45,13 +45,13 @@ CudaIntegrator::CudaIntegrator(void)
 }
 
 CudaIntegrator::CudaIntegrator(const double timeStep) : CudaIntegrator() {
-  m_TimeStep = timeStep / 0.0488882129;
+  this->setTimeStep(timeStep);
 }
 
 CudaIntegrator::CudaIntegrator(const double timeStep,
                                const int debugPrintFrequency)
     : CudaIntegrator(timeStep) {
-  m_DebugPrintFrequency = debugPrintFrequency;
+  this->setDebugPrintFrequency(debugPrintFrequency);
 }
 
 CudaIntegrator::~CudaIntegrator(void) noexcept {
@@ -71,16 +71,16 @@ double CudaIntegrator::getTimeStep(void) const {
 }
 
 void CudaIntegrator::setTimeStep(const double timeStep) {
+  APOCHARMM_REQUIRE(
+      std::isfinite(timeStep), ApoCharmmErrorCode::InvalidArgument,
+      "Time step must be finite; observed " + std::to_string(timeStep));
+
+  APOCHARMM_REQUIRE(timeStep > 0.0, ApoCharmmErrorCode::InvalidArgument,
+                    "Time step must be positive; observed " +
+                        std::to_string(timeStep));
+
   // Converting from ps to AKMA units ltm/consta_ltm
   m_TimeStep = timeStep / 0.0488882129;
-
-  // JEG250610: Subscribers can query integrator for time step. We don't need N
-  // copies floating around
-  // // If a new time step is set, and there are Subscribers linked to the
-  // current
-  // // integrator, the new timestep should be communicated to the subscribers.
-  // for (std::size_t i = 0; i < m_Subscribers.size(); i++)
-  //   m_Subscribers[i]->setTimeStepFromIntegrator(timeStep);
 
   return;
 }
@@ -90,7 +90,7 @@ void CudaIntegrator::setCharmmContext(std::shared_ptr<CharmmContext> ctx) {
                     "CharmmContext must not be null");
 
   APOCHARMM_REQUIRE(
-      !m_IsCharmmContextSet, ApoCharmmErrorCode::InvalidArgument,
+      m_Context == nullptr, ApoCharmmErrorCode::InvalidArgument,
       "A CharmmContext object was already set for this CudaIntegrator.");
 
   const int numAtoms = ctx->getNumAtoms();
@@ -112,16 +112,13 @@ void CudaIntegrator::setCharmmContext(std::shared_ptr<CharmmContext> ctx) {
       m_HolonomicConstraint->setup(m_TimeStep);
       m_HolonomicConstraint->setStream(m_IntegratorStream);
     }
-    this->initialize();
+    this->initializeImpl();
   } catch (...) {
     m_HolonomicConstraint.reset();
     m_UsingHolonomicConstraints = false;
     m_Context.reset();
-    m_IsCharmmContextSet = false;
     throw;
   }
-
-  m_IsCharmmContextSet = true;
 
   return;
 }
@@ -136,12 +133,32 @@ std::shared_ptr<CharmmContext> CudaIntegrator::getCharmmContext(void) {
 }
 
 void CudaIntegrator::initialize(void) {
+  APOCHARMM_REQUIRE(m_Context != nullptr, ApoCharmmErrorCode::NotInitialized,
+                    "CharmmContext must be set before initialization");
+
+  this->initializeImpl();
+
+  return;
+}
+
+void CudaIntegrator::initializeImpl(void) {
   APOCHARMM_THROW(
       ApoCharmmErrorCode::NotImplemented,
       "CudaIntegrator::initialize is not implemented by the base class");
 }
 
 void CudaIntegrator::initializeFromRestartFile(const std::string &rstFileName) {
+  APOCHARMM_REQUIRE(
+      m_Context != nullptr, ApoCharmmErrorCode::NotInitialized,
+      "CharmmContext must be set before initializing from a restart file");
+
+  this->initializeFromRestartFileImpl(rstFileName);
+
+  return;
+}
+
+void CudaIntegrator::initializeFromRestartFileImpl(
+    const std::string &rstFileName) {
   static_cast<void>(rstFileName);
   APOCHARMM_THROW(ApoCharmmErrorCode::NotImplemented,
                   "CudaIntegrator::initializeFromRestartFile is not "
@@ -149,9 +166,33 @@ void CudaIntegrator::initializeFromRestartFile(const std::string &rstFileName) {
 }
 
 void CudaIntegrator::propagateOneStep(void) {
+  this->requirePropagationReady();
+  this->propagateOneStepImpl();
+  return;
+}
+
+void CudaIntegrator::propagateOneStepImpl(void) {
   APOCHARMM_THROW(
       ApoCharmmErrorCode::NotImplemented,
       "CudaIntegrator::propagateOneStep is not implemented by the base class");
+}
+
+void CudaIntegrator::requirePropagationReady(void) const {
+  APOCHARMM_REQUIRE(m_Context != nullptr, ApoCharmmErrorCode::NotInitialized,
+                    "CharmmContext must be set before propagation");
+
+  const std::shared_ptr<ForceManager> forceManager =
+      m_Context->getForceManager();
+
+  APOCHARMM_REQUIRE(
+      forceManager != nullptr, ApoCharmmErrorCode::NotInitialized,
+      "CharmmContext must have a ForceManager before propagation");
+
+  APOCHARMM_REQUIRE(forceManager->isInitialized(),
+                    ApoCharmmErrorCode::NotInitialized,
+                    "ForceManager must be initialized before propagation");
+
+  return;
 }
 
 void CudaIntegrator::propagate(const int numSteps) {
@@ -159,17 +200,7 @@ void CudaIntegrator::propagate(const int numSteps) {
                     "Number of propagation steps must be positive; observed " +
                         std::to_string(numSteps));
 
-  APOCHARMM_REQUIRE(m_Context != nullptr, ApoCharmmErrorCode::NotInitialized,
-                    "CharmmContext must be set before propagation");
-
-  const std::shared_ptr<ForceManager> forceManager =
-      m_Context->getForceManager();
-  APOCHARMM_REQUIRE(
-      forceManager != nullptr, ApoCharmmErrorCode::NotInitialized,
-      "CharmmContext must have a ForceManager before propagation");
-  APOCHARMM_REQUIRE(forceManager->isInitialized(),
-                    ApoCharmmErrorCode::NotInitialized,
-                    "ForceManager must be initialized before propagation");
+  this->requirePropagationReady();
 
   m_Context->resetNeighborList();
 
@@ -212,7 +243,7 @@ void CudaIntegrator::propagate(const int numSteps) {
     // if (step % removeCenterOfMassFrequency == 0) {
     //   context->removeCenterOfMassMotion();
     // }
-    this->propagateOneStep();
+    this->propagateOneStepImpl();
 
     m_StepsSinceNeighborListUpdate++;
     this->incrementCurrentPropagatedStep();
@@ -229,12 +260,23 @@ void CudaIntegrator::propagate(const int numSteps) {
 }
 
 void CudaIntegrator::setDebugPrintFrequency(const int freq) {
+  APOCHARMM_REQUIRE(freq >= 0, ApoCharmmErrorCode::InvalidArgument,
+                    "Debug print frequency must be non-negative; observed " +
+                        std::to_string(freq));
+
   m_DebugPrintFrequency = freq;
+
   return;
 }
 
-void CudaIntegrator::setNonbondedListUpdateFrequency(const int nfreq) {
-  m_NonbondedListUpdateFrequency = nfreq;
+void CudaIntegrator::setNonbondedListUpdateFrequency(const int freq) {
+  APOCHARMM_REQUIRE(
+      freq > 0, ApoCharmmErrorCode::InvalidArgument,
+      "Nonbonded-list update frequency must be positive; observed " +
+          std::to_string(freq));
+
+  m_NonbondedListUpdateFrequency = freq;
+
   return;
 }
 
@@ -318,7 +360,13 @@ std::vector<int> &CudaIntegrator::getReportFreqList(void) {
 }
 
 void CudaIntegrator::setRemoveCenterOfMassFrequency(const int freq) {
+  APOCHARMM_REQUIRE(
+      freq > 0, ApoCharmmErrorCode::InvalidArgument,
+      "Center-of-mass removal frequency must be positive; observed " +
+          std::to_string(freq));
+
   m_RemoveCenterOfMassFrequency = freq;
+
   return;
 }
 

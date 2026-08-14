@@ -26,6 +26,7 @@ from python_api_test_helpers import (
     assert_finite_nested_sequence,
     assert_nested_sequence_close,
     expect_exception,
+    expect_apo_error,
 )
 
 BOX_DIMENSIONS: list[float] = [50.0, 50.0, 50.0]
@@ -146,44 +147,106 @@ def check_setters_and_getters() -> None:
 
 
 def check_validation() -> None:
-    print("Checking CudaLagnevinPistonIntegrator validation...")
+    print("Checking CudaLangevinPistonIntegrator validation...")
+
+    expect_apo_error(
+        "constructor rejects zero time step",
+        lambda: apo.CudaLangevinPistonIntegrator(0.0),
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        "Time step must be positive; observed 0.000000",
+        "CudaLangevinPistonIntegrator construction",
+    )
+
+    expect_apo_error(
+        "constructor rejects infinite time step",
+        lambda: apo.CudaLangevinPistonIntegrator(float("inf")),
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        "Time step must be finite; observed",
+        "CudaLangevinPistonIntegrator construction",
+    )
 
     integrator = apo.CudaLangevinPistonIntegrator(TIME_STEP)
 
-    expect_exception(
+    expect_apo_error(
         "setReferencePressure rejects wrong row length",
-        ValueError,
         lambda: integrator.setReferencePressure(
             [[1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
         ),
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        "pressure_tensor must contain exactly 9 elements",
+        "CudaLangevinPistonIntegrator.setReferencePressure(pressure_tensor)",
     )
-    expect_exception(
+
+    expect_apo_error(
         "setReferencePressure rejects wrong flattened length",
-        apo.ApoCharmmError,
         lambda: integrator.setReferencePressure([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]),
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        "pressure_tensor must contain exactly 9 elements",
+        "CudaLangevinPistonIntegrator.setReferencePressure(pressure_tensor)",
     )
-    expect_exception(
+
+    expect_apo_error(
         "setReferencePressure rejects non-finite entries",
-        apo.ApoCharmmError,
         lambda: integrator.setReferencePressure(
-            [[1.0, 0.0, 0.0], [0.0, float("inf"), 0.0], [0.0, 0.0, 1.0]]
+            [
+                [1.0, 0.0, 0.0],
+                [0.0, float("inf"), 0.0],
+                [0.0, 0.0, 1.0],
+            ]
         ),
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        "Reference pressure tensor values must be finite; non-finite value at index 4",
+        "CudaLangevinPistonIntegrator.setReferencePressure(pressure_tensor)",
     )
-    expect_exception(
+
+    expect_apo_error(
         "setCrystalType rejects invalid crystal type",
-        ValueError,
         lambda: integrator.setCrystalType(999),
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        "invalid crystal type",
+        "CudaLangevinPistonIntegrator.setCrystalType(crystal_type)",
     )
-    expect_exception(
+
+    expect_apo_error(
+        "setReferenceTemperature rejects negative temperature",
+        lambda: integrator.setReferenceTemperature(-1.0),
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        "Reference temperature must be non-negative; observed -1.000000",
+        "CudaLangevinPistonIntegrator.setReferenceTemperature(temperature)",
+    )
+
+    expect_apo_error(
+        "setNoseHooverPistonMass rejects negative mass",
+        lambda: integrator.setNoseHooverPistonMass(-1.0),
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        "Nose-Hoover piston mass must be non-negative; observed -1.000000",
+        "CudaLangevinPistonIntegrator.setNoseHooverPistonMass(mass)",
+    )
+
+    expect_apo_error(
         "setLangevinPistonMass rejects missing crystal type",
-        apo.ApoCharmmError,
         lambda: integrator.setLangevinPistonMass([1.0]),
+        apo.APO_STATUS_NOT_INITIALIZED,
+        "Crystal type must be set before Langevin piston mass",
+        "CudaLangevinPistonIntegrator.setLangevinPistonMass(mass)",
     )
-    expect_exception(
+
+    expect_apo_error(
         "setLangevinPistonFriction rejects missing crystal type",
-        apo.ApoCharmmError,
         lambda: integrator.setLangevinPistonFriction(1.0),
+        apo.APO_STATUS_NOT_INITIALIZED,
+        "Crystal type must be set before Langevin piston friction",
+        "CudaLangevinPistonIntegrator.setLangevinPistonFriction(friction)",
     )
+
+    expect_apo_error(
+        "getInstantaneousTemperature rejects missing context",
+        lambda: integrator.getInstantaneousTemperature(),
+        apo.APO_STATUS_NOT_INITIALIZED,
+        "CharmmContext must be set before computing instantaneous temperature",
+        "CudaLangevinPistonIntegrator.getInstantaneousTemperature()",
+    )
+
     expect_exception(
         "setLangevinPistonFrictionSeed rejects negative seed",
         ValueError,
@@ -192,23 +255,55 @@ def check_validation() -> None:
 
     integrator.setCrystalType(apo.CrystalType.CUBIC)
 
-    expect_exception(
+    expect_apo_error(
         "setLangevinPistonMass rejects wrong length for cubic crystal",
-        apo.ApoCharmmError,
         lambda: integrator.setLangevinPistonMass([1.0, 2.0]),
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        "Langevin piston mass must contain 1 element(s); observed 2",
+        "CudaLangevinPistonIntegrator.setLangevinPistonMass(mass)",
     )
-    expect_exception(
+
+    expect_apo_error(
         "setLangevinPistonMass rejects negative mass",
-        apo.ApoCharmmError,
         lambda: integrator.setLangevinPistonMass([-1.0]),
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        "Langevin piston mass values must be non-negative; observed -1.000000 at index 0",
+        "CudaLangevinPistonIntegrator.setLangevinPistonMass(mass)",
+    )
+
+    expect_apo_error(
+        "setLangevinPistonMass rejects infinite mass",
+        lambda: integrator.setLangevinPistonMass([float("inf")]),
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        "Langevin piston mass values must be finite; non-finite value at index 0",
+        "CudaLangevinPistonIntegrator.setLangevinPistonMass(mass)",
+    )
+
+    expect_apo_error(
+        "setLangevinPistonFriction rejects negative friction",
+        lambda: integrator.setLangevinPistonFriction(-1.0),
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        "Langevin piston friction must be non-negative; observed -1.000000",
+        "CudaLangevinPistonIntegrator.setLangevinPistonFriction(friction)",
+    )
+
+    expect_apo_error(
+        "setLangevinPistonFriction rejects infinite friction",
+        lambda: integrator.setLangevinPistonFriction(float("inf")),
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        "Langevin piston friction must be finite; observed",
+        "CudaLangevinPistonIntegrator.setLangevinPistonFriction(friction)",
     )
 
     missing_crystal_integrator = apo.CudaLangevinPistonIntegrator(TIME_STEP)
-    ctx = create_context()
-    expect_exception(
+    context = create_context()
+
+    expect_apo_error(
         "setCharmmContext rejects missing crystal type",
-        apo.ApoCharmmError,
-        lambda: missing_crystal_integrator.setCharmmContext(ctx),
+        lambda: missing_crystal_integrator.setCharmmContext(context),
+        apo.APO_STATUS_NOT_INITIALIZED,
+        "Crystal type must be set before initialization",
+        "CudaIntegrator.setCharmmContext(context)",
     )
 
     integrator.close()

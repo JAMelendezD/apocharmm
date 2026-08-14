@@ -22,6 +22,7 @@
 #include "catch.hpp"
 #include "test_paths.h"
 
+#include <limits>
 #include <memory>
 #include <string>
 
@@ -35,9 +36,10 @@ class CudaIntegratorProbe final : public CudaIntegrator {
 public:
   using CudaIntegrator::CudaIntegrator;
 
-  void initialize(void) override { return; }
+protected:
+  void initializeImpl(void) override { return; }
 
-  void propagateOneStep(void) override { return; }
+  void propagateOneStepImpl(void) override { return; }
 };
 
 std::shared_ptr<CharmmContext> MakeInitializedContext(void) {
@@ -88,6 +90,24 @@ TEST_CASE("CapiCudaIntegratorSetTimeStep") {
       apo_cuda_integrator_set_time_step(&emptyIntegrator, TIME_STEP),
       APO_STATUS_INVALID_ARGUMENT,
       "apo_cuda_integrator_set_time_step: CudaIntegrator object is NULL");
+
+  apo_status status = APO_STATUS_OK;
+
+  CHECK_NOTHROW(status = apo_cuda_integrator_set_time_step(&integrator, 0.0));
+  apo_test::CheckNativeError(status, APO_STATUS_INVALID_ARGUMENT,
+                             "InvalidArgument",
+                             "apo_cuda_integrator_set_time_step",
+                             "Time step must be positive; observed 0.000000",
+                             "src/CudaIntegrator.cu", "setTimeStep");
+
+  const double infinity = std::numeric_limits<double>::infinity();
+  CHECK_NOTHROW(status =
+                    apo_cuda_integrator_set_time_step(&integrator, infinity));
+  apo_test::CheckNativeError(
+      status, APO_STATUS_INVALID_ARGUMENT, "InvalidArgument",
+      "apo_cuda_integrator_set_time_step",
+      "Time step must be finite; observed " + std::to_string(infinity),
+      "src/CudaIntegrator.cu", "setTimeStep");
 }
 
 TEST_CASE("CapiCudaIntegratorContextAttachment") {
@@ -176,7 +196,8 @@ TEST_CASE("CapiCudaIntegratorPropagation") {
   apo_test::CheckNativeError(status, APO_STATUS_NOT_INITIALIZED,
                              "NotInitialized", "apo_cuda_integrator_propagate",
                              "CharmmContext must be set before propagation",
-                             "src/CudaIntegrator.cu", "propagate");
+                             "src/CudaIntegrator.cu",
+                             "requirePropagationReady");
 
   apo_charmm_context context = MakeContextHandle();
   REQUIRE(apo_cuda_integrator_set_charmm_context(&integrator, &context) ==
@@ -214,9 +235,21 @@ TEST_CASE("CapiCudaIntegratorRestartInitialization") {
   CHECK_NOTHROW((status = apo_cuda_integrator_initialize_from_restart_file(
                      &integrator, "restart.rst")));
   apo_test::CheckNativeError(
+      status, APO_STATUS_NOT_INITIALIZED, "NotInitialized",
+      "apo_cuda_integrator_initialize_from_restart_file",
+      "CharmmContext must be set before initializing from a restart file",
+      "src/CudaIntegrator.cu", "initializeFromRestartFile");
+
+  apo_charmm_context context = MakeContextHandle();
+  REQUIRE(apo_cuda_integrator_set_charmm_context(&integrator, &context) ==
+          APO_STATUS_OK);
+
+  CHECK_NOTHROW((status = apo_cuda_integrator_initialize_from_restart_file(
+                     &integrator, "restart.rst")));
+  apo_test::CheckNativeError(
       status, APO_STATUS_NOT_IMPLEMENTED, "NotImplemented",
       "apo_cuda_integrator_initialize_from_restart_file",
       "CudaIntegrator::initializeFromRestartFile is not implemented by the "
       "base class",
-      "src/CudaIntegrator.cu", "initializeFromRestartFile");
+      "src/CudaIntegrator.cu", "initializeFromRestartFileImpl");
 }

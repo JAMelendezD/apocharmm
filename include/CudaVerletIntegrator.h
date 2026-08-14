@@ -12,7 +12,6 @@
 
 #include "CudaIntegrator.h"
 
-#include "CharmmContext.h"
 #include "CudaContainer.h"
 
 class CudaVerletIntegrator : public CudaIntegrator {
@@ -22,13 +21,10 @@ public:
    */
   CudaVerletIntegrator(const double timeStep);
 
-  void initialize(void);
+protected:
+  void initializeImpl(void) override;
 
 private:
   CudaContainer<float4> m_OldXYZQ;
   CudaContainer<float4> m_NewXYZQ;
-  // XYZQ *m_OldXYZQ;
-  // XYZQ *m_NewXYZQ;
-
-  std::string m_IntegratorTypeName;
 };

@@ -8,15 +8,15 @@
 //
 // ENDLICENSE
 
-// #include "CharmmContext.h"
 #include "CudaMinimizer.h"
-// #include <Eigen/Core>
+
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 
 // #include <LBFGS.h>
 
-CudaMinimizer::CudaMinimizer() : CudaIntegrator(0.0) {
+CudaMinimizer::CudaMinimizer() : CudaIntegrator() {
   nsteps = 100; // default number of steps
   method = "sd";
   verboseFlag = false;
@@ -167,7 +167,7 @@ __global__ void norm(int numAtoms, int stride, const double *__restrict__ force,
   }
 }
 
-void CudaMinimizer::initialize() {}
+void CudaMinimizer::initializeImpl() {}
 
 void CudaMinimizer::minimize(int numSteps) {
   // exit with messgae that it's still building

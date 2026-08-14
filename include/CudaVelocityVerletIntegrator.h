@@ -10,23 +10,13 @@
 
 #pragma once
 
-#include "CharmmContext.h"
 #include "CudaIntegrator.h"
-#include <map>
-#include <memory>
 
 class CudaVelocityVerletIntegrator : public CudaIntegrator {
 public:
   CudaVelocityVerletIntegrator(const double timeStep);
 
-  void initialize(void);
-
-  void propagateOneStep(void) override;
-
-  std::map<std::string, std::string> getIntegratorDescriptors(void) override;
-
-private:
-  int m_StepsSinceLastReport;
-
-  std::string m_IntegratorTypeName;
+protected:
+  void initializeImpl(void) override;
+  void propagateOneStepImpl(void) override;
 };

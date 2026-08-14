@@ -11,10 +11,8 @@
 #pragma once
 
 #include "CudaIntegrator.h"
-#include <memory>
-#include <string>
 
-#include "CharmmContext.h"
+#include <string>
 
 class CudaMinimizer : public CudaIntegrator {
 public:
@@ -23,7 +21,6 @@ public:
   // This should not be a raw pointer
   // void setCharmmContext(std::shared_ptr<CharmmContext> csc);
 
-  void initialize();
   void minimize(int numSteps);
   void minimize();
 
@@ -31,10 +28,11 @@ public:
 
   void setVerboseFlag(bool _flag = true);
 
+protected:
+  void initializeImpl(void) override;
+
 private:
   int nsteps;
-  // std::shared_ptr<CharmmContext> context;
   std::string method;
   bool verboseFlag;
-  std::string integratorTypeName = "Minimizer";
 };

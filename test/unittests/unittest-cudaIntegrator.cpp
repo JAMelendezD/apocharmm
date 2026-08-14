@@ -35,14 +35,37 @@ class CudaIntegratorProbe final : public CudaIntegrator {
 public:
   using CudaIntegrator::CudaIntegrator;
 
-  void initialize(void) override { return; }
+  int getInitializeCount(void) const { return m_InitializeCount; }
 
-  void propagateOneStep(void) override { return; }
+  int getPropagateOneStepCount(void) const { return m_PropagateOneStepCount; }
 
   void checkForNanEnergyForTest(void) {
     this->checkForNanEnergy();
     return;
   }
+
+protected:
+  void initializeImpl(void) override {
+    m_InitializeCount++;
+    return;
+  }
+
+  void propagateOneStepImpl(void) override {
+    m_PropagateOneStepCount++;
+    return;
+  }
+
+private:
+  int m_InitializeCount = 0;
+  int m_PropagateOneStepCount = 0;
+};
+
+class CudaIntegratorPartialProbe final : public CudaIntegrator {
+public:
+  using CudaIntegrator::CudaIntegrator;
+
+protected:
+  void initializeImpl(void) override { return; }
 };
 
 std::shared_ptr<CharmmContext> MakeInitializedContext(void) {
@@ -116,36 +139,96 @@ TEST_CASE("CudaIntegratorBaseConstructionAndTimeStep") {
     CHECK(integrator.getTimeStep() == Approx(0.001));
   }
 
-  SECTION("SetFrequenciesDoNotThrow") {
+  SECTION("RejectsInvalidTimeStep") {
+    const double infinity = std::numeric_limits<double>::infinity();
+
+    apo_test::CheckApoCharmmError(
+        []() { static_cast<void>(CudaIntegrator(0.0)); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Time step must be positive; observed 0.000000");
+
+    apo_test::CheckApoCharmmError(
+        [infinity]() { static_cast<void>(CudaIntegrator(infinity)); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Time step must be finite; observed " + std::to_string(infinity));
+
+    CudaIntegrator integrator;
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator.setTimeStep(0.0); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Time step must be positive; observed 0.000000");
+
+    apo_test::CheckApoCharmmError([&]() { integrator.setTimeStep(infinity); },
+                                  ApoCharmmErrorCode::InvalidArgument,
+                                  "Time step must be finite; observed " +
+                                      std::to_string(infinity));
+  }
+
+  SECTION("ValidatesFrequencies") {
     CudaIntegrator integrator;
 
     CHECK_NOTHROW(integrator.setDebugPrintFrequency(10));
     CHECK_NOTHROW(integrator.setNonbondedListUpdateFrequency(5));
     CHECK_NOTHROW(integrator.setRemoveCenterOfMassFrequency(100));
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator.setDebugPrintFrequency(-1); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Debug print frequency must be non-negative; observed -1");
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator.setNonbondedListUpdateFrequency(0); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Nonbonded-list update frequency must be positive; observed 0");
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator.setRemoveCenterOfMassFrequency(0); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Center-of-mass removal frequency must be positive; observed 0");
+
+    apo_test::CheckApoCharmmError(
+        []() { static_cast<void>(CudaIntegrator(TIME_STEP, -1)); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Debug print frequency must be non-negative; observed -1");
   }
 }
 
 TEST_CASE("CudaIntegratorBaseInvalidOperations") {
   CudaIntegrator integrator(TIME_STEP);
 
-  SECTION("InitializeIsNotImplemented") {
+  SECTION("InitializeRequiresContext") {
     apo_test::CheckApoCharmmError(
-        [&]() { integrator.initialize(); }, ApoCharmmErrorCode::NotImplemented,
-        "CudaIntegrator::initialize is not implemented by the base class");
+        [&]() { integrator.initialize(); }, ApoCharmmErrorCode::NotInitialized,
+        "CharmmContext must be set before initialization");
   }
 
-  SECTION("InitializeFromRestartFileIsNotImplemented") {
+  SECTION("RestartInitializationRequiresContext") {
     apo_test::CheckApoCharmmError(
         [&]() { integrator.initializeFromRestartFile("restart.rst"); },
+        ApoCharmmErrorCode::NotInitialized,
+        "CharmmContext must be set before initializing from a restart file");
+  }
+
+  SECTION("OneStepPropagationRequiresContext") {
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator.propagateOneStep(); },
+        ApoCharmmErrorCode::NotInitialized,
+        "CharmmContext must be set before propagation");
+  }
+
+  SECTION("DefaultRestartAndStepHooksAreNotImplemented") {
+    CudaIntegratorPartialProbe probe(TIME_STEP);
+    probe.setCharmmContext(MakeInitializedContext());
+
+    apo_test::CheckApoCharmmError(
+        [&]() { probe.initializeFromRestartFile("restart.rst"); },
         ApoCharmmErrorCode::NotImplemented,
         "CudaIntegrator::initializeFromRestartFile is not implemented by the "
         "base class");
-  }
 
-  SECTION("PropagateOneStepIsNotImplemented") {
     apo_test::CheckApoCharmmError(
-        [&]() { integrator.propagateOneStep(); },
-        ApoCharmmErrorCode::NotImplemented,
+        [&]() { probe.propagateOneStep(); }, ApoCharmmErrorCode::NotImplemented,
         "CudaIntegrator::propagateOneStep is not implemented by the base "
         "class");
   }
@@ -279,10 +362,24 @@ TEST_CASE("CudaIntegratorBasePropagationValidation") {
     CudaIntegratorProbe integrator(TIME_STEP);
     integrator.setCharmmContext(context);
 
-    CHECK_NOTHROW(integrator.propagate(1));
-    CHECK(integrator.getNumSteps() == 1);
-    CHECK(integrator.getTotNumSteps() == 1ULL);
-    CHECK(integrator.getCurrentPropagatedStep() == 1);
+    CHECK(integrator.getInitializeCount() == 1);
+    CHECK(integrator.getPropagateOneStepCount() == 0);
+
+    CHECK_NOTHROW(integrator.propagate(3));
+
+    CHECK(integrator.getNumSteps() == 3);
+    CHECK(integrator.getTotNumSteps() == 3ULL);
+    CHECK(integrator.getCurrentPropagatedStep() == 3);
+    CHECK(integrator.getPropagateOneStepCount() == 3);
+  }
+
+  SECTION("DirectOneStepUsesValidatedBoundary") {
+    auto context = MakeInitializedContext();
+    CudaIntegratorProbe integrator(TIME_STEP);
+    integrator.setCharmmContext(context);
+
+    CHECK_NOTHROW(integrator.propagateOneStep());
+    CHECK(integrator.getPropagateOneStepCount() == 1);
   }
 }
 

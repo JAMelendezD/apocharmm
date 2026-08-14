@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <fstream>
 #include <iomanip>
+#include <istream>
 #include <limits>
 #include <locale>
 #include <sstream>
@@ -176,6 +177,9 @@ bool apo::try_get_line(std::string &line, std::size_t &pos,
     pos = line_end + 1;
   }
 
+  if (!line.empty() && (line.back() == '\r'))
+    line.pop_back();
+
   return true;
 }
 
@@ -184,6 +188,21 @@ bool apo::try_get_line(std::string &line, std::size_t &pos,
                        const std::string_view file_data) {
   if (!apo::try_get_line(line, pos, file_data))
     return false;
+
+  line_number++;
+
+  return true;
+}
+
+bool apo::try_get_line(std::string &line, std::size_t &line_number,
+                       std::istream &input) {
+  line.clear();
+
+  if (!std::getline(input, line))
+    return false;
+
+  if (!line.empty() && (line.back() == '\r'))
+    line.pop_back();
 
   line_number++;
 
@@ -206,6 +225,42 @@ void apo::get_line(std::string &line, std::size_t &pos,
                         std::string(record_name) + " in " +
                         std::string(source_name));
   return;
+}
+
+void apo::get_line(std::string &line, std::size_t &line_number,
+                   std::istream &input, const std::string_view record_name,
+                   const std::string_view source_name) {
+  if (apo::try_get_line(line, line_number, input))
+    return;
+
+  APOCHARMM_REQUIRE(!input.bad(), ApoCharmmErrorCode::Runtime,
+                    "Failed while reading " + std::string(record_name) +
+                        " in " + std::string(source_name));
+
+  APOCHARMM_THROW(ApoCharmmErrorCode::Runtime,
+                  "Unexpected end of file while reading " +
+                      std::string(record_name) + " in " +
+                      std::string(source_name));
+}
+
+void apo::find_required_line(std::istream &input, std::size_t &line_number,
+                             const std::string_view target,
+                             const std::string_view record_name,
+                             const std::string_view source_name) {
+  std::string line = "";
+
+  while (apo::try_get_line(line, line_number, input)) {
+    if (line == target)
+      return;
+  }
+
+  APOCHARMM_REQUIRE(!input.bad(), ApoCharmmErrorCode::Runtime,
+                    "Failed while searching for " + std::string(record_name) +
+                        " in " + std::string(source_name));
+
+  APOCHARMM_THROW(ApoCharmmErrorCode::Runtime,
+                  "Could not find " + std::string(record_name) + " in " +
+                      std::string(source_name));
 }
 
 bool apo::try_get_fixed_width_field(std::string_view &field,
@@ -394,75 +449,50 @@ double apo::fortSciStrToCDouble(const std::string_view str) {
   return apo::parse_double(str, "floating-point", "Fortran scientific value");
 }
 
-std::string apo::get_rst_field(const std::string &line,
-                               const std::size_t offset,
-                               const std::size_t width,
-                               const std::string_view field_name,
-                               const std::string &rst_name) {
+std::string apo::get_fixed_width_field(const std::string_view line,
+                                       const std::size_t offset,
+                                       const std::size_t width,
+                                       const std::string_view field_name,
+                                       const std::string_view context) {
   std::string_view field;
 
   APOCHARMM_REQUIRE(apo::try_get_fixed_width_field(field, line, offset, width),
                     ApoCharmmErrorCode::Runtime,
-                    "Restart field \"" + std::string(field_name) +
-                        "\" is truncated in file \"" + rst_name + "\"");
+                    "Field \"" + std::string(field_name) +
+                        "\" is truncated in " + std::string(context));
 
   return std::string(field);
 }
 
-double apo::parse_rst_double(const std::string &line, const std::size_t offset,
-                             const std::size_t width,
-                             const std::string_view field_name,
-                             const std::string &rst_name) {
+double apo::parse_fixed_width_double(const std::string_view line,
+                                     const std::size_t offset,
+                                     const std::size_t width,
+                                     const std::string_view field_name,
+                                     const std::string_view context) {
   const std::string field =
-      get_rst_field(line, offset, width, field_name, rst_name);
+      apo::get_fixed_width_field(line, offset, width, field_name, context);
 
-  double value = 0.0;
-
-  APOCHARMM_REQUIRE(apo::try_parse_double(value, field),
-                    ApoCharmmErrorCode::Runtime,
-                    "Restart field \"" + std::string(field_name) +
-                        "\" is not a valid floating-point value in file \"" +
-                        rst_name + "\"");
-
-  APOCHARMM_REQUIRE(std::isfinite(value), ApoCharmmErrorCode::Runtime,
-                    "Restart field \"" + std::string(field_name) +
-                        "\" must be finite in file \"" + rst_name +
-                        "\"; observed " + std::to_string(value));
-
-  return value;
+  return apo::parse_double(field, field_name, context);
 }
 
-int apo::parse_rst_int(const std::string &line, const std::size_t offset,
-                       const std::size_t width,
-                       const std::string_view field_name,
-                       const std::string &rst_name) {
+int apo::parse_fixed_width_int(const std::string_view line,
+                               const std::size_t offset,
+                               const std::size_t width,
+                               const std::string_view field_name,
+                               const std::string_view context) {
   const std::string field =
-      get_rst_field(line, offset, width, field_name, rst_name);
+      apo::get_fixed_width_field(line, offset, width, field_name, context);
 
-  int value = 0;
-
-  APOCHARMM_REQUIRE(
-      apo::try_parse_int(value, field), ApoCharmmErrorCode::Runtime,
-      "Restart field \"" + std::string(field_name) +
-          "\" is not a valid integer value in file \"" + rst_name + "\"");
-
-  return value;
+  return apo::parse_int(field, field_name, context);
 }
 
-unsigned long long int apo::parse_rst_ull(const std::string &line,
-                                          const std::size_t offset,
-                                          const std::size_t width,
-                                          const std::string_view field_name,
-                                          const std::string &rst_name) {
+unsigned long long int
+apo::parse_fixed_width_ull(const std::string_view line,
+                           const std::size_t offset, const std::size_t width,
+                           const std::string_view field_name,
+                           const std::string_view context) {
   const std::string field =
-      get_rst_field(line, offset, width, field_name, rst_name);
+      apo::get_fixed_width_field(line, offset, width, field_name, context);
 
-  unsigned long long int value = 0;
-
-  APOCHARMM_REQUIRE(
-      apo::try_parse_ull(value, field), ApoCharmmErrorCode::Runtime,
-      "Restart field \"" + std::string(field_name) +
-          "\" is not a valid integer value in file \"" + rst_name + "\"");
-
-  return value;
+  return apo::parse_ull(field, field_name, context);
 }

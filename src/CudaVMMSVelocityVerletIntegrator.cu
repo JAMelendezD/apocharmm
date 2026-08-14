@@ -9,7 +9,9 @@
 // ENDLICENSE
 
 #include "CudaVMMSVelocityVerletIntegrator.h"
+
 #include "gpu_utils.h"
+
 #include <chrono>
 #include <iostream>
 
@@ -17,7 +19,7 @@ CudaVMMSVelocityVerletIntegrator::CudaVMMSVelocityVerletIntegrator(
     const double timeStep)
     : CudaIntegrator(timeStep) {}
 
-void CudaVMMSVelocityVerletIntegrator::initialize(void) {}
+void CudaVMMSVelocityVerletIntegrator::initializeImpl(void) {}
 
 void CudaVMMSVelocityVerletIntegrator::setCharmmContexts(
     const std::vector<CharmmContext> &ctxs) {
@@ -120,7 +122,7 @@ void CudaVMMSVelocityVerletIntegrator::combineForces(void) {
   }
 }
 
-void CudaVMMSVelocityVerletIntegrator::propagateOneStep(void) {
+void CudaVMMSVelocityVerletIntegrator::propagateOneStepImpl(void) {
   this->combineForces();
   /*
     auto force = contexts[0]->getForces();

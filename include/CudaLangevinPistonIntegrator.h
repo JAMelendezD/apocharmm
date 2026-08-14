@@ -110,12 +110,15 @@ public:
   CudaContainer<double> &getAveragePressureScalar(void);
   double getInstantaneousSurfaceTension(void);
 
-public:
-  void initialize(void) override;
-  void initializeFromRestartFile(const std::string &rstFileName) override;
-  void propagateOneStep(void) override;
+protected:
+  void initializeImpl(void) override;
+  void initializeFromRestartFileImpl(const std::string &rstFileName) override;
+  void propagateOneStepImpl(void) override;
 
 protected:
+  void setRngStateData(const unsigned long long int position,
+                       const std::vector<curandStatePhilox4_32_10_t> &states);
+
   double computeNoseHooverPistonMass(void);
   double computeLangevinPistonMass(void);
   void allocateLangevinPistonVariables(void);

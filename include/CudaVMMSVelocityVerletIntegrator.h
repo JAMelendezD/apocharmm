@@ -10,18 +10,25 @@
 
 #pragma once
 
-#include "CharmmContext.h"
 #include "CudaIntegrator.h"
+
+#include "CharmmContext.h"
+#include "CudaContainer.h"
+
 #include <memory>
+#include <vector>
 
 class CudaVMMSVelocityVerletIntegrator : public CudaIntegrator {
 public:
   CudaVMMSVelocityVerletIntegrator(const double timeStep);
 
-  void initialize(void);
+public:
   void setCharmmContexts(const std::vector<CharmmContext> &ctxs);
   void setSoluteAtoms(const std::vector<int> &atoms);
-  void propagateOneStep(void) override;
+
+protected:
+  void initializeImpl(void) override;
+  void propagateOneStepImpl(void) override;
 
 private:
   void combineForces(void);

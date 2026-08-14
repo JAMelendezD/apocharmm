@@ -11,6 +11,7 @@
 #pragma once
 
 #include <cstddef>
+#include <iosfwd>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -40,6 +41,9 @@ bool try_get_line(std::string &line, std::size_t &pos,
 bool try_get_line(std::string &line, std::size_t &pos, std::size_t &line_number,
                   const std::string_view file_data);
 
+bool try_get_line(std::string &line, std::size_t &line_number,
+                  std::istream &input);
+
 void get_line(std::string &line, std::size_t &pos,
               const std::string_view file_data);
 
@@ -47,6 +51,15 @@ void get_line(std::string &line, std::size_t &pos, std::size_t &line_number,
               const std::string_view file_data,
               const std::string_view record_name,
               const std::string_view source_name);
+
+void get_line(std::string &line, std::size_t &line_number, std::istream &input,
+              const std::string_view record_name,
+              const std::string_view source_name);
+
+void find_required_line(std::istream &input, std::size_t &line_number,
+                        const std::string_view target,
+                        const std::string_view record_name,
+                        const std::string_view source_name);
 
 bool try_get_fixed_width_field(std::string_view &field,
                                const std::string_view line,
@@ -81,24 +94,27 @@ std::string cDoubleToFortSciStr(const double val, const int prec);
 
 double fortSciStrToCDouble(const std::string_view str);
 
-std::string get_rst_field(const std::string &line, const std::size_t offset,
+std::string get_fixed_width_field(const std::string_view line,
+                                  const std::size_t offset,
+                                  const std::size_t width,
+                                  const std::string_view field_name,
+                                  const std::string_view context);
+
+double parse_fixed_width_double(const std::string_view line,
+                                const std::size_t offset,
+                                const std::size_t width,
+                                const std::string_view field_name,
+                                const std::string_view context);
+
+int parse_fixed_width_int(const std::string_view line, const std::size_t offset,
                           const std::size_t width,
                           const std::string_view field_name,
-                          const std::string &rst_name);
+                          const std::string_view context);
 
-double parse_rst_double(const std::string &line, const std::size_t offset,
-                        const std::size_t width,
-                        const std::string_view field_name,
-                        const std::string &rst_name);
-
-int parse_rst_int(const std::string &line, const std::size_t offset,
-                  const std::size_t width, const std::string_view field_name,
-                  const std::string &rst_name);
-
-unsigned long long int parse_rst_ull(const std::string &line,
-                                     const std::size_t offset,
-                                     const std::size_t width,
-                                     const std::string_view field_name,
-                                     const std::string &rst_name);
+unsigned long long int parse_fixed_width_ull(const std::string_view line,
+                                             const std::size_t offset,
+                                             const std::size_t width,
+                                             const std::string_view field_name,
+                                             const std::string_view context);
 
 } // namespace apo

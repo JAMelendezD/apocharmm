@@ -13,6 +13,7 @@
 #include "CharmmPSF.h"
 #include "CharmmParameters.h"
 #include "CudaLangevinPistonIntegrator.h"
+#include "CurandStateString.h"
 #include "ForceManager.h"
 #include "apo_test_helpers.h"
 #include "catch.hpp"
@@ -20,7 +21,9 @@
 
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace {
@@ -217,14 +220,26 @@ TEST_CASE("CudaLangevinPistonIntegratorSettersAndCrystalType") {
   auto integrator = std::make_shared<CudaLangevinPistonIntegrator>(TIME_STEP);
 
   SECTION("RejectsPressureAndPistonSetterBeforeCrystalType") {
-    CHECK_THROWS_AS(integrator->setLangevinPistonMass({1.0}),
-                    std::runtime_error);
-    CHECK_THROWS_AS(integrator->setLangevinPistonFriction(1.0),
-                    std::runtime_error);
-    CHECK_THROWS_AS(integrator->setReferencePressure({1.0, 0.0}),
-                    std::invalid_argument);
-    CHECK_THROWS_AS(integrator->setCrystalType(CRYSTAL::NONE),
-                    std::invalid_argument);
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setLangevinPistonMass({1.0}); },
+        ApoCharmmErrorCode::NotInitialized,
+        "Crystal type must be set before Langevin piston mass");
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setLangevinPistonFriction(1.0); },
+        ApoCharmmErrorCode::NotInitialized,
+        "Crystal type must be set before Langevin piston friction");
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setReferencePressure({1.0, 0.0}); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Reference pressure tensor must contain exactly 9 elements; observed "
+        "2");
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setCrystalType(CRYSTAL::NONE); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Crystal type must be CUBIC, TETRAGONAL, or ORTHORHOMBIC");
   }
 
   SECTION("CubicCrystal") {
@@ -264,8 +279,10 @@ TEST_CASE("CudaLangevinPistonIntegratorSettersAndCrystalType") {
         apo_test::CopyToHost<double>(integrator->getLangevinPistonMass()),
         std::vector<double>{LANGEVIN_PISTON_MASS}, 0.0);
 
-    CHECK_THROWS_AS(integrator->setLangevinPistonMass({1.0, 2.0}),
-                    std::invalid_argument);
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setLangevinPistonMass({1.0, 2.0}); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Langevin piston mass must contain 1 element(s); observed 2");
   }
 
   SECTION("TetragonalCrystal") {
@@ -292,6 +309,236 @@ TEST_CASE("CudaLangevinPistonIntegratorSettersAndCrystalType") {
 
     CHECK(integrator->getLangevinPistonOnStepPosition().size() == 3);
     CHECK(integrator->getLangevinPistonDeltaPressure().size() == 3);
+  }
+}
+
+TEST_CASE("CudaLangevinPistonIntegratorRejectsInvalidValues") {
+  const double infinity = std::numeric_limits<double>::infinity();
+  auto integrator = std::make_shared<CudaLangevinPistonIntegrator>(TIME_STEP);
+
+  SECTION("ScalarSetters") {
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setReferenceTemperature(infinity); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Reference temperature must be finite; observed " +
+            std::to_string(infinity));
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setReferenceTemperature(-1.0); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Reference temperature must be non-negative; observed -1.000000");
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setNoseHooverPistonMass(infinity); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Nose-Hoover piston mass must be finite; observed " +
+            std::to_string(infinity));
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setNoseHooverPistonMass(-1.0); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Nose-Hoover piston mass must be non-negative; observed -1.000000");
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setNoseHooverPistonVelocity(infinity); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Nose-Hoover piston velocity must be finite; observed " +
+            std::to_string(infinity));
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setNoseHooverPistonVelocityPrevious(infinity); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Previous Nose-Hoover piston velocity must be finite; observed " +
+            std::to_string(infinity));
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setNoseHooverPistonForce(infinity); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Nose-Hoover piston force must be finite; observed " +
+            std::to_string(infinity));
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setNoseHooverPistonForcePrevious(infinity); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Previous Nose-Hoover piston force must be finite; observed " +
+            std::to_string(infinity));
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setMaxPredictorCorrectorIterations(0); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Maximum predictor-corrector iterations must be positive; observed 0");
+  }
+
+  SECTION("PressureTensor") {
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setReferencePressure({1.0, 0.0}); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Reference pressure tensor must contain exactly 9 elements; observed "
+        "2");
+
+    std::vector<double> pressure(9, 0.0);
+    pressure[4] = infinity;
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setReferencePressure(pressure); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Reference pressure tensor values must be finite; non-finite value at "
+        "index 4");
+  }
+
+  SECTION("PistonMassAndFriction") {
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setLangevinPistonMass({1.0}); },
+        ApoCharmmErrorCode::NotInitialized,
+        "Crystal type must be set before Langevin piston mass");
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setLangevinPistonFriction(1.0); },
+        ApoCharmmErrorCode::NotInitialized,
+        "Crystal type must be set before Langevin piston friction");
+
+    integrator->setCrystalType(CRYSTAL::CUBIC);
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setLangevinPistonMass({1.0, 2.0}); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Langevin piston mass must contain 1 element(s); observed 2");
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setLangevinPistonMass({infinity}); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Langevin piston mass values must be finite; non-finite value at index "
+        "0");
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setLangevinPistonMass({-1.0}); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Langevin piston mass values must be non-negative; observed -1.000000 "
+        "at index 0");
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setLangevinPistonFriction(infinity); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Langevin piston friction must be finite; observed " +
+            std::to_string(infinity));
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setLangevinPistonFriction(-1.0); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Langevin piston friction must be non-negative; observed -1.000000");
+  }
+
+  SECTION("RngStates") {
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setRngStates("INVALID"); },
+        ApoCharmmErrorCode::NotInitialized,
+        "Crystal type must be set before RNG states");
+
+    apo_test::CheckApoCharmmError(
+        [&]() { static_cast<void>(integrator->getRngStates()); },
+        ApoCharmmErrorCode::NotInitialized,
+        "Crystal type must be set before retrieving RNG states");
+
+    integrator->setCrystalType(CRYSTAL::CUBIC);
+
+    apo_test::CheckApoCharmmError(
+        [&]() { static_cast<void>(integrator->getRngStates()); },
+        ApoCharmmErrorCode::NotInitialized, "RNG states are not initialized");
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setRngStates("INVALID"); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Curand state string has invalid prefix");
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setRngStates("APO_PHILOX_V1:0"); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Curand state string is missing sequence position");
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setRngStates("APO_PHILOX_V1:BAD:1:1:"); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Curand state string has invalid sequence position");
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setRngStates("APO_PHILOX_V1:0:BAD:1:"); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Curand state string has invalid state count");
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setRngStates("APO_PHILOX_V1:0:1:BAD:"); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Curand state string has invalid state size");
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setRngStates("APO_PHILOX_V1:0:0:1:"); },
+        ApoCharmmErrorCode::Runtime,
+        "Curand state string was written with a different curand state size");
+
+    const std::string emptyHex =
+        "APO_PHILOX_V1:0:1:" +
+        std::to_string(sizeof(curandStatePhilox4_32_10_t)) + ":";
+
+    apo_test::CheckApoCharmmError([&]() { integrator->setRngStates(emptyHex); },
+                                  ApoCharmmErrorCode::InvalidArgument,
+                                  "Curand state string has invalid hex length");
+
+    const std::vector<curandStatePhilox4_32_10_t> oneState(1);
+    std::string invalidHex = apo::curand_states_to_string(0ULL, oneState);
+    REQUIRE(invalidHex.empty() == false);
+    invalidHex.back() = 'G';
+
+    unsigned long long int parsedPosition = 42ULL;
+    std::vector<curandStatePhilox4_32_10_t> parsedStates(2);
+
+    apo_test::CheckApoCharmmError(
+        [&]() {
+          apo::curand_states_from_string(parsedPosition, parsedStates,
+                                         invalidHex);
+        },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Invalid hex digit in curand state string");
+
+    CHECK(parsedPosition == 42ULL);
+    CHECK(parsedStates.size() == 2);
+
+    const std::vector<curandStatePhilox4_32_10_t> twoStates(2);
+    const std::string wrongCount =
+        apo::curand_states_to_string(0ULL, twoStates);
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setRngStates(wrongCount); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "RNG state count must match Langevin piston degrees of freedom; "
+        "expected 1, observed 2");
+
+    const std::size_t stateSize = sizeof(curandStatePhilox4_32_10_t);
+    const std::size_t maximumSize = std::numeric_limits<std::size_t>::max();
+    const std::size_t overflowingCount = maximumSize / stateSize + 1;
+
+    const std::string byteCountOverflow =
+        "APO_PHILOX_V1:0:" + std::to_string(overflowingCount) + ":" +
+        std::to_string(stateSize) + ":";
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator->setRngStates(byteCountOverflow); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Curand state string byte count is out of range");
+  }
+
+  SECTION("ContextDependentGetters") {
+    apo_test::CheckApoCharmmError(
+        [&]() { static_cast<void>(integrator->getInstantaneousTemperature()); },
+        ApoCharmmErrorCode::NotInitialized,
+        "CharmmContext must be set before computing instantaneous temperature");
+
+    apo_test::CheckApoCharmmError(
+        [&]() {
+          static_cast<void>(integrator->getInstantaneousSurfaceTension());
+        },
+        ApoCharmmErrorCode::NotInitialized,
+        "CharmmContext must be set before computing instantaneous surface "
+        "tension");
   }
 }
 
@@ -331,7 +578,12 @@ TEST_CASE("CudaLangevinPistonIntegratorRequireCrystalTypeBeforeContext") {
 
   auto integrator = std::make_shared<CudaLangevinPistonIntegrator>(TIME_STEP);
 
-  CHECK_THROWS_AS(integrator->setCharmmContext(ctx), std::runtime_error);
+  apo_test::CheckApoCharmmError(
+      [&]() { integrator->setCharmmContext(ctx); },
+      ApoCharmmErrorCode::NotInitialized,
+      "Crystal type must be set before initialization");
+
+  CHECK(integrator->getCharmmContext() == nullptr);
 }
 
 TEST_CASE("CudaLangevinPistonIntegratorContextInitialization") {
@@ -555,8 +807,10 @@ TEST_CASE("CudaLangevinPistonIntegratorDeterministicTrajectory") {
 TEST_CASE("CudaLangevinPistonIntegratorRestartValidation") {
   auto integrator = std::make_shared<CudaLangevinPistonIntegrator>(TIME_STEP);
 
-  CHECK_THROWS_AS(integrator->initializeFromRestartFile("missing.rst"),
-                  std::runtime_error);
+  apo_test::CheckApoCharmmError(
+      [&]() { integrator->initializeFromRestartFile("missing.rst"); },
+      ApoCharmmErrorCode::NotInitialized,
+      "CharmmContext must be set before initializing from a restart file");
 
   const std::string dataPath = getDataPath();
 
@@ -575,6 +829,30 @@ TEST_CASE("CudaLangevinPistonIntegratorRestartValidation") {
   ConfigureIntegrator(integrator);
   integrator->setCharmmContext(ctx);
 
-  CHECK_THROWS_AS(integrator->initializeFromRestartFile("missing.rst"),
-                  std::runtime_error);
+  apo_test::CheckApoCharmmError(
+      [&]() { integrator->initializeFromRestartFile("missing.rst"); },
+      ApoCharmmErrorCode::Runtime, "Could not open file \"missing.rst\"");
+
+  const std::string truncatedFileName =
+      "cudaLangevinPistonIntegrator-truncated.rst";
+  std::string truncatedHeader(34, ' ');
+  truncatedHeader.replace(18, 4, "CUBI");
+
+  apo_test::RemoveIfExists(truncatedFileName);
+  apo_test::WriteTextFile(truncatedFileName,
+                          truncatedHeader + "\n !CRYSTAL PARAMETERS\n");
+
+  apo_test::CheckApoCharmmError(
+      [&]() { integrator->initializeFromRestartFile(truncatedFileName); },
+      ApoCharmmErrorCode::Runtime,
+      "Unexpected end of file while reading first XTLABC record in restart "
+      "file \"" +
+          truncatedFileName + "\"");
+
+  apo_test::RemoveIfExists(truncatedFileName);
+
+  CHECK(integrator->getCrystalType() == CRYSTAL::CUBIC);
+  apo_test::CheckVectorsClose<double>(
+      apo_test::CopyToHost<double>(integrator->getLangevinPistonMass()),
+      std::vector<double>{LANGEVIN_PISTON_MASS}, 0.0);
 }
