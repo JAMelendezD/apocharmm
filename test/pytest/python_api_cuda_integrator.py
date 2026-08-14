@@ -71,9 +71,9 @@ def check_python_side_validation() -> None:
         lambda: integrator.subscribe(object()),
     )
     expect_exception(
-        "CudaIntegrator.propagate rejects negative step count",
+        "CudaIntegrator.propagate rejects step count below C int range",
         ValueError,
-        lambda: integrator.propagate(-1),
+        lambda: integrator.propagate(-(2**31) - 1),
     )
     expect_exception(
         "CudaIntegrator.propagate rejects step count outside C int range",

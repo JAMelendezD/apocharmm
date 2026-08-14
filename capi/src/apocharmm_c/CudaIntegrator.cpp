@@ -47,8 +47,8 @@ apo_cuda_integrator_set_charmm_context(apo_cuda_integrator *integrator,
             apocharmm_c::require_handle_object<apo_charmm_context>(
                 context, function_name, "CharmmContext"));
 
-        integrator->context = context->object;
         integrator->object->setCharmmContext(context->object);
+        integrator->context = context->object;
 
         return APO_STATUS_OK;
       },
@@ -110,9 +110,6 @@ apo_cuda_integrator_propagate(apo_cuda_integrator *integrator,
             apocharmm_c::require_handle_object<apo_cuda_integrator>(
                 integrator, function_name, "CudaIntegrator"));
 
-        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_positive_int(
-            num_steps, function_name, "num_steps"));
-
         integrator->object->propagate(num_steps);
 
         return APO_STATUS_OK;
@@ -131,7 +128,7 @@ extern "C" apo_status apo_cuda_integrator_initialize_from_restart_file(
             apocharmm_c::require_handle_object<apo_cuda_integrator>(
                 integrator, function_name, "CudaIntegrator"));
 
-        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_c_string(
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer(
             path, function_name, "Restart file path"));
 
         integrator->object->initializeFromRestartFile(std::string(path));

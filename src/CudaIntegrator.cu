@@ -15,15 +15,11 @@
 #include "cuda_utils.h"
 
 #include <algorithm>
-#include <cassert>
 #include <chrono>
 #include <cmath>
-#include <cstdlib>
-#include <exception>
 #include <iostream>
 #include <iterator>
 #include <limits>
-#include <stdexcept>
 
 CudaIntegrator::CudaIntegrator(void)
     : m_TimeStep(0.0), m_Timfac(0.0488882129), m_DebugPrintFrequency(0),
@@ -90,30 +86,42 @@ void CudaIntegrator::setTimeStep(const double timeStep) {
 }
 
 void CudaIntegrator::setCharmmContext(std::shared_ptr<CharmmContext> ctx) {
-  if (m_IsCharmmContextSet) {
-    throw std::invalid_argument(
-        "A CharmmContext object was already set for this CudaIntegrator.");
-  }
+  APOCHARMM_REQUIRE(ctx != nullptr, ApoCharmmErrorCode::InvalidArgument,
+                    "CharmmContext must not be null");
+
+  APOCHARMM_REQUIRE(
+      !m_IsCharmmContextSet, ApoCharmmErrorCode::InvalidArgument,
+      "A CharmmContext object was already set for this CudaIntegrator.");
+
+  const int numAtoms = ctx->getNumAtoms();
+  APOCHARMM_REQUIRE(numAtoms >= 0, ApoCharmmErrorCode::NotInitialized,
+                    "CharmmContext atom count is not initialized; observed " +
+                        std::to_string(numAtoms));
+
   m_Context = ctx;
-  m_IsCharmmContextSet = true;
-  if (m_Context->getNumAtoms() < 0) {
-    throw std::invalid_argument("CudaIntegrator: Number of atoms is " +
-                                std::to_string(m_Context->getNumAtoms()) +
-                                ".\nCan't allocate memory with such a size.\n "
-                                "-> No configuration (crd, pdb) was given?\n");
+
+  try {
+    m_CoordsRef.resize(numAtoms);
+    m_CoordsDelta.resize(numAtoms);
+    m_CoordsDeltaPrevious.resize(numAtoms);
+
+    m_UsingHolonomicConstraints = m_Context->usingHolonomicConstraints();
+    if (m_UsingHolonomicConstraints) {
+      m_HolonomicConstraint = std::make_shared<CudaHolonomicConstraint>();
+      m_HolonomicConstraint->setCharmmContext(ctx);
+      m_HolonomicConstraint->setup(m_TimeStep);
+      m_HolonomicConstraint->setStream(m_IntegratorStream);
+    }
+    this->initialize();
+  } catch (...) {
+    m_HolonomicConstraint.reset();
+    m_UsingHolonomicConstraints = false;
+    m_Context.reset();
+    m_IsCharmmContextSet = false;
+    throw;
   }
 
-  m_CoordsRef.resize(m_Context->getNumAtoms());
-  m_CoordsDelta.resize(m_Context->getNumAtoms());
-  m_CoordsDeltaPrevious.resize(m_Context->getNumAtoms());
-  m_UsingHolonomicConstraints = m_Context->usingHolonomicConstraints();
-  if (m_UsingHolonomicConstraints) {
-    m_HolonomicConstraint = std::make_shared<CudaHolonomicConstraint>();
-    m_HolonomicConstraint->setCharmmContext(ctx);
-    m_HolonomicConstraint->setup(m_TimeStep);
-    m_HolonomicConstraint->setStream(m_IntegratorStream);
-  }
-  this->initialize();
+  m_IsCharmmContextSet = true;
 
   return;
 }
@@ -128,42 +136,40 @@ std::shared_ptr<CharmmContext> CudaIntegrator::getCharmmContext(void) {
 }
 
 void CudaIntegrator::initialize(void) {
-  std::cerr << "CudaIntegrator::initialize() : override me!" << std::endl;
-  exit(1);
-  return;
+  APOCHARMM_THROW(
+      ApoCharmmErrorCode::NotImplemented,
+      "CudaIntegrator::initialize is not implemented by the base class");
 }
 
 void CudaIntegrator::initializeFromRestartFile(const std::string &rstFileName) {
-  if (rstFileName.empty()) {
-    throw std::invalid_argument(
-        "CudaIntegrator::initializeFromRestartFile, rstFileName.empty()");
-  }
-  std::cerr << "CudaIntegrator::initializeFromRestartFile(const std::string "
-               "&rstFileName) : override me!"
-            << std::endl;
-  exit(1);
-  return;
+  static_cast<void>(rstFileName);
+  APOCHARMM_THROW(ApoCharmmErrorCode::NotImplemented,
+                  "CudaIntegrator::initializeFromRestartFile is not "
+                  "implemented by the base class");
 }
 
 void CudaIntegrator::propagateOneStep(void) {
-  std::cout << "CudaIntegrator::propagateOneStep() : override me!" << std::endl;
-  exit(1);
-  return;
+  APOCHARMM_THROW(
+      ApoCharmmErrorCode::NotImplemented,
+      "CudaIntegrator::propagateOneStep is not implemented by the base class");
 }
 
 void CudaIntegrator::propagate(const int numSteps) {
-  // Before starting the propagation, check if ForceManager is initialized.
-  if (m_Context == nullptr) {
-    throw std::invalid_argument(
-        "CudaIntegrator::setSimulationContext\nNo CharmmContext object was "
-        "set for this CudaIntegrator.\n");
-  }
-  if (not m_Context->getForceManager()->isInitialized()) {
-    throw std::invalid_argument(
-        "CudaIntegrator::setSimulationContext\nForceManager is not "
-        "initialized. Please call "
-        "ForceManager::initialize() before setting the integrator.\n");
-  }
+  APOCHARMM_REQUIRE(numSteps > 0, ApoCharmmErrorCode::InvalidArgument,
+                    "Number of propagation steps must be positive; observed " +
+                        std::to_string(numSteps));
+
+  APOCHARMM_REQUIRE(m_Context != nullptr, ApoCharmmErrorCode::NotInitialized,
+                    "CharmmContext must be set before propagation");
+
+  const std::shared_ptr<ForceManager> forceManager =
+      m_Context->getForceManager();
+  APOCHARMM_REQUIRE(
+      forceManager != nullptr, ApoCharmmErrorCode::NotInitialized,
+      "CharmmContext must have a ForceManager before propagation");
+  APOCHARMM_REQUIRE(forceManager->isInitialized(),
+                    ApoCharmmErrorCode::NotInitialized,
+                    "ForceManager must be initialized before propagation");
 
   m_Context->resetNeighborList();
 
@@ -187,11 +193,6 @@ void CudaIntegrator::propagate(const int numSteps) {
     // std::cout << "step = " << step << std::endl;
     // m_CurrentPropagatedStep = step;
     // std::cout << "---\nStep " << step << " of " << numSteps << "\n";
-
-    // Capture Ctrl-C SIGINT when running with the python interface
-    // if (PyErr_CheckSignals() != 0){
-    //  throw py::error_already_set();
-    //}
 
     if (step % 10000 == 0) {
       std::chrono::steady_clock::time_point end =
@@ -227,21 +228,6 @@ void CudaIntegrator::propagate(const int numSteps) {
   return;
 }
 
-int CudaIntegrator::getNumberOfAtoms(void) const {
-  assert(m_Context != nullptr);
-  return m_Context->getNumAtoms();
-}
-
-const std::vector<double> &CudaIntegrator::getBoxDimensions(void) const {
-  assert(m_Context != nullptr);
-  return m_Context->getBoxDimensions();
-}
-
-std::vector<double> &CudaIntegrator::getBoxDimensions(void) {
-  assert(m_Context != nullptr);
-  return m_Context->getBoxDimensions();
-}
-
 void CudaIntegrator::setDebugPrintFrequency(const int freq) {
   m_DebugPrintFrequency = freq;
   return;
@@ -269,8 +255,8 @@ void CudaIntegrator::subscribe(std::shared_ptr<Subscriber> sub) {
 
   sub->setCharmmContext(m_Context);
 
-  // JEG250610: Subscribers can query integrator for time step. We don't need N
-  // copies floating around sub->setTimeStepFromIntegrator(m_TimeStep *
+  // JEG250610: Subscribers can query integrator for time step. We don't need
+  // N copies floating around sub->setTimeStepFromIntegrator(m_TimeStep *
   // m_Timfac);
 
   sub->setIntegrator(integrator);
@@ -353,12 +339,12 @@ CudaContainer<double4> &CudaIntegrator::getCoordsDeltaPrevious(void) {
   return m_CoordsDeltaPrevious;
 }
 
+// JEG260814: Deprecate this.
 std::map<std::string, std::string>
 CudaIntegrator::getIntegratorDescriptors(void) {
-  std::cerr << "CudaIntegrator::getIntegratorDescriptors() : override me!"
-            << std::endl;
-  exit(1);
-  return {{"IntegratorDescriptor", "CudaIntegrator Baseclass"}};
+  APOCHARMM_THROW(ApoCharmmErrorCode::NotImplemented,
+                  "CudaIntegrator::getIntegratorDescriptors is not implemented "
+                  "by the base class");
 }
 
 int CudaIntegrator::getCurrentPropagatedStep(void) const {
@@ -388,10 +374,10 @@ void CudaIntegrator::checkForNanEnergy(void) {
   double potEnergy = potEnergyCC.getHostArray()[0];
   double kinEnergy = m_Context->getKineticEnergy();
 
-  if (std::isnan(kinEnergy))
-    throw std::runtime_error("Kinetic energy is NaN");
-  if (std::isnan(potEnergy))
-    throw std::runtime_error("Potential energy is NaN");
+  APOCHARMM_REQUIRE(!std::isnan(kinEnergy), ApoCharmmErrorCode::Runtime,
+                    "Kinetic energy is NaN");
+  APOCHARMM_REQUIRE(!std::isnan(potEnergy), ApoCharmmErrorCode::Runtime,
+                    "Potential energy is NaN");
 
   return;
 }

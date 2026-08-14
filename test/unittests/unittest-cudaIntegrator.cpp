@@ -9,14 +9,59 @@
 // ENDLICENSE
 
 #include "ApoCharmmError.h"
+#include "CharmmContext.h"
+#include "CharmmCrd.h"
+#include "CharmmPSF.h"
+#include "CharmmParameters.h"
 #include "CudaIntegrator.h"
+#include "ForceManager.h"
 #include "Subscriber.h"
 #include "apo_test_helpers.h"
 #include "catch.hpp"
+#include "test_paths.h"
+
+#include <limits>
+#include <memory>
+#include <string>
+#include <vector_functions.h>
 
 namespace {
 
+constexpr int RANDOM_SEED = 314159;
 constexpr double TIME_STEP = 0.002;
+constexpr double TEMPERATURE = 300.0;
+
+class CudaIntegratorProbe final : public CudaIntegrator {
+public:
+  using CudaIntegrator::CudaIntegrator;
+
+  void initialize(void) override { return; }
+
+  void propagateOneStep(void) override { return; }
+
+  void checkForNanEnergyForTest(void) {
+    this->checkForNanEnergy();
+    return;
+  }
+};
+
+std::shared_ptr<CharmmContext> MakeInitializedContext(void) {
+  const std::string dataPath = getDataPath();
+
+  auto prm =
+      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
+  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
+  auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+
+  auto context = std::make_shared<CharmmContext>(psf, prm);
+  context->setBoxDimensions({50.0, 50.0, 50.0});
+  context->setCoordinates(crd);
+  context->useHolonomicConstraints(false);
+  context->setRandomSeed(RANDOM_SEED);
+  context->assignVelocitiesAtTemperature(TEMPERATURE);
+
+  return context;
+}
 
 class CountingSubscriber : public Subscriber {
 public:
@@ -81,23 +126,192 @@ TEST_CASE("CudaIntegratorBaseConstructionAndTimeStep") {
 }
 
 TEST_CASE("CudaIntegratorBaseInvalidOperations") {
-  SECTION("PropagateWithoutCharmmContextThrows") {
-    CudaIntegrator integrator(TIME_STEP);
+  CudaIntegrator integrator(TIME_STEP);
 
-    CHECK_THROWS_AS(integrator.propagate(1), std::invalid_argument);
+  SECTION("InitializeIsNotImplemented") {
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator.initialize(); }, ApoCharmmErrorCode::NotImplemented,
+        "CudaIntegrator::initialize is not implemented by the base class");
   }
 
-  SECTION("PropagateZeroStepsWithoutCharmmContextStillThrows") {
-    CudaIntegrator integrator(TIME_STEP);
-
-    CHECK_THROWS_AS(integrator.propagate(0), std::invalid_argument);
+  SECTION("InitializeFromRestartFileIsNotImplemented") {
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator.initializeFromRestartFile("restart.rst"); },
+        ApoCharmmErrorCode::NotImplemented,
+        "CudaIntegrator::initializeFromRestartFile is not implemented by the "
+        "base class");
   }
 
-  SECTION("InitializeFromEmptyRestartFileThrows") {
-    CudaIntegrator integrator(TIME_STEP);
+  SECTION("PropagateOneStepIsNotImplemented") {
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator.propagateOneStep(); },
+        ApoCharmmErrorCode::NotImplemented,
+        "CudaIntegrator::propagateOneStep is not implemented by the base "
+        "class");
+  }
 
-    CHECK_THROWS_AS(integrator.initializeFromRestartFile(""),
-                    std::invalid_argument);
+  SECTION("IntegratorDescriptorsAreNotImplemented") {
+    apo_test::CheckApoCharmmError(
+        [&]() { (void)integrator.getIntegratorDescriptors(); },
+        ApoCharmmErrorCode::NotImplemented,
+        "CudaIntegrator::getIntegratorDescriptors is not implemented by the "
+        "base class");
+  }
+}
+
+TEST_CASE("CudaIntegratorBaseContextValidation") {
+  SECTION("RejectsNullCharmmContext") {
+    CudaIntegratorProbe integrator(TIME_STEP);
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator.setCharmmContext(nullptr); },
+        ApoCharmmErrorCode::InvalidArgument, "CharmmContext must not be null");
+
+    CHECK(integrator.getCharmmContext() == nullptr);
+  }
+
+  SECTION("RejectsUninitializedAtomCountWithoutPoisoningIntegrator") {
+    CudaIntegratorProbe integrator(TIME_STEP);
+    auto incompleteContext = std::make_shared<CharmmContext>();
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator.setCharmmContext(incompleteContext); },
+        ApoCharmmErrorCode::NotInitialized,
+        "CharmmContext atom count is not initialized; observed -1");
+
+    CHECK(integrator.getCharmmContext() == nullptr);
+
+    auto initializedContext = MakeInitializedContext();
+    CHECK_NOTHROW(integrator.setCharmmContext(initializedContext));
+    CHECK(integrator.getCharmmContext() == initializedContext);
+  }
+
+  SECTION("InitializationFailureRollsBackAttachment") {
+    CudaIntegrator integrator(TIME_STEP);
+    auto context = MakeInitializedContext();
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator.setCharmmContext(context); },
+        ApoCharmmErrorCode::NotImplemented,
+        "CudaIntegrator::initialize is not implemented by the base class");
+
+    CHECK(integrator.getCharmmContext() == nullptr);
+  }
+
+  SECTION("RejectsSecondCharmmContext") {
+    CudaIntegratorProbe integrator(TIME_STEP);
+    auto context = MakeInitializedContext();
+    integrator.setCharmmContext(context);
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator.setCharmmContext(context); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "A CharmmContext object was already set for this CudaIntegrator.");
+
+    CHECK(integrator.getCharmmContext() == context);
+  }
+}
+
+TEST_CASE("CudaIntegratorBasePropagationValidation") {
+  SECTION("RejectsZeroSteps") {
+    CudaIntegratorProbe integrator(TIME_STEP);
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator.propagate(0); }, ApoCharmmErrorCode::InvalidArgument,
+        "Number of propagation steps must be positive; observed 0");
+    CHECK(integrator.getNumSteps() == 0);
+    CHECK(integrator.getTotNumSteps() == 0ULL);
+  }
+
+  SECTION("RejectsNegativeSteps") {
+    CudaIntegratorProbe integrator(TIME_STEP);
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator.propagate(-1); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Number of propagation steps must be positive; observed -1");
+    CHECK(integrator.getNumSteps() == 0);
+    CHECK(integrator.getTotNumSteps() == 0ULL);
+  }
+
+  SECTION("RequiresCharmmContext") {
+    CudaIntegratorProbe integrator(TIME_STEP);
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator.propagate(1); }, ApoCharmmErrorCode::NotInitialized,
+        "CharmmContext must be set before propagation");
+  }
+
+  SECTION("RequiresForceManager") {
+    auto sourceContext = MakeInitializedContext();
+    auto contextWithoutForceManager =
+        std::make_shared<CharmmContext>(*sourceContext);
+    REQUIRE(contextWithoutForceManager->getForceManager() == nullptr);
+
+    CudaIntegratorProbe integrator(TIME_STEP);
+    integrator.setCharmmContext(contextWithoutForceManager);
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator.propagate(1); }, ApoCharmmErrorCode::NotInitialized,
+        "CharmmContext must have a ForceManager before propagation");
+  }
+
+  SECTION("RequiresInitializedForceManager") {
+    const std::string dataPath = getDataPath();
+    auto prm =
+        std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
+    auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
+    auto context = std::make_shared<CharmmContext>(psf, prm);
+    context->useHolonomicConstraints(false);
+    REQUIRE(context->getForceManager() != nullptr);
+    REQUIRE(context->getForceManager()->isInitialized() == false);
+
+    CudaIntegratorProbe integrator(TIME_STEP);
+    integrator.setCharmmContext(context);
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator.propagate(1); }, ApoCharmmErrorCode::NotInitialized,
+        "ForceManager must be initialized before propagation");
+  }
+
+  SECTION("PositiveStepCountPropagates") {
+    auto context = MakeInitializedContext();
+    CudaIntegratorProbe integrator(TIME_STEP);
+    integrator.setCharmmContext(context);
+
+    CHECK_NOTHROW(integrator.propagate(1));
+    CHECK(integrator.getNumSteps() == 1);
+    CHECK(integrator.getTotNumSteps() == 1ULL);
+    CHECK(integrator.getCurrentPropagatedStep() == 1);
+  }
+}
+
+TEST_CASE("CudaIntegratorBaseNanEnergyValidation") {
+  SECTION("RejectsNanKineticEnergy") {
+    auto context = MakeInitializedContext();
+    context->getPotentialEnergy().setToValue(0.0);
+    context->getVelocitiesInverseMasses().setToValue(
+        make_double4(std::numeric_limits<double>::quiet_NaN(), 0.0, 0.0, 1.0));
+
+    CudaIntegratorProbe integrator(TIME_STEP);
+    integrator.setCharmmContext(context);
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator.checkForNanEnergyForTest(); },
+        ApoCharmmErrorCode::Runtime, "Kinetic energy is NaN");
+  }
+
+  SECTION("RejectsNanPotentialEnergy") {
+    auto context = MakeInitializedContext();
+    context->getPotentialEnergy().setToValue(
+        std::numeric_limits<double>::quiet_NaN());
+
+    CudaIntegratorProbe integrator(TIME_STEP);
+    integrator.setCharmmContext(context);
+
+    apo_test::CheckApoCharmmError(
+        [&]() { integrator.checkForNanEnergyForTest(); },
+        ApoCharmmErrorCode::Runtime, "Potential energy is NaN");
   }
 }
 

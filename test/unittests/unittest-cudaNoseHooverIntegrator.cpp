@@ -180,7 +180,6 @@ TEST_CASE("CudaNoseHooverIntegratorContextInitialization") {
   integrator.setCharmmContext(ctx);
 
   CHECK(integrator.getCharmmContext() == ctx);
-  CHECK(integrator.getNumberOfAtoms() == 2);
   CHECK(integrator.getCoordsDelta().size() == 2);
   CHECK(integrator.getCoordsDeltaPrevious().size() == 2);
   CHECK(apo_test::CopyScalarToHost<double>(
@@ -188,7 +187,10 @@ TEST_CASE("CudaNoseHooverIntegratorContextInitialization") {
         Approx(NOSE_HOOVER_PISTON_MASS));
   apo_test::CheckFiniteTemperature(ctx->computeTemperature());
 
-  CHECK_THROWS_AS(integrator.setCharmmContext(ctx), std::invalid_argument);
+  apo_test::CheckApoCharmmError(
+      [&]() { integrator.setCharmmContext(ctx); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "A CharmmContext object was already set for this CudaIntegrator.");
 }
 
 TEST_CASE("CudaNoseHooverIntegratorAutoPistonMass") {

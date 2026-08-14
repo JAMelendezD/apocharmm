@@ -355,7 +355,6 @@ TEST_CASE("CudaLangevinPistonIntegratorContextInitialization") {
   integrator->setCharmmContext(ctx);
 
   CHECK(integrator->getCharmmContext() == ctx);
-  CHECK(integrator->getNumberOfAtoms() == 2);
   CHECK(integrator->getCoordsDelta().size() == 2);
   CHECK(integrator->getCoordsDeltaPrevious().size() == 2);
   CHECK(integrator->getLangevinPistonMass().size() == 1);
@@ -363,7 +362,10 @@ TEST_CASE("CudaLangevinPistonIntegratorContextInitialization") {
 
   apo_test::CheckFiniteTemperature(ctx->computeTemperature());
 
-  CHECK_THROWS_AS(integrator->setCharmmContext(ctx), std::invalid_argument);
+  apo_test::CheckApoCharmmError(
+      [&]() { integrator->setCharmmContext(ctx); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "A CharmmContext object was already set for this CudaIntegrator.");
 }
 
 TEST_CASE("CudaLangevinPistonIntegratorAutoPistonMass") {

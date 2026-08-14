@@ -52,6 +52,9 @@ set(SOURCES_CAPI_TESTS
   unittest-capiSubscriber.cpp
   unittest-capiDcdSubscriber.cpp
   unittest-capiRestartSubscriber.cpp
+
+  # Integrator tests
+  unittest-capiCudaIntegrator.cpp
 )
 
 ###################################################

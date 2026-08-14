@@ -99,16 +99,6 @@ public:
    */
   void propagate(const int numSteps);
 
-  /**
-   * @brief Get the Number Of Atoms
-   *
-   * @return int
-   */
-  int getNumberOfAtoms(void) const;
-
-  const std::vector<double> &getBoxDimensions(void) const;
-  std::vector<double> &getBoxDimensions(void);
-
   void setDebugPrintFrequency(const int freq);
 
   void setNonbondedListUpdateFrequency(const int nfreq);
@@ -184,8 +174,7 @@ public:
    * child classes.*/
   virtual std::map<std::string, std::string> getIntegratorDescriptors(void);
 
-  /** @brief Returns the current step which the integrator is on.
-   */
+  /** @brief Returns the current step which the integrator is on. */
   int getCurrentPropagatedStep(void) const;
 
   /** @brief Returns the total number of dynamics steps that have been performed
@@ -219,7 +208,6 @@ protected:
   void incrementCurrentPropagatedStep(void);
 
 protected:
-  // double timeStep;
   /** @brief Integrator time step, in AKMA units (ps / timfac) */
   double m_TimeStep;
 

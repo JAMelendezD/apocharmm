@@ -21,6 +21,7 @@ from python_api_test_helpers import (
     assert_nested_sequence_close,
     assert_finite_temperature,
     expect_exception,
+    expect_apo_error,
 )
 
 BOX_DIMENSIONS: list[float] = [50.0, 50.0, 50.0]
@@ -103,15 +104,19 @@ def check_validation() -> None:
         TypeError,
         lambda: integrator.setCharmmContext(object()),
     )
-    expect_exception(
+    expect_apo_error(
         "CudaNoseHooverIntegrator.propagate rejects negative step count",
-        ValueError,
         lambda: integrator.propagate(-1),
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        "Number of propagation steps must be positive; observed -1",
+        "CudaIntegrator.propagate(num_steps)",
     )
-    expect_exception(
+    expect_apo_error(
         "CudaNoseHooverIntegrator.propagate rejects missing CharmmContext",
-        apo.ApoCharmmError,
         lambda: integrator.propagate(1),
+        apo.APO_STATUS_NOT_INITIALIZED,
+        "CharmmContext must be set before propagation",
+        "CudaIntegrator.propagate(num_steps)",
     )
     expect_exception(
         "CudaNoseHooverIntegrator.initializeFromRestartFile rejects missing CharmmContext",
@@ -122,10 +127,12 @@ def check_validation() -> None:
     ctx = create_context()
     integrator.setCharmmContext(ctx)
 
-    expect_exception(
+    expect_apo_error(
         "CudaNoseHooverIntegrator.setCharmmContext rejects second context",
-        apo.ApoCharmmError,
         lambda: integrator.setCharmmContext(ctx),
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        "A CharmmContext object was already set for this CudaIntegrator.",
+        "CudaIntegrator.setCharmmContext(context)",
     )
     expect_exception(
         "CudaNoseHooverIntegrator.initializeFromRestartFile rejects missing restart file",

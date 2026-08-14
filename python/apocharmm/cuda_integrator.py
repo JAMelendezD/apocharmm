@@ -14,7 +14,7 @@ import threading
 from ._base import _ApoObject
 from ._lib import encode_path, lib
 from ._types import FilePath
-from .error import check_status, configure_status_function
+from .error import configure_status_function
 
 from .charmm_context import CharmmContext
 from .subscriber import Subscriber
@@ -28,17 +28,17 @@ def _initialize_prototypes() -> None:
     if _prototypes_initialized:
         return
 
-    lib().apo_cuda_integrator_set_time_step.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_double,
-    ]
-    lib().apo_cuda_integrator_set_time_step.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_integrator_set_time_step,
+        [ctypes.c_void_p, ctypes.c_double],
+        "CudaIntegrator.setTimeStep(time_step)",
+    )
 
-    lib().apo_cuda_integrator_set_charmm_context.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_integrator_set_charmm_context.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_integrator_set_charmm_context,
+        [ctypes.c_void_p, ctypes.c_void_p],
+        "CudaIntegrator.setCharmmContext(context)",
+    )
 
     configure_status_function(
         lib().apo_cuda_integrator_subscribe,
@@ -52,14 +52,17 @@ def _initialize_prototypes() -> None:
         "CudaIntegrator.unsubscribe(subscriber)",
     )
 
-    lib().apo_cuda_integrator_propagate.argtypes = [ctypes.c_void_p, ctypes.c_int]
-    lib().apo_cuda_integrator_propagate.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_integrator_propagate,
+        [ctypes.c_void_p, ctypes.c_int],
+        "CudaIntegrator.propagate(num_steps)",
+    )
 
-    lib().apo_cuda_integrator_initialize_from_restart_file.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_char_p,
-    ]
-    lib().apo_cuda_integrator_initialize_from_restart_file.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_integrator_initialize_from_restart_file,
+        [ctypes.c_void_p, ctypes.c_char_p],
+        "CudaIntegrator.initializeFromRestartFile(path)",
+    )
 
     _prototypes_initialized = True
 
@@ -97,11 +100,7 @@ class CudaIntegrator(_ApoObject):
 
         c_time_step: ctypes.c_double = ctypes.c_double(time_step)
 
-        status = lib().apo_cuda_integrator_set_time_step(
-            self.integrator_handle, c_time_step
-        )
-
-        check_status(status, "CudaIntegrator.setTimeStep(time_step) failed")
+        lib().apo_cuda_integrator_set_time_step(self.integrator_handle, c_time_step)
 
         return
 
@@ -111,11 +110,9 @@ class CudaIntegrator(_ApoObject):
         if not isinstance(context, CharmmContext):
             raise TypeError("CudaIntegrator.setCharmmContext expects a CharmmContext")
 
-        status = lib().apo_cuda_integrator_set_charmm_context(
+        lib().apo_cuda_integrator_set_charmm_context(
             self.integrator_handle, context.handle
         )
-
-        check_status(status, "CudaIntegrator.setCharmmContext(context) failed")
 
         self._context = context
 
@@ -152,8 +149,8 @@ class CudaIntegrator(_ApoObject):
     def propagate(self, num_steps: int) -> None:
         _initialize_prototypes()
 
-        if num_steps < 0 or num_steps > 2**31 - 1:
-            raise ValueError("num_steps must fit in non-negative int")
+        if num_steps < -(2**31) or num_steps > 2**31 - 1:
+            raise ValueError("num_steps must fit in int")
 
         c_num_steps: ctypes.c_int = ctypes.c_int(num_steps)
 
@@ -167,14 +164,10 @@ class CudaIntegrator(_ApoObject):
             signal.signal(signal.SIGINT, signal.SIG_DFL)
 
         try:
-            status = lib().apo_cuda_integrator_propagate(
-                self.integrator_handle, c_num_steps
-            )
+            lib().apo_cuda_integrator_propagate(self.integrator_handle, c_num_steps)
         finally:
             if restore_signal_handler:
                 signal.signal(signal.SIGINT, previous_sigint_handler)
-
-        check_status(status, "CudaIntegrator.propagate(num_steps) failed")
 
         return
 
@@ -184,10 +177,8 @@ class CudaIntegrator(_ApoObject):
         encoded_path: bytes = encode_path(path)
         c_path: ctypes.c_char_p = ctypes.c_char_p(encoded_path)
 
-        status = lib().apo_cuda_integrator_initialize_from_restart_file(
+        lib().apo_cuda_integrator_initialize_from_restart_file(
             self.integrator_handle, c_path
         )
-
-        check_status(status, "CudaIntegrator.initializeFromRestartFile(path) failed")
 
         return
