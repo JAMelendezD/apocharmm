@@ -18,7 +18,6 @@
 
 #include <cstddef>
 #include <fstream>
-#include <iostream>
 #include <vector>
 #include <vector_functions.h>
 
@@ -413,21 +412,14 @@ void CudaNoseHooverIntegrator::initializeFromRestartFileImpl(
 
   const std::string restartContext = "restart file \"" + rstFileName + "\"";
 
+  std::size_t lineNumber = 0;
   std::string line = "";
-  bool foundSection = false;
+
+  apo::get_line(line, lineNumber, fin, "restart header", restartContext);
 
   // Find CRYSTAL PARAMETERS section
-  while (!fin.eof()) {
-    line.clear();
-    std::getline(fin, line);
-    if (line == " !CRYSTAL PARAMETERS") {
-      foundSection = true;
-      break;
-    }
-  }
-
-  APOCHARMM_REQUIRE(foundSection, ApoCharmmErrorCode::Runtime,
-                    "Could not find !CRYSTAL PARAMETERS section");
+  apo::find_required_line(fin, lineNumber, " !CRYSTAL PARAMETERS",
+                          "!CRYSTAL PARAMETERS section", restartContext);
 
   // Parse CRYSTAL PARAMETERS section
   std::vector<double> XTLABC(6, 0.0);
@@ -437,16 +429,15 @@ void CudaNoseHooverIntegrator::initializeFromRestartFileImpl(
   // std::vector<double> UC1A(6, 0.0), UC2A(6, 0.0), UC1B(6, 0.0), UC2B(6, 0.0);
   // double GRAD1A = 0.0, GRAD1B = 0.0, GRAD2A = 0.0, GRAD2B = 0.0;
 
-  line.clear();
-  std::getline(fin, line);
+  apo::get_line(line, lineNumber, fin, "first XTLABC record", restartContext);
   XTLABC[0] =
       apo::parse_fixed_width_double(line, 0, 22, "XTALABC[0]", restartContext);
   XTLABC[1] =
       apo::parse_fixed_width_double(line, 22, 22, "XTALABC[1]", restartContext);
   XTLABC[2] =
       apo::parse_fixed_width_double(line, 44, 22, "XTALABC[2]", restartContext);
-  line.clear();
-  std::getline(fin, line);
+
+  apo::get_line(line, lineNumber, fin, "second XTLABC record", restartContext);
   XTLABC[3] =
       apo::parse_fixed_width_double(line, 0, 22, "XTALABC[3]", restartContext);
   XTLABC[4] =
@@ -455,101 +446,87 @@ void CudaNoseHooverIntegrator::initializeFromRestartFileImpl(
       apo::parse_fixed_width_double(line, 44, 22, "XTALABC[5]", restartContext);
 
   // Not needed for Nose-Hoover thermostat
-  line.clear();
-  std::getline(fin, line);
+  apo::get_line(line, lineNumber, fin, "first HDOT record", restartContext);
   // HDOT[0] = apo::fortSciStrToCDouble(line.substr(0, 22));
   // HDOT[1] = apo::fortSciStrToCDouble(line.substr(22, 22));
   // HDOT[2] = apo::fortSciStrToCDouble(line.substr(44, 22));
-  line.clear();
-  std::getline(fin, line);
+
+  // Not needed for Nose-Hoover thermostat
+  apo::get_line(line, lineNumber, fin, "second HDOT record", restartContext);
   // HDOT[3] = apo::fortSciStrToCDouble(line.substr(0, 22));
   // HDOT[4] = apo::fortSciStrToCDouble(line.substr(22, 22));
   // HDOT[5] = apo::fortSciStrToCDouble(line.substr(44, 22));
 
-  line.clear();
-  std::getline(fin, line);
+  apo::get_line(line, lineNumber, fin, "PNH record", restartContext);
   // PNH = apo::parse_fixed_width_double(line, 0, 22, "PNH", restartContext); //
   // Not needed for NHT
   PNHV = apo::parse_fixed_width_double(line, 22, 22, "PNHV", restartContext);
   PNHF = apo::parse_fixed_width_double(line, 44, 22, "PNHF", restartContext);
 
   // Not needed for Nose-Hoover thermostat
-  line.clear();
-  std::getline(fin, line);
+  apo::get_line(line, lineNumber, fin, "first UC1A record", restartContext);
   // UC1A[0] = apo::fortSciStrToCDouble(line.substr(0, 22));
   // UC1A[1] = apo::fortSciStrToCDouble(line.substr(22, 22));
   // UC1A[2] = apo::fortSciStrToCDouble(line.substr(44, 22));
-  line.clear();
-  std::getline(fin, line);
+
+  // Not needed for Nose-Hoover thermostat
+  apo::get_line(line, lineNumber, fin, "second UC1A record", restartContext);
   // UC1A[3] = apo::fortSciStrToCDouble(line.substr(0, 22));
   // UC1A[4] = apo::fortSciStrToCDouble(line.substr(22, 22));
   // UC1A[5] = apo::fortSciStrToCDouble(line.substr(44, 22));
 
   // Not needed for Nose-Hoover thermostat
-  line.clear();
-  std::getline(fin, line);
+  apo::get_line(line, lineNumber, fin, "first UC2A record", restartContext);
   // UC2A[0] = apo::fortSciStrToCDouble(line.substr(0, 22));
   // UC2A[1] = apo::fortSciStrToCDouble(line.substr(22, 22));
   // UC2A[2] = apo::fortSciStrToCDouble(line.substr(44, 22));
-  line.clear();
-  std::getline(fin, line);
+
+  // Not needed for Nose-Hoover thermostat
+  apo::get_line(line, lineNumber, fin, "second UC2A record", restartContext);
   // UC2A[3] = apo::fortSciStrToCDouble(line.substr(0, 22));
   // UC2A[4] = apo::fortSciStrToCDouble(line.substr(22, 22));
   // UC2A[5] = apo::fortSciStrToCDouble(line.substr(44, 22));
 
-  // // Not needed for Nose-Hoover thermostat
-  line.clear();
-  std::getline(fin, line);
+  // Not needed for Nose-Hoover thermostat
+  apo::get_line(line, lineNumber, fin, "first UC1B record", restartContext);
   // UC1B[0] = apo::fortSciStrToCDouble(line.substr(0, 22));
   // UC1B[1] = apo::fortSciStrToCDouble(line.substr(22, 22));
   // UC1B[2] = apo::fortSciStrToCDouble(line.substr(44, 22));
-  line.clear();
-  std::getline(fin, line);
+
+  // Not needed for Nose-Hoover thermostat
+  apo::get_line(line, lineNumber, fin, "second UC1B record", restartContext);
   // UC1B[3] = apo::fortSciStrToCDouble(line.substr(0, 22));
   // UC1B[4] = apo::fortSciStrToCDouble(line.substr(22, 22));
   // UC1B[5] = apo::fortSciStrToCDouble(line.substr(44, 22));
 
   // Not needed for Nose-Hoover thermostat
-  line.clear();
-  std::getline(fin, line);
+  apo::get_line(line, lineNumber, fin, "first UC2B record", restartContext);
   // UC2B[0] = apo::fortSciStrToCDouble(line.substr(0, 22));
   // UC2B[1] = apo::fortSciStrToCDouble(line.substr(22, 22));
   // UC2B[2] = apo::fortSciStrToCDouble(line.substr(44, 22));
-  line.clear();
-  std::getline(fin, line);
+
+  // Not needed for Nose-Hoover thermostat
+  apo::get_line(line, lineNumber, fin, "second UC2B record", restartContext);
   // UC2B[3] = apo::fortSciStrToCDouble(line.substr(0, 22));
   // UC2B[4] = apo::fortSciStrToCDouble(line.substr(22, 22));
   // UC2B[5] = apo::fortSciStrToCDouble(line.substr(44, 22));
 
   // Not needed for Nose-Hoover thermostat
-  line.clear();
-  std::getline(fin, line);
+  apo::get_line(line, lineNumber, fin, "first GRAD record", restartContext);
   // GRAD1A = apo::fortSciStrToCDouble(line.substr(0, 22));
   // GRAD1B = apo::fortSciStrToCDouble(line.substr(22, 22));
   // GRAD2A = apo::fortSciStrToCDouble(line.substr(44, 22));
-  line.clear();
-  std::getline(fin, line);
+
+  // Not needed for Nose-Hoover thermostat
+  apo::get_line(line, lineNumber, fin, "second GRAD record", restartContext);
   // GRAD2B = apo::fortSciStrToCDouble(line.substr(0, 22));
 
-  m_Context->setBoxDimensions({XTLABC[0], XTLABC[2], XTLABC[5]});
-
-  this->setNoseHooverPistonVelocity(PNHV);
-  this->setNoseHooverPistonForce(PNHF);
-
   // Find integer section
-  foundSection = false;
-  while (!fin.eof()) {
-    line.clear();
-    std::getline(fin, line);
-    if (line == " !NATOM,NPRIV,NSTEP,NSAVC,NSAVV,JHSTRT,NDEGF,SEED,NSAVL") {
-      foundSection = true;
-      break;
-    }
-  }
-  APOCHARMM_REQUIRE(
-      foundSection, ApoCharmmErrorCode::Runtime,
-      "Could not find !NATOM,NPRIV,NSTEP,NSAVC,NSAVV,JHSTRT,NDEGF,SEED,NSAVL "
-      "section");
+  apo::find_required_line(
+      fin, lineNumber,
+      " !NATOM,NPRIV,NSTEP,NSAVC,NSAVV,JHSTRT,NDEGF,SEED,NSAVL",
+      "!NATOM,NPRIV,NSTEP,NSAVC,NSAVV,JHSTRT,NDEGF,SEED,NSAVL section",
+      restartContext);
 
   int NATOM = 0;
   unsigned long long int NPRIV = 0;
@@ -561,8 +538,8 @@ void CudaNoseHooverIntegrator::initializeFromRestartFileImpl(
   // std::uint64_t SEED = 0;    // Not needed for Nose-Hoover Thermostat
   // std::string RNGSTATE = ""; // Not needed for Nose-Hoover Thermostat
 
-  line.clear();
-  std::getline(fin, line);
+  apo::get_line(line, lineNumber, fin, "NATOM/NPRIV/NSTEP/NDEGF/SEED record",
+                restartContext);
   NATOM = apo::parse_fixed_width_int(line, 0, 12, "NATOM", restartContext);
   NPRIV = apo::parse_fixed_width_ull(line, 12, 12, "NPRIV", restartContext);
   NSTEP = apo::parse_fixed_width_int(line, 24, 12, "NSTEP", restartContext);
@@ -578,9 +555,6 @@ void CudaNoseHooverIntegrator::initializeFromRestartFileImpl(
                     ApoCharmmErrorCode::InvalidArgument,
                     "NATOM mismatch in restart file \"" + rstFileName + "\"");
 
-  m_TotNumSteps = NPRIV;
-  m_NumSteps = NSTEP;
-  m_CurrentPropagatedStep = CudaIntegrator::wrapCurrentPropagatedStep(NPRIV);
   if (NDEGF != m_Context->getNumDegreesOfFreedom()) {
     std::cout << "WARNING: NDEGF mismatch in restart file \"" << rstFileName
               << "\"\n";
@@ -591,23 +565,15 @@ void CudaNoseHooverIntegrator::initializeFromRestartFileImpl(
   // Skip ENERGIES and STATISTICS section
 
   // Find XOLD, YOLD, ZOLD section
-  foundSection = false;
-  while (!fin.eof()) {
-    line.clear();
-    std::getline(fin, line);
-    if (line == " !XOLD, YOLD, ZOLD") {
-      foundSection = true;
-      break;
-    }
-  }
-  APOCHARMM_REQUIRE(foundSection, ApoCharmmErrorCode::Runtime,
-                    "Could not find !XOLD, YOLD, ZOLD section");
+  apo::find_required_line(fin, lineNumber, " !XOLD, YOLD, ZOLD",
+                          "!XOLD, YOLD, ZOLD section", restartContext);
 
   // Parse XOLD, YOLD, ZOLD section
   std::vector<double> XOLD(NATOM), YOLD(NATOM), ZOLD(NATOM);
   for (int i = 0; i < NATOM; i++) {
-    line.clear();
-    std::getline(fin, line);
+    apo::get_line(line, lineNumber, fin,
+                  "XOLD/YOLD/ZOLD record " + std::to_string(i + 1),
+                  restartContext);
     XOLD[i] = apo::parse_fixed_width_double(
         line, 0, 22, "XOLD[" + std::to_string(i) + "]", restartContext);
     YOLD[i] = apo::parse_fixed_width_double(
@@ -617,23 +583,14 @@ void CudaNoseHooverIntegrator::initializeFromRestartFileImpl(
   }
 
   // Find VX, VY, VZ section
-  foundSection = false;
-  while (!fin.eof()) {
-    line.clear();
-    std::getline(fin, line);
-    if (line == " !VX, VY, VZ") {
-      foundSection = true;
-      break;
-    }
-  }
-  APOCHARMM_REQUIRE(foundSection, ApoCharmmErrorCode::Runtime,
-                    "Could not find !VX, VY, VZ section");
+  apo::find_required_line(fin, lineNumber, " !VX, VY, VZ",
+                          "! VX, VY, VZ section", restartContext);
 
   // Parse VX, VY, VZ section
   std::vector<double> VX(NATOM), VY(NATOM), VZ(NATOM);
   for (int i = 0; i < NATOM; i++) {
-    line.clear();
-    std::getline(fin, line);
+    apo::get_line(line, lineNumber, fin,
+                  "VX/VY/VZ record " + std::to_string(i + 1), restartContext);
     VX[i] = apo::parse_fixed_width_double(
         line, 0, 22, "VX[" + std::to_string(i) + "]", restartContext);
     VY[i] = apo::parse_fixed_width_double(
@@ -643,23 +600,14 @@ void CudaNoseHooverIntegrator::initializeFromRestartFileImpl(
   }
 
   // Find X, Y, Z section
-  foundSection = false;
-  while (!fin.eof()) {
-    line.clear();
-    std::getline(fin, line);
-    if (line == " !X, Y, Z") {
-      foundSection = true;
-      break;
-    }
-  }
-  APOCHARMM_REQUIRE(foundSection, ApoCharmmErrorCode::Runtime,
-                    "Could not find !X, Y, Z section");
+  apo::find_required_line(fin, lineNumber, " !X, Y, Z", "!X, Y, Z section",
+                          restartContext);
 
   // Parse X, Y, Z section
   std::vector<double> X(NATOM), Y(NATOM), Z(NATOM);
   for (int i = 0; i < NATOM; i++) {
-    line.clear();
-    std::getline(fin, line);
+    apo::get_line(line, lineNumber, fin,
+                  "X/Y/Z record " + std::to_string(i + 1), restartContext);
     X[i] = apo::parse_fixed_width_double(
         line, 0, 22, "X[" + std::to_string(i) + "]", restartContext);
     Y[i] = apo::parse_fixed_width_double(
@@ -667,6 +615,15 @@ void CudaNoseHooverIntegrator::initializeFromRestartFileImpl(
     Z[i] = apo::parse_fixed_width_double(
         line, 44, 22, "Z[" + std::to_string(i) + "]", restartContext);
   }
+
+  m_Context->setBoxDimensions({XTLABC[0], XTLABC[2], XTLABC[5]});
+
+  this->setNoseHooverPistonVelocity(PNHV);
+  this->setNoseHooverPistonForce(PNHF);
+
+  m_TotNumSteps = NPRIV;
+  m_NumSteps = NSTEP;
+  m_CurrentPropagatedStep = CudaIntegrator::wrapCurrentPropagatedStep(NPRIV);
 
   for (int i = 0; i < NATOM; i++) {
     m_Context->getCoordinatesChargesDP()[i].x = XOLD[i];

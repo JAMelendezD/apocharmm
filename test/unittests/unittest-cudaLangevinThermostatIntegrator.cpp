@@ -8,6 +8,7 @@
 //
 // ENDLICENSE
 
+#include "ApoCharmmError.h"
 #include "CharmmContext.h"
 #include "CharmmCrd.h"
 #include "CharmmPSF.h"
@@ -314,8 +315,10 @@ TEST_CASE("CudaLangevinThermostatIntegratorRestartValidation") {
   auto integrator =
       std::make_shared<CudaLangevinThermostatIntegrator>(TIME_STEP);
 
-  CHECK_THROWS_AS(integrator->initializeFromRestartFile("missing.rst"),
-                  std::runtime_error);
+  apo_test::CheckApoCharmmError(
+      [&]() { integrator->initializeFromRestartFile("missing.rst"); },
+      ApoCharmmErrorCode::NotInitialized,
+      "CharmmContext must be set before initializing from a restart file");
 
   const std::string dataPath = getDataPath();
 
@@ -333,6 +336,7 @@ TEST_CASE("CudaLangevinThermostatIntegratorRestartValidation") {
 
   integrator->setCharmmContext(ctx);
 
-  CHECK_THROWS_AS(integrator->initializeFromRestartFile("missing.rst"),
-                  std::runtime_error);
+  apo_test::CheckApoCharmmError(
+      [&]() { integrator->initializeFromRestartFile("missing.rst"); },
+      ApoCharmmErrorCode::Runtime, "Could not open file \"missing.rst\"");
 }

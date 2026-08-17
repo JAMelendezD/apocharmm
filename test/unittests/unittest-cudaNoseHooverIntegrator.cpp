@@ -413,4 +413,23 @@ TEST_CASE("CudaNoseHooverIntegratorRestartValidation") {
   }
 
   CHECK(caughtMissingFile == true);
+
+  const std::string truncatedFileName =
+      "cudaNoseHooverIntegrator-truncated.rst";
+  std::string truncatedHeader(34, ' ');
+  truncatedHeader.replace(0, 4, "REST");
+  truncatedHeader.replace(18, 4, "CUBI");
+
+  apo_test::RemoveIfExists(truncatedFileName);
+  apo_test::WriteTextFile(truncatedFileName,
+                          truncatedHeader + "\n !CRYSTAL PARAMETERS\n");
+
+  apo_test::CheckApoCharmmError(
+      [&]() { integrator.initializeFromRestartFile(truncatedFileName); },
+      ApoCharmmErrorCode::Runtime,
+      "Unexpected end of file while reading first XTLABC record in restart "
+      "file \"" +
+          truncatedFileName + "\"");
+
+  apo_test::RemoveIfExists(truncatedFileName);
 }

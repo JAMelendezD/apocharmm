@@ -586,9 +586,35 @@ TEST_CASE("RestartSubscriberNoseHooverTrajectoryEquivalence") {
   integrator2->propagate(NUM_STEPS);
   WriteRestartFile(fileName, ctx2, integrator2);
   CheckRestartFileContainsRequiredSections(fileName);
-  integrator2->propagate(1);
 
   integrator3->initializeFromRestartFile(fileName);
+
+  CheckCharmmContextStateMatches(ctx2, ctx3);
+
+  CHECK(integrator3->getTotNumSteps() ==
+        static_cast<unsigned long long int>(NUM_STEPS));
+  CHECK(integrator3->getNumSteps() == NUM_STEPS);
+  CHECK(integrator3->getCurrentPropagatedStep() == NUM_STEPS);
+
+  // The CHARMM !X, Y, Z restart section stores the previous coordinate
+  // displacement. The current displacement is not serialized.
+  apo_test::CheckVectorsClose<double4>(
+      "Loaded coordinates delta previous",
+      apo_test::CopyToHost<double4>(integrator2->getCoordsDeltaPrevious()),
+      apo_test::CopyToHost<double4>(integrator3->getCoordsDeltaPrevious()),
+      TOLERANCE);
+  apo_test::CheckVectorsClose<double>(
+      "Loaded Nose-Hoover piston velocity",
+      apo_test::CopyToHost<double>(integrator2->getNoseHooverPistonVelocity()),
+      apo_test::CopyToHost<double>(integrator3->getNoseHooverPistonVelocity()),
+      TOLERANCE);
+  apo_test::CheckVectorsClose<double>(
+      "Loaded Nose-Hoover piston force",
+      apo_test::CopyToHost<double>(integrator2->getNoseHooverPistonForce()),
+      apo_test::CopyToHost<double>(integrator3->getNoseHooverPistonForce()),
+      TOLERANCE);
+
+  integrator2->propagate(1);
   integrator3->propagate(1);
 
   CheckCharmmContextStateMatches(ctx1, ctx2);
@@ -619,9 +645,30 @@ TEST_CASE("RestartSubscriberLangevinThermostatTrajectoryEquivalence") {
   integrator2->propagate(NUM_STEPS);
   WriteRestartFile(fileName, ctx2, integrator2);
   CheckRestartFileContainsRequiredSections(fileName);
-  integrator2->propagate(1);
 
   integrator3->initializeFromRestartFile(fileName);
+
+  CheckCharmmContextStateMatches(ctx2, ctx3);
+
+  CHECK(integrator3->getTotNumSteps() ==
+        static_cast<unsigned long long int>(NUM_STEPS));
+  CHECK(integrator3->getNumSteps() == NUM_STEPS);
+  CHECK(integrator3->getCurrentPropagatedStep() == NUM_STEPS);
+
+  // The CHARMM !X, Y, Z restart section stores the previous coordinate
+  // displacement. The current displacement is not serialized.
+  apo_test::CheckVectorsClose<double4>(
+      "Loaded coordinates delta previous",
+      apo_test::CopyToHost<double4>(integrator2->getCoordsDeltaPrevious()),
+      apo_test::CopyToHost<double4>(integrator3->getCoordsDeltaPrevious()),
+      TOLERANCE);
+
+  CHECK(integrator2->getThermostatRngSeed() ==
+        integrator3->getThermostatRngSeed());
+  CHECK(integrator2->getRngSequencePos() == integrator3->getRngSequencePos());
+  CHECK(integrator2->getRngStates() == integrator3->getRngStates());
+
+  integrator2->propagate(1);
   integrator3->propagate(1);
 
   CheckCharmmContextStateMatches(ctx1, ctx2);

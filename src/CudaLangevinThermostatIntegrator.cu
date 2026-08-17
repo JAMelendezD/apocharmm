@@ -10,6 +10,7 @@
 
 #include "CudaLangevinThermostatIntegrator.h"
 
+#include "ApoCharmmError.h"
 #include "Constants.h"
 #include "CurandStateString.h"
 #include "cuda_utils.h"
@@ -21,7 +22,6 @@
 #include <fstream>
 #include <random>
 #include <stdexcept>
-#include <vector>
 #include <vector_functions.h>
 
 CudaLangevinThermostatIntegrator::CudaLangevinThermostatIntegrator(
@@ -104,13 +104,7 @@ void CudaLangevinThermostatIntegrator::setRngStates(
         "not match number of atoms");
   }
 
-  this->setRngSequencePos(pos);
-  this->alloc(numAtoms);
-
-  cudaCheck(cudaMemcpy(static_cast<void *>(m_RngStates),
-                       static_cast<const void *>(states.data()),
-                       states.size() * sizeof(curandStatePhilox4_32_10_t),
-                       cudaMemcpyHostToDevice));
+  this->setRngStateData(pos, states);
 
   return;
 }
@@ -343,31 +337,23 @@ void CudaLangevinThermostatIntegrator::initializeImpl(void) {
 void CudaLangevinThermostatIntegrator::initializeFromRestartFileImpl(
     const std::string &rstFileName) {
   std::ifstream fin(rstFileName);
-  if (!fin.is_open())
-    throw std::runtime_error("Could not open file \"" + rstFileName + "\"");
+  APOCHARMM_REQUIRE(fin.is_open(), ApoCharmmErrorCode::Runtime,
+                    "Could not open file \"" + rstFileName + "\"");
 
+  const std::string restartContext = "restart file \"" + rstFileName + "\"";
+
+  std::size_t lineNumber = 0;
   std::string line = "";
 
-  // Get crystal type and check if we need to use the RNG state
-  bool isApoRstFile = false;
-  line.clear();
-  std::getline(fin, line);
-  if (line.length() >= 33) // Check for APO flag
-    isApoRstFile = (line.substr(30, 3) == "APO");
+  apo::get_line(line, lineNumber, fin, "restart header", restartContext);
 
-  bool foundSection = false;
+  // Get crystal type and check if we need to use the RNG state
+  const bool isApoRstFile =
+      (line.length() >= 33) && (line.compare(30, 3, "APO") == 0);
 
   // Find CRYSTAL PARAMETERS section
-  while (!fin.eof()) {
-    line.clear();
-    std::getline(fin, line);
-    if (line == " !CRYSTAL PARAMETERS") {
-      foundSection = true;
-      break;
-    }
-  }
-  if (!foundSection)
-    throw std::runtime_error("Could not find !CRYSTAL PARAMETERS section");
+  apo::find_required_line(fin, lineNumber, " !CRYSTAL PARAMETERS",
+                          "!CRYSTAL PARAMETERS section", restartContext);
 
   // Parse CRYSTAL PARAMETERS section
   std::vector<double> XTLABC(6, 0.0);
@@ -377,110 +363,104 @@ void CudaLangevinThermostatIntegrator::initializeFromRestartFileImpl(
   // std::vector<double> UC1A(6, 0.0), UC2A(6, 0.0), UC1B(6, 0.0), UC2B(6, 0.0);
   // double GRAD1A = 0.0, GRAD1B = 0.0, GRAD2A = 0.0, GRAD2B = 0.0;
 
-  line.clear();
-  std::getline(fin, line);
-  XTLABC[0] = apo::fortSciStrToCDouble(line.substr(0, 22));
-  XTLABC[1] = apo::fortSciStrToCDouble(line.substr(22, 22));
-  XTLABC[2] = apo::fortSciStrToCDouble(line.substr(44, 22));
-  line.clear();
-  std::getline(fin, line);
-  XTLABC[3] = apo::fortSciStrToCDouble(line.substr(0, 22));
-  XTLABC[4] = apo::fortSciStrToCDouble(line.substr(22, 22));
-  XTLABC[5] = apo::fortSciStrToCDouble(line.substr(44, 22));
+  apo::get_line(line, lineNumber, fin, "first XTLABC record", restartContext);
+  XTLABC[0] =
+      apo::parse_fixed_width_double(line, 0, 22, "XTLABC[0]", restartContext);
+  XTLABC[1] =
+      apo::parse_fixed_width_double(line, 22, 22, "XTLABC[1]", restartContext);
+  XTLABC[2] =
+      apo::parse_fixed_width_double(line, 44, 22, "XTLABC[2]", restartContext);
+
+  apo::get_line(line, lineNumber, fin, "second XTLABC record", restartContext);
+  XTLABC[3] =
+      apo::parse_fixed_width_double(line, 0, 22, "XTLABC[3]", restartContext);
+  XTLABC[4] =
+      apo::parse_fixed_width_double(line, 22, 22, "XTLABC[4]", restartContext);
+  XTLABC[5] =
+      apo::parse_fixed_width_double(line, 44, 22, "XTLABC[5]", restartContext);
 
   // Not needed for Langevin Thermostat
-  line.clear();
-  std::getline(fin, line);
+  apo::get_line(line, lineNumber, fin, "first HDOT record", restartContext);
   // HDOT[0] = apo::fortSciStrToCDouble(line.substr(0, 22));
   // HDOT[1] = apo::fortSciStrToCDouble(line.substr(22, 22));
   // HDOT[2] = apo::fortSciStrToCDouble(line.substr(44, 22));
-  line.clear();
-  std::getline(fin, line);
+
+  // Not needed for Langevin Thermostat
+  apo::get_line(line, lineNumber, fin, "second HDOT record", restartContext);
   // HDOT[3] = apo::fortSciStrToCDouble(line.substr(0, 22));
   // HDOT[4] = apo::fortSciStrToCDouble(line.substr(22, 22));
   // HDOT[5] = apo::fortSciStrToCDouble(line.substr(44, 22));
 
-  line.clear();
-  std::getline(fin, line);
+  // Not needed for Langevin Thermostat
+  apo::get_line(line, lineNumber, fin, "PNH record", restartContext);
   // PNH = apo::fortSciStrToCDouble(line.substr(0, 22));   // Not needed for LT
   // PNHV = apo::fortSciStrToCDouble(line.substr(22, 22)); // Not needed for LT
   // PNHF = apo::fortSciStrToCDouble(line.substr(44, 22)); // Not needed for LT
 
   // Not needed for Langevin Thermostat
-  line.clear();
-  std::getline(fin, line);
+  apo::get_line(line, lineNumber, fin, "first UC1A record", restartContext);
   // UC1A[0] = apo::fortSciStrToCDouble(line.substr(0, 22));
   // UC1A[1] = apo::fortSciStrToCDouble(line.substr(22, 22));
   // UC1A[2] = apo::fortSciStrToCDouble(line.substr(44, 22));
-  line.clear();
-  std::getline(fin, line);
+
+  // Not needed for Langevin Thermostat
+  apo::get_line(line, lineNumber, fin, "second UC1A record", restartContext);
   // UC1A[3] = apo::fortSciStrToCDouble(line.substr(0, 22));
   // UC1A[4] = apo::fortSciStrToCDouble(line.substr(22, 22));
   // UC1A[5] = apo::fortSciStrToCDouble(line.substr(44, 22));
 
   // Not needed for Langevin Thermostat
-  line.clear();
-  std::getline(fin, line);
+  apo::get_line(line, lineNumber, fin, "first UC2A record", restartContext);
   // UC2A[0] = apo::fortSciStrToCDouble(line.substr(0, 22));
   // UC2A[1] = apo::fortSciStrToCDouble(line.substr(22, 22));
   // UC2A[2] = apo::fortSciStrToCDouble(line.substr(44, 22));
-  line.clear();
-  std::getline(fin, line);
+
+  // Not needed for Langevin Thermostat
+  apo::get_line(line, lineNumber, fin, "second UC2A record", restartContext);
   // UC2A[3] = apo::fortSciStrToCDouble(line.substr(0, 22));
   // UC2A[4] = apo::fortSciStrToCDouble(line.substr(22, 22));
   // UC2A[5] = apo::fortSciStrToCDouble(line.substr(44, 22));
 
   // Not needed for Langevin Thermostat
-  line.clear();
-  std::getline(fin, line);
+  apo::get_line(line, lineNumber, fin, "first UC1B record", restartContext);
   // UC1B[0] = apo::fortSciStrToCDouble(line.substr(0, 22));
   // UC1B[1] = apo::fortSciStrToCDouble(line.substr(22, 22));
   // UC1B[2] = apo::fortSciStrToCDouble(line.substr(44, 22));
-  line.clear();
-  std::getline(fin, line);
+
+  // Not needed for Langevin Thermostat
+  apo::get_line(line, lineNumber, fin, "second UC1B record", restartContext);
   // UC1B[3] = apo::fortSciStrToCDouble(line.substr(0, 22));
   // UC1B[4] = apo::fortSciStrToCDouble(line.substr(22, 22));
   // UC1B[5] = apo::fortSciStrToCDouble(line.substr(44, 22));
 
   // Not needed for Langevin Thermostat
-  line.clear();
-  std::getline(fin, line);
+  apo::get_line(line, lineNumber, fin, "first UC2B record", restartContext);
   // UC2B[0] = apo::fortSciStrToCDouble(line.substr(0, 22));
   // UC2B[1] = apo::fortSciStrToCDouble(line.substr(22, 22));
   // UC2B[2] = apo::fortSciStrToCDouble(line.substr(44, 22));
-  line.clear();
-  std::getline(fin, line);
+
+  // Not needed for Langevin Thermostat
+  apo::get_line(line, lineNumber, fin, "second UC2B record", restartContext);
   // UC2B[3] = apo::fortSciStrToCDouble(line.substr(0, 22));
   // UC2B[4] = apo::fortSciStrToCDouble(line.substr(22, 22));
   // UC2B[5] = apo::fortSciStrToCDouble(line.substr(44, 22));
 
   // Not needed for Langevin Thermostat
-  line.clear();
-  std::getline(fin, line);
+  apo::get_line(line, lineNumber, fin, "first GRAD record", restartContext);
   // GRAD1A = apo::fortSciStrToCDouble(line.substr(0, 22));
   // GRAD1B = apo::fortSciStrToCDouble(line.substr(22, 22));
   // GRAD2A = apo::fortSciStrToCDouble(line.substr(44, 22));
-  line.clear();
-  std::getline(fin, line);
+
+  // Not needed for Langevin Thermostat
+  apo::get_line(line, lineNumber, fin, "second GRAD record", restartContext);
   // GRAD2B = apo::fortSciStrToCDouble(line.substr(0, 22));
 
-  m_Context->setBoxDimensions({XTLABC[0], XTLABC[2], XTLABC[5]});
-
   // Find integer section
-  foundSection = false;
-  while (!fin.eof()) {
-    line.clear();
-    std::getline(fin, line);
-    if (line == " !NATOM,NPRIV,NSTEP,NSAVC,NSAVV,JHSTRT,NDEGF,SEED,NSAVL") {
-      foundSection = true;
-      break;
-    }
-  }
-  if (!foundSection) {
-    throw std::runtime_error(
-        "Could not find !NATOM,NPRIV,NSTEP,NSAVC,NSAVV,JHSTRT,NDEGF,SEED,NSAVL "
-        "section");
-  }
+  apo::find_required_line(
+      fin, lineNumber,
+      " !NATOM,NPRIV,NSTEP,NSAVC,NSAVV,JHSTRT,NDEGF,SEED,NSAVL",
+      "!NATOM,NPRIV,NSTEP,NSAVC,NSAVV,JHSTRT,NDEGF,SEED,NSAVL section",
+      restartContext);
 
   int NATOM = 0;
   unsigned long long int NPRIV = 0;
@@ -492,106 +472,118 @@ void CudaLangevinThermostatIntegrator::initializeFromRestartFileImpl(
   std::uint64_t SEED = 0;
   std::string RNGSTATE = "";
 
-  line.clear();
-  std::getline(fin, line);
-  NATOM = std::stoi(line.substr(0, 12));
-  NPRIV = std::stoull(line.substr(12, 12));
-  NSTEP = std::stoi(line.substr(24, 12));
-  // NSAVC = std::stoi(line.substr(36, 12));
-  // NSAVV = std::stoi(line.substr(48, 12));
-  // JHSTRT = std::stoi(line.substr(60, 12));
-  NDEGF = std::stoi(line.substr(72, 12));
-  SEED = std::stoull(line.substr(84, 22));
-  RNGSTATE = line.substr(106, std::string::npos);
+  apo::get_line(line, lineNumber, fin, "NATOM/NPRIV/NSTEP/NDEGF/SEED record",
+                restartContext);
+  NATOM = apo::parse_fixed_width_int(line, 0, 12, "NATOM", restartContext);
+  NPRIV = apo::parse_fixed_width_ull(line, 12, 12, "NPRIV", restartContext);
+  NSTEP = apo::parse_fixed_width_int(line, 24, 12, "NSTEP", restartContext);
+  // NSAVC = apo::parse_fixed_width_int(line, 36, 12, "NSAVC", restartContext);
+  // NSAVV = apo::parse_fixed_width_int(line, 48, 12, "NSAVV", restartContext);
+  // JHSTRT = apo::parse_fixed_width_int(line, 60, 12, "JHSTRT",
+  // restartContext);
+  NDEGF = apo::parse_fixed_width_int(line, 72, 12, "NDEGF", restartContext);
+  SEED = apo::parse_fixed_width_ull(line, 84, 22, "SEED", restartContext);
 
-  if (NATOM != m_Context->getNumAtoms()) {
-    throw std::invalid_argument("NATOM mismatch in restart file \"" +
-                                rstFileName + "\"");
+  if (isApoRstFile) {
+    APOCHARMM_REQUIRE(line.size() > 106, ApoCharmmErrorCode::Runtime,
+                      "Restart field \"RNGSTATE\" is missing in " +
+                          restartContext);
+    RNGSTATE = line.substr(106);
   }
-  m_TotNumSteps = NPRIV;
-  m_NumSteps = NSTEP;
-  m_CurrentPropagatedStep = CudaIntegrator::wrapCurrentPropagatedStep(NPRIV);
+
+  APOCHARMM_REQUIRE(NATOM == m_Context->getNumAtoms(),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "NATOM mismatch in restart file \"" + rstFileName + "\"");
+
   if (NDEGF != m_Context->getNumDegreesOfFreedom()) {
-    throw std::invalid_argument("NDEGF mismatch in restart file \"" +
-                                rstFileName + "\"");
+    std::cout << "WARNING: NDEGF mismatch in restart file \"" << rstFileName
+              << "\"\n";
+    std::cout << "RST: " << NDEGF << '\n';
+    std::cout << "CTX: " << m_Context->getNumDegreesOfFreedom() << std::endl;
   }
-  this->setThermostatRngSeed(SEED);
-  if (isApoRstFile)
-    this->setRngStates(RNGSTATE);
-  else {
-    this->setRngSequencePos(0);
-    this->initializeRng();
+
+  unsigned long long int restartRngPosition = 0;
+  std::vector<curandStatePhilox4_32_10_t> restartRngStates;
+
+  if (isApoRstFile) {
+    apo::curand_states_from_string(restartRngPosition, restartRngStates,
+                                   RNGSTATE);
+
+    APOCHARMM_REQUIRE(restartRngStates.size() ==
+                          static_cast<std::size_t>(NATOM),
+                      ApoCharmmErrorCode::InvalidArgument,
+                      "RNG state count must match number of atoms; expected " +
+                          std::to_string(NATOM) + ", observed " +
+                          std::to_string(restartRngStates.size()));
   }
 
   // Skip ENERGIES and STATISTICS section
 
   // Find XOLD, YOLD, ZOLD section
-  foundSection = false;
-  while (!fin.eof()) {
-    line.clear();
-    std::getline(fin, line);
-    if (line == " !XOLD, YOLD, ZOLD") {
-      foundSection = true;
-      break;
-    }
-  }
-  if (!foundSection)
-    throw std::runtime_error("Could not find !XOLD, YOLD, ZOLD section");
+  apo::find_required_line(fin, lineNumber, " !XOLD, YOLD, ZOLD",
+                          "!XOLD, YOLD, ZOLD section", restartContext);
 
   // Parse XOLD, YOLD, ZOLD section
   std::vector<double> XOLD(NATOM), YOLD(NATOM), ZOLD(NATOM);
   for (int i = 0; i < NATOM; i++) {
-    line.clear();
-    std::getline(fin, line);
-    XOLD[i] = apo::fortSciStrToCDouble(line.substr(0, 22));
-    YOLD[i] = apo::fortSciStrToCDouble(line.substr(22, 22));
-    ZOLD[i] = apo::fortSciStrToCDouble(line.substr(44, 22));
+    apo::get_line(line, lineNumber, fin,
+                  "XOLD/YOLD/ZOLD record " + std::to_string(i + 1),
+                  restartContext);
+    XOLD[i] = apo::parse_fixed_width_double(
+        line, 0, 22, "XOLD[" + std::to_string(i) + "]", restartContext);
+    YOLD[i] = apo::parse_fixed_width_double(
+        line, 22, 22, "YOLD[" + std::to_string(i) + "]", restartContext);
+    ZOLD[i] = apo::parse_fixed_width_double(
+        line, 44, 22, "ZOLD[" + std::to_string(i) + "]", restartContext);
   }
 
   // Find VX, VY, VZ section
-  foundSection = false;
-  while (!fin.eof()) {
-    line.clear();
-    std::getline(fin, line);
-    if (line == " !VX, VY, VZ") {
-      foundSection = true;
-      break;
-    }
-  }
-  if (!foundSection)
-    throw std::runtime_error("Could not find !VX, VY, VZ section");
+  apo::find_required_line(fin, lineNumber, " !VX, VY, VZ",
+                          "! VX, VY, VZ section", restartContext);
 
   // Parse VX, VY, VZ section
   std::vector<double> VX(NATOM), VY(NATOM), VZ(NATOM);
   for (int i = 0; i < NATOM; i++) {
-    line.clear();
-    std::getline(fin, line);
-    VX[i] = apo::fortSciStrToCDouble(line.substr(0, 22));
-    VY[i] = apo::fortSciStrToCDouble(line.substr(22, 22));
-    VZ[i] = apo::fortSciStrToCDouble(line.substr(44, 22));
+    apo::get_line(line, lineNumber, fin,
+                  "VX/VY/VZ record " + std::to_string(i + 1), restartContext);
+    VX[i] = apo::parse_fixed_width_double(
+        line, 0, 22, "VX[" + std::to_string(i) + "]", restartContext);
+    VY[i] = apo::parse_fixed_width_double(
+        line, 22, 22, "VY[" + std::to_string(i) + "]", restartContext);
+    VZ[i] = apo::parse_fixed_width_double(
+        line, 44, 22, "VZ[" + std::to_string(i) + "]", restartContext);
   }
 
   // Find X, Y, Z section
-  foundSection = false;
-  while (!fin.eof()) {
-    line.clear();
-    std::getline(fin, line);
-    if (line == " !X, Y, Z") {
-      foundSection = true;
-      break;
-    }
-  }
-  if (!foundSection)
-    throw std::runtime_error("Could not find !X, Y, Z section");
+  apo::find_required_line(fin, lineNumber, " !X, Y, Z", "!X, Y, Z section",
+                          restartContext);
 
   // Parse X, Y, Z section
   std::vector<double> X(NATOM), Y(NATOM), Z(NATOM);
   for (int i = 0; i < NATOM; i++) {
-    line.clear();
-    std::getline(fin, line);
-    X[i] = apo::fortSciStrToCDouble(line.substr(0, 22));
-    Y[i] = apo::fortSciStrToCDouble(line.substr(22, 22));
-    Z[i] = apo::fortSciStrToCDouble(line.substr(44, 22));
+    apo::get_line(line, lineNumber, fin,
+                  "X/Y/Z record " + std::to_string(i + 1), restartContext);
+    X[i] = apo::parse_fixed_width_double(
+        line, 0, 22, "X[" + std::to_string(i) + "]", restartContext);
+    Y[i] = apo::parse_fixed_width_double(
+        line, 22, 22, "Y[" + std::to_string(i) + "]", restartContext);
+    Z[i] = apo::parse_fixed_width_double(
+        line, 44, 22, "Z[" + std::to_string(i) + "]", restartContext);
+  }
+
+  m_Context->setBoxDimensions({XTLABC[0], XTLABC[2], XTLABC[5]});
+
+  m_TotNumSteps = NPRIV;
+  m_NumSteps = NSTEP;
+  m_CurrentPropagatedStep = CudaIntegrator::wrapCurrentPropagatedStep(NPRIV);
+
+  m_Seed = SEED;
+
+  if (isApoRstFile)
+    this->setRngStateData(restartRngPosition, restartRngStates);
+  else {
+    m_RngSequencePos = 0;
+    this->initializeRng();
   }
 
   for (int i = 0; i < NATOM; i++) {
@@ -612,11 +604,10 @@ void CudaLangevinThermostatIntegrator::initializeFromRestartFileImpl(
   {
     constexpr int numThreads = 256;
     const int numBlocks = (NATOM + numThreads - 1) / numThreads;
-    UpdateSinglePrecisionCoordinatesKernel<<<numBlocks, numThreads, 0,
-                                             *m_IntegratorStream>>>(
+    cudaCheckLaunch(UpdateSinglePrecisionCoordinatesKernel<<<
+                        numBlocks, numThreads, 0, *m_IntegratorStream>>>(
         m_Context->getCoordinatesChargesSP().getDeviceArray().data(),
-        m_Context->getCoordinatesChargesDP().getDeviceArray().data(), NATOM);
-    cudaCheck(cudaGetLastError());
+        m_Context->getCoordinatesChargesDP().getDeviceArray().data(), NATOM));
     cudaCheck(cudaStreamSynchronize(*m_IntegratorStream));
   }
 
@@ -909,6 +900,20 @@ void CudaLangevinThermostatIntegrator::propagateOneStepImpl(void) {
                            numAtoms, *m_IntegratorStream);
 
   cudaCheck(cudaStreamSynchronize(*m_IntegratorStream));
+
+  return;
+}
+
+void CudaLangevinThermostatIntegrator::setRngStateData(
+    const unsigned long long int position,
+    const std::vector<curandStatePhilox4_32_10_t> &states) {
+  m_RngSequencePos = position;
+  this->alloc(static_cast<int>(states.size()));
+
+  cudaCheck(cudaMemcpy(static_cast<void *>(m_RngStates),
+                       static_cast<const void *>(states.data()),
+                       states.size() * sizeof(curandStatePhilox4_32_10_t),
+                       cudaMemcpyHostToDevice));
 
   return;
 }

@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <curand_kernel.h>
 #include <string>
+#include <vector>
 
 class CudaLangevinThermostatIntegrator : public CudaIntegrator {
 public:
@@ -52,6 +53,9 @@ protected:
   void propagateOneStepImpl(void) override;
 
 protected:
+  void setRngStateData(const unsigned long long int position,
+                       const std::vector<curandStatePhilox4_32_10_t> &states);
+
   void initializeRng(void);
   void removeCenterOfMassMotion(void);
   void alloc(const int n);

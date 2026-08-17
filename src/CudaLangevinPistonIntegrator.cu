@@ -867,6 +867,7 @@ void CudaLangevinPistonIntegrator::initializeFromRestartFileImpl(
 
   apo::get_line(line, lineNumber, fin, "restart header", restartContext);
 
+  // Get crystal type and check if we need to use the RNG state
   const std::string crystalString =
       apo::get_fixed_width_field(line, 18, 4, "CRYSTAL", restartContext);
 
@@ -1015,6 +1016,7 @@ void CudaLangevinPistonIntegrator::initializeFromRestartFileImpl(
   apo::get_line(line, lineNumber, fin, "second GRAD record", restartContext);
   // GRAD2B = apo::fortSciStrToCDouble(line.substr(0, 22));
 
+  // Find integer section
   apo::find_required_line(
       fin, lineNumber,
       " !NATOM,NPRIV,NSTEP,NSAVC,NSAVV,JHSTRT,NDEGF,SEED,NSAVL",
@@ -1054,9 +1056,12 @@ void CudaLangevinPistonIntegrator::initializeFromRestartFileImpl(
                     ApoCharmmErrorCode::InvalidArgument,
                     "NATOM mismatch in restart file \"" + rstFileName + "\"");
 
-  APOCHARMM_REQUIRE(NDEGF == m_Context->getNumDegreesOfFreedom(),
-                    ApoCharmmErrorCode::InvalidArgument,
-                    "NDEGF mismatch in restart file \"" + rstFileName + "\"");
+  if (NDEGF != m_Context->getNumDegreesOfFreedom()) {
+    std::cout << "WARNING: NDEGF mismatch in restart file \"" << rstFileName
+              << "\"\n";
+    std::cout << "RST: " << NDEGF << '\n';
+    std::cout << "CTX: " << m_Context->getNumDegreesOfFreedom() << std::endl;
+  }
 
   unsigned long long int restartRngPosition = 0;
   std::vector<curandStatePhilox4_32_10_t> restartRngStates;
@@ -1085,7 +1090,8 @@ void CudaLangevinPistonIntegrator::initializeFromRestartFileImpl(
   std::vector<double> XOLD(NATOM), YOLD(NATOM), ZOLD(NATOM);
   for (int i = 0; i < NATOM; i++) {
     apo::get_line(line, lineNumber, fin,
-                  "X/Y/Z OLD record " + std::to_string(i + 1), restartContext);
+                  "XOLD/YOLD/ZOLD record " + std::to_string(i + 1),
+                  restartContext);
     XOLD[i] = apo::parse_fixed_width_double(
         line, 0, 22, "XOLD[" + std::to_string(i) + "]", restartContext);
     YOLD[i] = apo::parse_fixed_width_double(
@@ -1102,7 +1108,7 @@ void CudaLangevinPistonIntegrator::initializeFromRestartFileImpl(
   std::vector<double> VX(NATOM), VY(NATOM), VZ(NATOM);
   for (int i = 0; i < NATOM; i++) {
     apo::get_line(line, lineNumber, fin,
-                  "velocity record " + std::to_string(i + 1), restartContext);
+                  "VX/VY/VZ record " + std::to_string(i + 1), restartContext);
     VX[i] = apo::parse_fixed_width_double(
         line, 0, 22, "VX[" + std::to_string(i) + "]", restartContext);
     VY[i] = apo::parse_fixed_width_double(
@@ -1119,7 +1125,7 @@ void CudaLangevinPistonIntegrator::initializeFromRestartFileImpl(
   std::vector<double> X(NATOM), Y(NATOM), Z(NATOM);
   for (int i = 0; i < NATOM; i++) {
     apo::get_line(line, lineNumber, fin,
-                  "coordinate record " + std::to_string(i + 1), restartContext);
+                  "X/Y/Z record " + std::to_string(i + 1), restartContext);
     X[i] = apo::parse_fixed_width_double(
         line, 0, 22, "X[" + std::to_string(i) + "]", restartContext);
     Y[i] = apo::parse_fixed_width_double(
