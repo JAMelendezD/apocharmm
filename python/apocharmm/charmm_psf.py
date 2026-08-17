@@ -7,6 +7,16 @@
 #
 # ENDLICENSE
 
+"""
+@brief Provides the owning Python wrapper for CHARMM PSF topology.
+
+`CharmmPsf` parses one PSF file through apoCHARMM's C ABI and exposes copied
+per-atom metadata, topology counts, aggregate charge and mass, and the stored
+file path.
+
+@see charmm_psf
+"""
+
 import ctypes
 
 from ._base import _ApoObject
@@ -134,9 +144,62 @@ def _initialize_prototypes() -> None:
 
 
 class CharmmPsf(_ApoObject):
+    """
+    @anchor python_charmm_psf
+    @brief Owns a parsed native CHARMM PSF.
+
+    Construct the wrapper from a `str`, `bytes`, `os.PathLike[str]`, or
+    `os.PathLike[bytes]` path. The path is converted with `os.fsencode`, copied
+    through the C ABI, and not retained as a Python object. Parsing and native
+    derivation complete before construction returns.
+
+    Every metadata getter returns a new Python scalar, string, or list. No
+    returned Python value aliases native PSF storage. The current Python API
+    exposes counts, per-atom metadata, aggregate charge and mass, and the stored
+    path; native bond, angle, dihedral, connectivity, residue-interval, water,
+    and group arrays are not exposed.
+
+    The wrapper owns one C handle. `close()` and context-manager exit release
+    that handle and are idempotent. Accessing a method after closure raises
+    `RuntimeError`. Native ForceManager and CharmmContext objects created from
+    this PSF retain shared native ownership; their Python wrappers also retain
+    the source wrapper where required by the current high-level API.
+
+    The wrapper provides no internal synchronization. Do not overlap `close()`
+    with another method call from a different thread.
+
+    @see charmm_psf
+    """
+
     _destroy_function_name = "apo_charmm_psf_destroy"
 
     def __init__(self, path: FilePath) -> None:
+        """
+        @brief Constructs an owning wrapper from one PSF file.
+
+        The path is converted with `os.fsencode` and copied before native
+        parsing. File-name extensions are not validated. The native constructor
+        parses atom metadata and topology, then derives residue intervals,
+        recognized water tuples, connected-component intervals, and exclusion
+        data.
+
+        @param[in] path Path supplied as `str`, `bytes`,
+        `os.PathLike[str]`, or `os.PathLike[bytes]`. Its encoded representation
+        must be non-empty.
+
+        @throws TypeError If `path` cannot be converted by `os.fsencode`.
+        @throws ApoCharmmError If the encoded path is empty, the file cannot be
+        read, the PSF is malformed, a count or topology atom number is
+        unsupported, or a native CUDA operation fails.
+        @throws RuntimeError If `APOCHARMM_LIBRARY_PATH` is unset or empty, or
+        if native construction reports success but produces a NULL handle.
+        @throws OSError If the configured apoCHARMM C ABI shared library cannot
+        be loaded.
+
+        @post On success, this wrapper owns a live native PSF handle.
+        @warning An encoded path containing an embedded null byte is truncated
+        at that byte by the C-string boundary instead of being rejected.
+        """
         _initialize_prototypes()
         super().__init__()
 
@@ -157,6 +220,14 @@ class CharmmPsf(_ApoObject):
         return
 
     def getNumAtoms(self) -> int:
+        """
+        @brief Returns the atom count.
+
+        @return Nonnegative dimensionless Python `int`.
+        @throws RuntimeError If this wrapper is closed.
+        @throws ApoCharmmError If the native handle is invalid or reports a
+        negative atom count.
+        """
         _initialize_prototypes()
 
         c_num_atoms = ctypes.c_size_t()
@@ -166,6 +237,14 @@ class CharmmPsf(_ApoObject):
         return int(c_num_atoms.value)
 
     def getNumBonds(self) -> int:
+        """
+        @brief Returns the bond count.
+
+        @return Nonnegative dimensionless Python `int`.
+        @throws RuntimeError If this wrapper is closed.
+        @throws ApoCharmmError If the native handle is invalid or reports a
+        negative bond count.
+        """
         _initialize_prototypes()
 
         c_num_bonds = ctypes.c_size_t()
@@ -175,6 +254,14 @@ class CharmmPsf(_ApoObject):
         return int(c_num_bonds.value)
 
     def getNumAngles(self) -> int:
+        """
+        @brief Returns the angle count.
+
+        @return Nonnegative dimensionless Python `int`.
+        @throws RuntimeError If this wrapper is closed.
+        @throws ApoCharmmError If the native handle is invalid or reports a
+        negative angle count.
+        """
         _initialize_prototypes()
 
         c_num_angles = ctypes.c_size_t()
@@ -184,6 +271,14 @@ class CharmmPsf(_ApoObject):
         return int(c_num_angles.value)
 
     def getNumDihedrals(self) -> int:
+        """
+        @brief Returns the proper-dihedral count.
+
+        @return Nonnegative dimensionless Python `int`.
+        @throws RuntimeError If this wrapper is closed.
+        @throws ApoCharmmError If the native handle is invalid or reports a
+        negative proper-dihedral count.
+        """
         _initialize_prototypes()
 
         c_num_dihedrals = ctypes.c_size_t()
@@ -195,6 +290,14 @@ class CharmmPsf(_ApoObject):
         return int(c_num_dihedrals.value)
 
     def getNumImpropers(self) -> int:
+        """
+        @brief Returns the improper-dihedral count.
+
+        @return Nonnegative dimensionless Python `int`.
+        @throws RuntimeError If this wrapper is closed.
+        @throws ApoCharmmError If the native handle is invalid or reports a
+        negative improper-dihedral count.
+        """
         _initialize_prototypes()
 
         c_num_impropers = ctypes.c_size_t()
@@ -206,6 +309,14 @@ class CharmmPsf(_ApoObject):
         return int(c_num_impropers.value)
 
     def getNumCrossTerms(self) -> int:
+        """
+        @brief Returns the CMAP cross-term count.
+
+        @return Nonnegative dimensionless Python `int`.
+        @throws RuntimeError If this wrapper is closed.
+        @throws ApoCharmmError If the native handle is invalid or reports a
+        negative cross-term count.
+        """
         _initialize_prototypes()
 
         c_num_cross_terms = ctypes.c_size_t()
@@ -217,6 +328,21 @@ class CharmmPsf(_ApoObject):
         return int(c_num_cross_terms.value)
 
     def getSegmentIdentifiers(self) -> list[str]:
+        """
+        @brief Returns copied per-atom segment identifiers.
+
+        Each native field occupies eight bytes, is decoded as UTF-8, and has
+        leading and trailing whitespace removed with `str.strip()`.
+
+        @return New `list[str]` of length `getNumAtoms()` in atom-record order.
+        The list and strings do not alias native storage.
+        @throws RuntimeError If this wrapper is closed.
+        @throws ApoCharmmError If a native count or buffer operation fails.
+        @throws UnicodeDecodeError If a returned fixed-width field is not valid
+        UTF-8.
+        @warning Native identifiers longer than eight bytes are silently
+        truncated by the current C ABI.
+        """
         _initialize_prototypes()
 
         num_segis: int = self.getNumAtoms()
@@ -241,6 +367,14 @@ class CharmmPsf(_ApoObject):
         return segis
 
     def getResidueIdentifiers(self) -> list[int]:
+        """
+        @brief Returns copied per-atom residue identifiers.
+
+        @return New `list[int]` of length `getNumAtoms()` in atom-record order.
+        Values are dimensionless and do not alias native storage.
+        @throws RuntimeError If this wrapper is closed.
+        @throws ApoCharmmError If a native count or buffer operation fails.
+        """
         _initialize_prototypes()
 
         num_resis = self.getNumAtoms()
@@ -260,6 +394,21 @@ class CharmmPsf(_ApoObject):
         return resis
 
     def getResidueNames(self) -> list[str]:
+        """
+        @brief Returns copied per-atom residue names.
+
+        Each native field occupies eight bytes, is decoded as UTF-8, and has
+        leading and trailing whitespace removed with `str.strip()`.
+
+        @return New `list[str]` of length `getNumAtoms()` in atom-record order.
+        The list and strings do not alias native storage.
+        @throws RuntimeError If this wrapper is closed.
+        @throws ApoCharmmError If a native count or buffer operation fails.
+        @throws UnicodeDecodeError If a returned fixed-width field is not valid
+        UTF-8.
+        @warning Native names longer than eight bytes are silently truncated by
+        the current C ABI.
+        """
         _initialize_prototypes()
 
         num_resns = self.getNumAtoms()
@@ -282,6 +431,21 @@ class CharmmPsf(_ApoObject):
         return resns
 
     def getAtomNames(self) -> list[str]:
+        """
+        @brief Returns copied per-atom atom names.
+
+        Each native field occupies eight bytes, is decoded as UTF-8, and has
+        leading and trailing whitespace removed with `str.strip()`.
+
+        @return New `list[str]` of length `getNumAtoms()` in atom-record order.
+        The list and strings do not alias native storage.
+        @throws RuntimeError If this wrapper is closed.
+        @throws ApoCharmmError If a native count or buffer operation fails.
+        @throws UnicodeDecodeError If a returned fixed-width field is not valid
+        UTF-8.
+        @warning Native names longer than eight bytes are silently truncated by
+        the current C ABI.
+        """
         _initialize_prototypes()
 
         num_names = self.getNumAtoms()
@@ -304,6 +468,21 @@ class CharmmPsf(_ApoObject):
         return atom_names
 
     def getAtomTypes(self) -> list[str]:
+        """
+        @brief Returns copied per-atom CHARMM atom types.
+
+        Each native field occupies eight bytes, is decoded as UTF-8, and has
+        leading and trailing whitespace removed with `str.strip()`.
+
+        @return New `list[str]` of length `getNumAtoms()` in atom-record order.
+        The list and strings do not alias native storage.
+        @throws RuntimeError If this wrapper is closed.
+        @throws ApoCharmmError If a native count or buffer operation fails.
+        @throws UnicodeDecodeError If a returned fixed-width field is not valid
+        UTF-8.
+        @warning Native types longer than eight bytes are silently truncated by
+        the current C ABI.
+        """
         _initialize_prototypes()
 
         num_types = self.getNumAtoms()
@@ -326,6 +505,14 @@ class CharmmPsf(_ApoObject):
         return atom_types
 
     def getCharges(self) -> list[float]:
+        """
+        @brief Returns copied per-atom partial charges.
+
+        @return New `list[float]` of length `getNumAtoms()` in atom-record order.
+        Values use elementary-charge units and do not alias native storage.
+        @throws RuntimeError If this wrapper is closed.
+        @throws ApoCharmmError If a native count or buffer operation fails.
+        """
         _initialize_prototypes()
 
         num_atoms = self.getNumAtoms()
@@ -343,6 +530,14 @@ class CharmmPsf(_ApoObject):
         return charges
 
     def getMasses(self) -> list[float]:
+        """
+        @brief Returns copied per-atom masses.
+
+        @return New `list[float]` of length `getNumAtoms()` in atom-record order.
+        Values use atomic mass units and do not alias native storage.
+        @throws RuntimeError If this wrapper is closed.
+        @throws ApoCharmmError If a native count or buffer operation fails.
+        """
         _initialize_prototypes()
 
         num_atoms = self.getNumAtoms()
@@ -360,6 +555,14 @@ class CharmmPsf(_ApoObject):
         return masses
 
     def getNetCharge(self) -> float:
+        """
+        @brief Computes the net partial charge.
+
+        @return Python `float` containing the sum in elementary-charge units.
+        @throws RuntimeError If this wrapper is closed.
+        @throws ApoCharmmError If the native atom count is uninitialized, the
+        native charge-vector length is inconsistent, or the handle is invalid.
+        """
         _initialize_prototypes()
 
         c_net_charge = ctypes.c_double()
@@ -369,6 +572,14 @@ class CharmmPsf(_ApoObject):
         return float(c_net_charge.value)
 
     def getTotalMass(self) -> float:
+        """
+        @brief Computes the total mass.
+
+        @return Python `float` containing the sum in atomic mass units.
+        @throws RuntimeError If this wrapper is closed.
+        @throws ApoCharmmError If the native atom count is uninitialized, the
+        native mass-vector length is inconsistent, or the handle is invalid.
+        """
         _initialize_prototypes()
 
         c_total_mass = ctypes.c_double()
@@ -378,6 +589,21 @@ class CharmmPsf(_ApoObject):
         return float(c_total_mass.value)
 
     def getFileName(self) -> str:
+        """
+        @brief Returns the stored PSF path.
+
+        The method requests a fixed 1024-byte C buffer, decodes the complete
+        buffer as UTF-8, and removes trailing ASCII spaces. The returned Python
+        string is a copy and does not alias native storage.
+
+        @return Stored path as a Python `str`.
+        @throws RuntimeError If this wrapper is closed.
+        @throws ApoCharmmError If the native path requires more than 1024 bytes
+        or the native handle is invalid.
+        @throws UnicodeDecodeError If the stored path bytes are not valid UTF-8.
+        @warning Trailing spaces that were part of the supplied path are removed
+        by the current wrapper.
+        """
         _initialize_prototypes()
 
         # We are going to assume that the file name is less than 1024 chars
