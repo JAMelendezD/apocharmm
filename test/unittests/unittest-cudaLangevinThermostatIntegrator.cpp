@@ -14,12 +14,16 @@
 #include "CharmmPSF.h"
 #include "CharmmParameters.h"
 #include "CudaLangevinThermostatIntegrator.h"
+#include "CurandStateString.h"
 #include "ForceManager.h"
 #include "apo_test_helpers.h"
 #include "catch.hpp"
 #include "test_paths.h"
 
 #include <cstdint>
+#include <iomanip>
+#include <limits>
+#include <sstream>
 
 namespace {
 
@@ -36,6 +40,45 @@ constexpr double TOLERANCE = 1.0e-10;
 constexpr double FINITE_TEMPERATURE_UPPER_BOUND = 1.e8;
 
 const std::vector<double> BOX_DIMENSIONS = {50.0, 50.0, 50.0};
+
+class TestCudaLangevinThermostatIntegrator
+    : public CudaLangevinThermostatIntegrator {
+public:
+  using CudaLangevinThermostatIntegrator::CudaLangevinThermostatIntegrator;
+  using CudaLangevinThermostatIntegrator::dealloc;
+};
+
+std::string MakeRestartPrefix(const bool isApoRestart, const int natom,
+                              const int ndegf,
+                              const std::string &rngStateString) {
+  std::ostringstream output;
+
+  if (isApoRestart)
+    output << std::string(30, ' ') << "APO\n";
+  else
+    output << "CHARMM restart\n";
+
+  output << " !CRYSTAL PARAMETERS\n";
+  output << std::setw(22) << 50.0 << std::setw(22) << 90.0 << std::setw(22)
+         << 50.0 << '\n';
+  output << std::setw(22) << 90.0 << std::setw(22) << 90.0 << std::setw(22)
+         << 50.0 << '\n';
+
+  for (int i = 0; i < 13; i++)
+    output << "0\n";
+
+  output << " !NATOM,NPRIV,NSTEP,NSAVC,NSAVV,JHSTRT,NDEGF,SEED,NSAVL\n";
+  output << std::setw(12) << natom << std::setw(12) << 0 << std::setw(12) << 0
+         << std::setw(12) << 0 << std::setw(12) << 0 << std::setw(12) << 0
+         << std::setw(12) << ndegf << std::setw(22) << THERMOSTAT_SEED;
+
+  if (isApoRestart)
+    output << rngStateString;
+
+  output << '\n';
+
+  return output.str();
+}
 
 void ConfigureIntegrator(
     std::shared_ptr<CudaLangevinThermostatIntegrator> integrator) {
@@ -71,7 +114,7 @@ void CheckIntegratorStateMatches(
 } // namespace
 
 TEST_CASE("CudaLangevinThermostatIntegratorConstructorDefaults") {
-  CudaLangevinThermostatIntegrator integrator(TIME_STEP);
+  TestCudaLangevinThermostatIntegrator integrator(TIME_STEP);
 
   CHECK(integrator.getTimeStep() == Approx(TIME_STEP));
   CHECK(integrator.getReferenceTemperature() == Approx(300.0));
@@ -80,6 +123,52 @@ TEST_CASE("CudaLangevinThermostatIntegratorConstructorDefaults") {
   CHECK(integrator.getAverageWindowSize() == 0);
   CHECK(integrator.getKineticEnergy().size() == 2);
   CHECK(integrator.getAverageTemperature().size() == 2);
+}
+
+TEST_CASE("CudaLangevinThermostatIntegratorValidation") {
+  const double infinity = std::numeric_limits<double>::infinity();
+
+  CudaLangevinThermostatIntegrator integrator(TIME_STEP);
+
+  apo_test::CheckApoCharmmError(
+      [&]() { integrator.setReferenceTemperature(infinity); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Reference temperature must be finite; observed " +
+          std::to_string(infinity));
+
+  apo_test::CheckApoCharmmError(
+      [&]() { integrator.setReferenceTemperature(-1.0); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Reference temperature must be non-negative; observed -1.000000");
+
+  apo_test::CheckApoCharmmError(
+      [&]() { integrator.setThermostatFriction(infinity); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Thermostat friction must be finite; observed " +
+          std::to_string(infinity));
+
+  apo_test::CheckApoCharmmError(
+      [&]() { integrator.setThermostatFriction(-1.0); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Thermostat friction must be non-negative; observed -1.000000");
+
+  apo_test::CheckApoCharmmError(
+      [&]() { integrator.setRngStates("not parsed without a context"); },
+      ApoCharmmErrorCode::NotInitialized,
+      "CharmmContext must be set before RNG states");
+
+  apo_test::CheckApoCharmmError(
+      [&]() { static_cast<void>(integrator.getRngStates()); },
+      ApoCharmmErrorCode::NotInitialized,
+      "CharmmContext must be set before retrieving RNG states");
+
+  apo_test::CheckApoCharmmError(
+      [&]() { static_cast<void>(integrator.getInstantaneousTemperature()); },
+      ApoCharmmErrorCode::NotInitialized,
+      "CharmmContext must be set before computing instantaneous temperature");
+
+  CHECK(integrator.getReferenceTemperature() == Approx(300.0));
+  CHECK(integrator.getThermostatFriction() == Approx(0.0));
 }
 
 TEST_CASE("CudaLangevinThermostatIntegratorSettersAndReset") {
@@ -124,7 +213,7 @@ TEST_CASE("CudaLangevinThermostatIntegratorContextInitialization") {
   ctx->assignVelocitiesAtTemperature(TEMPERATURE);
 
   auto integrator =
-      std::make_shared<CudaLangevinThermostatIntegrator>(TIME_STEP);
+      std::make_shared<TestCudaLangevinThermostatIntegrator>(TIME_STEP);
 
   ConfigureIntegrator(integrator);
 
@@ -135,6 +224,36 @@ TEST_CASE("CudaLangevinThermostatIntegratorContextInitialization") {
   CHECK(integrator->getCoordsDeltaPrevious().size() == 2);
   CHECK(integrator->getRngSequencePos() == 0ULL);
   apo_test::CheckFiniteTemperature(ctx->computeTemperature());
+
+  const std::string rngStateString = integrator->getRngStates();
+  CHECK_NOTHROW(integrator->setRngStates(rngStateString));
+
+  const std::vector<curandStatePhilox4_32_10_t> emptyRngStates;
+  const std::string emptyRngStateString =
+      apo::curand_states_to_string(0ULL, emptyRngStates);
+
+  apo_test::CheckApoCharmmError(
+      [&]() { integrator->setRngStates(emptyRngStateString); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "RNG state count must match number of atoms; expected 2, observed 0");
+
+  CHECK_NOTHROW(integrator->dealloc());
+
+  apo_test::CheckApoCharmmError(
+      [&]() { static_cast<void>(integrator->getRngStates()); },
+      ApoCharmmErrorCode::NotInitialized, "RNG states are not initialized");
+
+  CHECK_NOTHROW(integrator->setThermostatRngSeed(THERMOSTAT_SEED));
+
+  integrator->getKineticEnergy().resize(0);
+
+  apo_test::CheckApoCharmmError(
+      [&]() { static_cast<void>(integrator->getInstantaneousTemperature()); },
+      ApoCharmmErrorCode::Runtime,
+      "Kinetic energy does not contain exactly 2 elements");
+
+  integrator->getKineticEnergy().resize(2);
+  integrator->getKineticEnergy().set(0.0);
 
   apo_test::CheckApoCharmmError(
       [&]() { integrator->setCharmmContext(ctx); },
@@ -339,4 +458,53 @@ TEST_CASE("CudaLangevinThermostatIntegratorRestartValidation") {
   apo_test::CheckApoCharmmError(
       [&]() { integrator->initializeFromRestartFile("missing.rst"); },
       ApoCharmmErrorCode::Runtime, "Could not open file \"missing.rst\"");
+
+  const int numAtoms = ctx->getNumAtoms();
+  const int ndegf = ctx->getNumDegreesOfFreedom();
+
+  const std::string missingRngStateFile =
+      "cuda_langevin_thermostat_missing_rng_state.rst";
+  apo_test::RemoveIfExists(missingRngStateFile);
+  apo_test::WriteTextFile(missingRngStateFile,
+                          MakeRestartPrefix(true, numAtoms, ndegf, ""));
+
+  apo_test::CheckApoCharmmError(
+      [&]() { integrator->initializeFromRestartFile(missingRngStateFile); },
+      ApoCharmmErrorCode::Runtime,
+      "Restart field \"RNGSTATE\" is missing in restart file \"" +
+          missingRngStateFile + "\"");
+
+  apo_test::RemoveIfExists(missingRngStateFile);
+
+  const std::string natomMismatchFile =
+      "cuda_langevin_thermostat_natom_mismatch.rst";
+  apo_test::RemoveIfExists(natomMismatchFile);
+  apo_test::WriteTextFile(natomMismatchFile,
+                          MakeRestartPrefix(false, numAtoms + 1, ndegf, ""));
+
+  apo_test::CheckApoCharmmError(
+      [&]() { integrator->initializeFromRestartFile(natomMismatchFile); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "NATOM mismatch in restart file \"" + natomMismatchFile + "\"");
+
+  apo_test::RemoveIfExists(natomMismatchFile);
+
+  const std::vector<curandStatePhilox4_32_10_t> emptyRngStates;
+  const std::string emptyRngStateString =
+      apo::curand_states_to_string(0ULL, emptyRngStates);
+  const std::string rngCountMismatchFile =
+      "cuda_langevin_thermostat_rng_count_mismatch.rst";
+
+  apo_test::RemoveIfExists(rngCountMismatchFile);
+  apo_test::WriteTextFile(
+      rngCountMismatchFile,
+      MakeRestartPrefix(true, numAtoms, ndegf, emptyRngStateString));
+
+  apo_test::CheckApoCharmmError(
+      [&]() { integrator->initializeFromRestartFile(rngCountMismatchFile); },
+      ApoCharmmErrorCode::InvalidArgument,
+      "RNG state count must match number of atoms; expected " +
+          std::to_string(numAtoms) + ", observed 0");
+
+  apo_test::RemoveIfExists(rngCountMismatchFile);
 }

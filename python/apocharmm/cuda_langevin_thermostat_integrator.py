@@ -10,7 +10,7 @@
 import ctypes
 
 from ._lib import lib
-from .error import check_status
+from .error import configure_status_function
 from .cuda_integrator import CudaIntegrator
 
 _prototypes_initialized: bool = False
@@ -22,92 +22,73 @@ def _initialize_prototypes() -> None:
     if _prototypes_initialized:
         return
 
-    lib().apo_cuda_langevin_thermostat_integrator_create.argtypes = [
-        ctypes.POINTER(ctypes.c_void_p),
-        ctypes.c_double,
-    ]
-    lib().apo_cuda_langevin_thermostat_integrator_create.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_thermostat_integrator_create,
+        [ctypes.POINTER(ctypes.c_void_p), ctypes.c_double],
+        "CudaLangevinThermostatIntegrator construction",
+    )
 
     lib().apo_cuda_langevin_thermostat_integrator_destroy.argtypes = [ctypes.c_void_p]
     lib().apo_cuda_langevin_thermostat_integrator_destroy.restype = None
 
-    lib().apo_cuda_langevin_thermostat_integrator_set_reference_temperature.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_double,
-    ]
-    lib().apo_cuda_langevin_thermostat_integrator_set_reference_temperature.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_thermostat_integrator_set_reference_temperature,
+        [ctypes.c_void_p, ctypes.c_double],
+        "CudaLangevinThermostatIntegrator.setReferenceTemperature(temperature)",
     )
 
-    lib().apo_cuda_langevin_thermostat_integrator_set_thermostat_friction.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_double,
-    ]
-    lib().apo_cuda_langevin_thermostat_integrator_set_thermostat_friction.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_thermostat_integrator_set_thermostat_friction,
+        [ctypes.c_void_p, ctypes.c_double],
+        "CudaLangevinThermostatIntegrator.setThermostatFriction(friction)",
     )
 
-    lib().apo_cuda_langevin_thermostat_integrator_set_thermostat_rng_seed.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_uint64,
-    ]
-    lib().apo_cuda_langevin_thermostat_integrator_set_thermostat_rng_seed.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_thermostat_integrator_set_thermostat_rng_seed,
+        [ctypes.c_void_p, ctypes.c_uint64],
+        "CudaLangevinThermostatIntegrator.setThermostatRngSeed(seed)",
     )
 
-    lib().apo_cuda_langevin_thermostat_integrator_reset_average_temperature.argtypes = [
-        ctypes.c_void_p
-    ]
-    lib().apo_cuda_langevin_thermostat_integrator_reset_average_temperature.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_thermostat_integrator_reset_average_temperature,
+        [ctypes.c_void_p],
+        "CudaLangevinThermostatIntegrator.resetAverageTemperature()",
     )
 
-    lib().apo_cuda_langevin_thermostat_integrator_get_reference_temperature.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_langevin_thermostat_integrator_get_reference_temperature.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_thermostat_integrator_get_reference_temperature,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_void_p],
+        "CudaLangevinThermostatIntegrator.getReferenceTemperature()",
     )
 
-    lib().apo_cuda_langevin_thermostat_integrator_get_thermostat_friction.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_langevin_thermostat_integrator_get_thermostat_friction.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_thermostat_integrator_get_thermostat_friction,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_void_p],
+        "CudaLangevinThermostatIntegrator.getThermostatFriction()",
     )
 
-    lib().apo_cuda_langevin_thermostat_integrator_get_thermostat_rng_seed.argtypes = [
-        ctypes.POINTER(ctypes.c_uint64),
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_langevin_thermostat_integrator_get_thermostat_rng_seed.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_thermostat_integrator_get_thermostat_rng_seed,
+        [ctypes.POINTER(ctypes.c_uint64), ctypes.c_void_p],
+        "CudaLangevinThermostatIntegrator.getThermostatRngSeed()",
     )
 
-    lib().apo_cuda_langevin_thermostat_integrator_get_average_temperature.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_langevin_thermostat_integrator_get_average_temperature.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_thermostat_integrator_get_average_temperature,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_void_p],
+        "CudaLangevinThermostatIntegrator.getAverageTemperature()",
     )
 
-    lib().apo_cuda_langevin_thermostat_integrator_get_instantaneous_temperature.argtypes = [
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_langevin_thermostat_integrator_get_instantaneous_temperature.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_thermostat_integrator_get_instantaneous_temperature,
+        [ctypes.POINTER(ctypes.c_double), ctypes.c_void_p],
+        "CudaLangevinThermostatIntegrator.getInstantaneousTemperature()",
     )
 
-    lib().apo_cuda_langevin_thermostat_integrator_as_cuda_integrator.argtypes = [
-        ctypes.POINTER(ctypes.c_void_p),
-        ctypes.c_void_p,
-    ]
-    lib().apo_cuda_langevin_thermostat_integrator_as_cuda_integrator.restype = (
-        ctypes.c_int
+    configure_status_function(
+        lib().apo_cuda_langevin_thermostat_integrator_as_cuda_integrator,
+        [ctypes.POINTER(ctypes.c_void_p), ctypes.c_void_p],
+        "CudaLangevinThermostatIntegrator base-integrator conversion",
     )
 
     _prototypes_initialized = True
@@ -125,11 +106,9 @@ class CudaLangevinThermostatIntegrator(CudaIntegrator):
         handle: ctypes.c_void_p = ctypes.c_void_p()
         c_time_step: ctypes.c_double = ctypes.c_double(time_step)
 
-        status = lib().apo_cuda_langevin_thermostat_integrator_create(
+        lib().apo_cuda_langevin_thermostat_integrator_create(
             ctypes.byref(handle), c_time_step
         )
-
-        check_status(status, "CudaLangevinThermostatIntegrator construction failed")
 
         if handle.value is None:
             raise RuntimeError(
@@ -140,12 +119,8 @@ class CudaLangevinThermostatIntegrator(CudaIntegrator):
 
         integrator_handle: ctypes.c_void_p = ctypes.c_void_p()
 
-        status = lib().apo_cuda_langevin_thermostat_integrator_as_cuda_integrator(
+        lib().apo_cuda_langevin_thermostat_integrator_as_cuda_integrator(
             ctypes.byref(integrator_handle), self.handle
-        )
-
-        check_status(
-            status, "CudaLangevinThermostatIntegrator base-integrator conversion failed"
         )
 
         if integrator_handle.value is None:
@@ -162,15 +137,8 @@ class CudaLangevinThermostatIntegrator(CudaIntegrator):
 
         c_temperature: ctypes.c_double = ctypes.c_double(temperature)
 
-        status = (
-            lib().apo_cuda_langevin_thermostat_integrator_set_reference_temperature(
-                self.handle, c_temperature
-            )
-        )
-
-        check_status(
-            status,
-            "CudaLangevinThermostatIntegrator.setReferenceTemperature(temperature) failed",
+        lib().apo_cuda_langevin_thermostat_integrator_set_reference_temperature(
+            self.handle, c_temperature
         )
 
         return
@@ -180,13 +148,8 @@ class CudaLangevinThermostatIntegrator(CudaIntegrator):
 
         c_friction: ctypes.c_double = ctypes.c_double(friction)
 
-        status = lib().apo_cuda_langevin_thermostat_integrator_set_thermostat_friction(
+        lib().apo_cuda_langevin_thermostat_integrator_set_thermostat_friction(
             self.handle, c_friction
-        )
-
-        check_status(
-            status,
-            "CudaLangevinThermostatIntegrator.setThermostatFriction(friction) failed",
         )
 
         return
@@ -199,12 +162,8 @@ class CudaLangevinThermostatIntegrator(CudaIntegrator):
 
         c_seed: ctypes.c_uint64 = ctypes.c_uint64(seed)
 
-        status = lib().apo_cuda_langevin_thermostat_integrator_set_thermostat_rng_seed(
+        lib().apo_cuda_langevin_thermostat_integrator_set_thermostat_rng_seed(
             self.handle, c_seed
-        )
-
-        check_status(
-            status, "CudaLangevinThermostatIntegrator.setThermostatRngSeed(seed) failed"
         )
 
         return
@@ -212,14 +171,8 @@ class CudaLangevinThermostatIntegrator(CudaIntegrator):
     def resetAverageTemperature(self) -> None:
         _initialize_prototypes()
 
-        status = (
-            lib().apo_cuda_langevin_thermostat_integrator_reset_average_temperature(
-                self.handle
-            )
-        )
-
-        check_status(
-            status, "CudaLangevinThermostatIntegrator.resetAverageTemperature() failed"
+        lib().apo_cuda_langevin_thermostat_integrator_reset_average_temperature(
+            self.handle
         )
 
         return
@@ -229,15 +182,8 @@ class CudaLangevinThermostatIntegrator(CudaIntegrator):
 
         c_temperature = ctypes.c_double()
 
-        status = (
-            lib().apo_cuda_langevin_thermostat_integrator_get_reference_temperature(
-                ctypes.byref(c_temperature), self.handle
-            )
-        )
-
-        check_status(
-            status,
-            "CudaLangevinThermostatIntegrator.getReferenceTemperature() failed",
+        lib().apo_cuda_langevin_thermostat_integrator_get_reference_temperature(
+            ctypes.byref(c_temperature), self.handle
         )
 
         return float(c_temperature.value)
@@ -247,13 +193,8 @@ class CudaLangevinThermostatIntegrator(CudaIntegrator):
 
         c_friction = ctypes.c_double()
 
-        status = lib().apo_cuda_langevin_thermostat_integrator_get_thermostat_friction(
+        lib().apo_cuda_langevin_thermostat_integrator_get_thermostat_friction(
             ctypes.byref(c_friction), self.handle
-        )
-
-        check_status(
-            status,
-            "CudaLangevinThermostatIntegrator.getThermostatFriction() failed",
         )
 
         return float(c_friction.value)
@@ -263,13 +204,8 @@ class CudaLangevinThermostatIntegrator(CudaIntegrator):
 
         c_seed = ctypes.c_uint64()
 
-        status = lib().apo_cuda_langevin_thermostat_integrator_get_thermostat_rng_seed(
+        lib().apo_cuda_langevin_thermostat_integrator_get_thermostat_rng_seed(
             ctypes.byref(c_seed), self.handle
-        )
-
-        check_status(
-            status,
-            "CudaLangevinThermostatIntegrator.getThermostatRngSeed() failed",
         )
 
         return int(c_seed.value)
@@ -279,12 +215,8 @@ class CudaLangevinThermostatIntegrator(CudaIntegrator):
 
         c_temperature = ctypes.c_double()
 
-        status = lib().apo_cuda_langevin_thermostat_integrator_get_average_temperature(
+        lib().apo_cuda_langevin_thermostat_integrator_get_average_temperature(
             ctypes.byref(c_temperature), self.handle
-        )
-
-        check_status(
-            status, "CudaLangevinThermostatIntegrator.getAverageTemperature() failed"
         )
 
         return float(c_temperature.value)
@@ -294,15 +226,8 @@ class CudaLangevinThermostatIntegrator(CudaIntegrator):
 
         c_temperature = ctypes.c_double()
 
-        status = (
-            lib().apo_cuda_langevin_thermostat_integrator_get_instantaneous_temperature(
-                ctypes.byref(c_temperature), self.handle
-            )
-        )
-
-        check_status(
-            status,
-            "CudaLangevinThermostatIntegrator.getInstantaneousTemperature() failed",
+        lib().apo_cuda_langevin_thermostat_integrator_get_instantaneous_temperature(
+            ctypes.byref(c_temperature), self.handle
         )
 
         return float(c_temperature.value)

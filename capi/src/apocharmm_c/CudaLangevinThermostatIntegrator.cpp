@@ -212,9 +212,17 @@ apo_cuda_langevin_thermostat_integrator_get_average_temperature(
         APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<double>(
             temperature, function_name, "temperature"));
 
-        integrator->object->getAverageTemperature().transferToHost();
+        CudaContainer<double> &average_temperature =
+            integrator->object->getAverageTemperature();
 
-        *temperature = integrator->object->getAverageTemperature()[0];
+        if (average_temperature.size() != 2) {
+          return apocharmm_c::set_last_error(
+              APO_STATUS_RUNTIME_ERROR, function_name,
+              "Average temperature does not contain exactly 2 elements");
+        }
+
+        average_temperature.transferToHost();
+        *temperature = average_temperature[0];
 
         return APO_STATUS_OK;
       },

@@ -108,8 +108,51 @@ def check_setters_and_getters() -> None:
 def check_validation() -> None:
     print("Checking CudaLangevinThermostatIntegrator validation...")
 
+    expect_apo_error(
+        "CudaLangevinThermostatIntegrator construction rejects zero time step",
+        lambda: apo.CudaLangevinThermostatIntegrator(0.0),
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        "Time step must be positive; observed 0.000000",
+        "CudaLangevinThermostatIntegrator construction",
+    )
+
     integrator = create_integrator()
 
+    expect_apo_error(
+        "CudaLangevinThermostatIntegrator.setReferenceTemperature rejects infinite temperature",
+        lambda: integrator.setReferenceTemperature(float("inf")),
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        "Reference temperature must be finite; observed inf",
+        "CudaLangevinThermostatIntegrator.setReferenceTemperature(temperature)",
+    )
+    expect_apo_error(
+        "CudaLangevinThermostatIntegrator.setReferenceTemperature rejects negative temperature",
+        lambda: integrator.setReferenceTemperature(-1.0),
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        "Reference temperature must be non-negative; observed -1.000000",
+        "CudaLangevinThermostatIntegrator.setReferenceTemperature(temperature)",
+    )
+    expect_apo_error(
+        "CudaLangevinThermostatIntegrator.setThermostatFriction rejects infinite friction",
+        lambda: integrator.setThermostatFriction(float("inf")),
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        "Thermostat friction must be finite; observed inf",
+        "CudaLangevinThermostatIntegrator.setThermostatFriction(friction)",
+    )
+    expect_apo_error(
+        "CudaLangevinThermostatIntegrator.setThermostatFriction rejects negative friction",
+        lambda: integrator.setThermostatFriction(-1.0),
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        "Thermostat friction must be non-negative; observed -1.000000",
+        "CudaLangevinThermostatIntegrator.setThermostatFriction(friction)",
+    )
+    expect_apo_error(
+        "CudaLangevinThermostatIntegrator.getInstantaneousTemperature rejects missing CharmmContext",
+        lambda: integrator.getInstantaneousTemperature(),
+        apo.APO_STATUS_NOT_INITIALIZED,
+        "CharmmContext must be set before computing instantaneous temperature",
+        "CudaLangevinThermostatIntegrator.getInstantaneousTemperature()",
+    )
     expect_exception(
         "CudaLangevinThermostatIntegrator.setThermostatRngSeed rejects negative seed",
         ValueError,
@@ -132,11 +175,6 @@ def check_validation() -> None:
         "Number of propagation steps must be positive; observed -1",
         "CudaIntegrator.propagate(num_steps)",
     )
-    expect_exception(
-        "CudaLangevinThermostatIntegrator.propagate rejects missing CharmmContext",
-        apo.ApoCharmmError,
-        lambda: integrator.propagate(1),
-    )
     expect_apo_error(
         "CudaLangevinThermostatIntegrator.propagate rejects missing CharmmContext",
         lambda: integrator.propagate(1),
@@ -155,10 +193,12 @@ def check_validation() -> None:
         "A CharmmContext object was already set for this CudaIntegrator.",
         "CudaIntegrator.setCharmmContext(context)",
     )
-    expect_exception(
+    expect_apo_error(
         "CudaLangevinThermostatIntegrator.initializeFromRestartFile rejects missing restart file",
-        apo.ApoCharmmError,
         lambda: integrator.initializeFromRestartFile("missing.rst"),
+        apo.APO_STATUS_RUNTIME_ERROR,
+        'Could not open file "missing.rst"',
+        "CudaIntegrator.initializeFromRestartFile(path)",
     )
 
     integrator.close()
