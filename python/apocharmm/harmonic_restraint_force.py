@@ -13,7 +13,7 @@ import ctypes
 from ._base import _ApoObject
 from ._lib import lib
 from .atom_selection import AtomSelection
-from .error import check_status, configure_status_function
+from .error import configure_status_function
 from .force_manager import ForceManager
 
 _prototypes_initialized: bool = False
@@ -70,18 +70,17 @@ def _initialize_prototypes() -> None:
         "HarmonicRestraintForce.setBoxDimensions(box_dimensions)",
     )
 
-    lib().apo_force_manager_subscribe_harmonic_restraint_force.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_void_p,
-        ctypes.c_char_p,
-    ]
-    lib().apo_force_manager_subscribe_harmonic_restraint_force.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_subscribe_harmonic_restraint_force,
+        [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_char_p],
+        "ForceManager.subscribe(HarmonicRestraintForce)",
+    )
 
-    lib().apo_force_manager_unsubscribe_harmonic_restraint_force.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_void_p,
-    ]
-    lib().apo_force_manager_unsubscribe_harmonic_restraint_force.restype = ctypes.c_int
+    configure_status_function(
+        lib().apo_force_manager_unsubscribe_harmonic_restraint_force,
+        [ctypes.c_void_p, ctypes.c_void_p],
+        "ForceManager.unsubscribe(HarmonicRestraintForce)",
+    )
 
     _prototypes_initialized = True
 
@@ -105,11 +104,7 @@ class HarmonicRestraintForce(_ApoObject):
         handle: ctypes.c_void_p = ctypes.c_void_p()
         c_num_atoms: ctypes.c_int = ctypes.c_int(num_atoms)
 
-        status = lib().apo_harmonic_restraint_force_create(
-            ctypes.byref(handle), c_num_atoms
-        )
-
-        check_status(status, "HarmonicRestraintForce construction failed")
+        lib().apo_harmonic_restraint_force_create(ctypes.byref(handle), c_num_atoms)
 
         if handle.value is None:
             raise RuntimeError(
@@ -239,21 +234,17 @@ class HarmonicRestraintForce(_ApoObject):
         encoded_force_tag: bytes = force_tag_value.encode("utf-8")
         c_force_tag: ctypes.c_char_p = ctypes.c_char_p(encoded_force_tag)
 
-        status = lib().apo_force_manager_subscribe_harmonic_restraint_force(
+        lib().apo_force_manager_subscribe_harmonic_restraint_force(
             force_manager.handle, self.handle, c_force_tag
         )
-
-        check_status(status, "ForceManager.subscribe(HarmonicRestraintForce) failed")
 
         return
 
     def _unsubscribe_from_force_manager(self, force_manager: ForceManager) -> None:
         _initialize_prototypes()
 
-        status = lib().apo_force_manager_unsubscribe_harmonic_restraint_force(
+        lib().apo_force_manager_unsubscribe_harmonic_restraint_force(
             force_manager.handle, self.handle
         )
-
-        check_status(status, "ForceManager.unsubscribe(HarmonicRestraintForce) failed")
 
         return

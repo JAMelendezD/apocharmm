@@ -56,6 +56,9 @@ set(SOURCES_CAPI_TESTS
   # Integrator tests
   unittest-capiCudaIntegrator.cpp
   unittest-capiCudaLangevinPistonIntegrator.cpp
+
+  # Restraint tests
+  unittest-capiHarmonicRestraintForce.cpp
 )
 
 ###################################################

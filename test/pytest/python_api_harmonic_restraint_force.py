@@ -102,6 +102,7 @@ def check_subscription_and_short_propagation() -> None:
         "ForceManager rejects duplicate HarmonicRestraintForce subscription",
         lambda: fm.subscribe(restraint),
         "Force is already subscribed to this ForceManager",
+        expected_context="ForceManager.subscribe(HarmonicRestraintForce)",
     )
 
     integrator = apo.CudaLangevinThermostatIntegrator(TIME_STEP)
@@ -122,6 +123,7 @@ def check_subscription_and_short_propagation() -> None:
         "ForceManager rejects missing HarmonicRestraintForce unsubscription",
         lambda: fm.unsubscribe(restraint),
         "Force is not subscribed to this ForceManager",
+        expected_context="ForceManager.unsubscribe(HarmonicRestraintForce)",
     )
 
     integrator.close()
@@ -149,6 +151,7 @@ def check_validation() -> None:
         "HarmonicRestraintForce rejects zero num_atoms",
         lambda: apo.HarmonicRestraintForce(0),
         "Atom count must be positive; observed 0",
+        expected_context="HarmonicRestraintForce construction",
     )
     expect_invalid_argument(
         "HarmonicRestraintForce rejects negative num_atoms",
@@ -169,16 +172,7 @@ def check_validation() -> None:
         "setForceConstant rejects negative force constant",
         lambda: restraint.setForceConstant(-1.0),
         "Force constant must be non-negative",
-    )
-    assert_equal(
-        "setForceConstant Python operation context",
-        force_constant_error.context,
-        "HarmonicRestraintForce.setForceConstant(force_constant)",
-    )
-    assert_equal(
-        "setForceConstant rendered context occurrence count",
-        force_constant_error.message.count(force_constant_error.context),
-        1,
+        expected_context="HarmonicRestraintForce.setForceConstant(force_constant)",
     )
     assert_equal(
         "setForceConstant rendered native function occurrence count",
@@ -186,11 +180,6 @@ def check_validation() -> None:
             "apo_harmonic_restraint_force_set_force_constant"
         ),
         1,
-    )
-    assert_equal(
-        "setForceConstant rendered failed text count",
-        force_constant_error.message.count("failed"),
-        0,
     )
     expect_invalid_argument(
         "setForceConstant rejects non-finite force constant",

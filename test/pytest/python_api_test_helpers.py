@@ -217,8 +217,15 @@ def expect_apo_error(
 
 
 def expect_invalid_argument(
-    label: str, action: Callable[[], object], diagnostic_substring: str
+    label: str,
+    action: Callable[[], object],
+    diagnostic_substring: str,
+    expected_context: str | None = None,
 ) -> apo.ApoCharmmError:
     return expect_apo_error(
-        label, action, apo.APO_STATUS_INVALID_ARGUMENT, diagnostic_substring
+        label,
+        action,
+        apo.APO_STATUS_INVALID_ARGUMENT,
+        diagnostic_substring,
+        expected_context=expected_context,
     )

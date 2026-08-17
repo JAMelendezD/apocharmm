@@ -228,6 +228,17 @@ TEST_CASE("HarmonicRestraintForceReferenceCoordinateAndMassValidation") {
   apo_test::CheckApoCharmmError(
       [&restraint, infinity]() -> void {
         restraint.setReferenceCoordinates(std::vector<double3>{
+            make_double3(infinity, 0.0, 0.0), make_double3(0.0, 0.0, 0.0),
+            make_double3(0.0, 0.0, 0.0)});
+      },
+      ApoCharmmErrorCode::InvalidArgument,
+      "Reference coordinate at atom index 0, X component must be finite; "
+      "observed " +
+          std::to_string(infinity));
+
+  apo_test::CheckApoCharmmError(
+      [&restraint, infinity]() -> void {
+        restraint.setReferenceCoordinates(std::vector<double3>{
             make_double3(0.0, 0.0, 0.0), make_double3(0.0, infinity, 0.0),
             make_double3(0.0, 0.0, 0.0)});
       },

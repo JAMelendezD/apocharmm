@@ -16,7 +16,6 @@
 
 #include <cmath>
 #include <cstddef>
-#include <stdexcept>
 #include <string>
 
 template <typename AT, typename CT>
@@ -331,6 +330,10 @@ template <typename AT, typename CT>
 void HarmonicRestraintForce<AT, CT>::calcForce(const float4 *xyzq,
                                                const bool calcEnergy,
                                                const bool calcVirial) {
+  // JEG260802: Did not add error checking here because this function is called
+  // frequently. i.e. Did not want to slow dynamics down. Users should not be
+  // calling this function themselves.
+
   constexpr int numThreads = 256;
   const int numBlocks = (m_NumAtoms + numThreads - 1) / numThreads;
 
