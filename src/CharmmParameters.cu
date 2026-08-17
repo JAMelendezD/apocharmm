@@ -122,6 +122,10 @@ BondedParamsAndLists CharmmParameters::getBondedParamsAndLists(
   std::vector<int> listsSize;
   std::vector<std::vector<int>> listVal;
 
+  // JEG260817: The four outputs are concatenated in the fixed order expected by
+  // CudaBondedForce: bond, Urey-Bradley, angle, proper dihedral, improper
+  // dihedral, and CMAP.
+
   const std::vector<std::string> &atomTypes = psf->getAtomTypes();
   const std::vector<std::string> &atomNames = psf->getAtomNames();
   const std::vector<Bond> &bonds = psf->getBonds();
@@ -435,6 +439,10 @@ CharmmParameters::getVdwParamsAndTypes(std::shared_ptr<CharmmPSF> &psf) const {
                                         vdwAtomTypesMap.end());
   std::vector<std::string> vdw14AtomTypes(vdw14AtomTypesMap.begin(),
                                           vdw14AtomTypesMap.end());
+
+  // JEG260817: std::set establishes stable ascending lexicographic type
+  // indices. The nested pair loops emit the lower triangle at pair
+  // i * (i + 1) / 2 + j, with each pair stored as [C6, C12].
 
   for (const std::string &atomType : vdwAtomTypes) {
     APOCHARMM_REQUIRE(m_VdwParams.find(atomType) != m_VdwParams.end(),

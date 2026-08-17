@@ -7,6 +7,16 @@
 #
 # ENDLICENSE
 
+"""
+@brief Provides the owning Python wrapper for CHARMM parameter sets.
+
+`CharmmParameters` parses one or more CHARMM `.prm` or `.str` files through
+apoCHARMM's C ABI and supplies the resulting native object to managers and
+contexts.
+
+@see charmm_parameters
+"""
+
 import ctypes
 
 from ._base import _ApoObject
@@ -48,9 +58,62 @@ def _initialize_prototypes() -> None:
 
 
 class CharmmParameters(_ApoObject):
+    """
+    @anchor python_charmm_parameters
+    @brief Owns a parsed native CHARMM parameter set.
+
+    Construct the wrapper from one path or from an ordered `list` or `tuple` of
+    paths. Each path may be `str`, `bytes`, `os.PathLike[str]`, or
+    `os.PathLike[bytes]`. Arbitrary sequence types are not treated as multiple
+    files. Path values are converted with `os.fsencode`, copied through the C
+    ABI, and are not retained by the wrapper. File-name extensions are not
+    validated.
+
+    The wrapper owns one C handle. `close()` and context-manager exit release
+    that handle and are idempotent. Accessing `handle`, or passing the closed
+    wrapper to an API that accesses it, raises `RuntimeError`. A native
+    ForceManager created from this wrapper retains independent shared ownership
+    of the parameter set.
+
+    The Python layer currently exposes construction and lifetime only; native
+    parameter maps and incremental file loading are not exposed. Native status
+    failures are raised as `ApoCharmmError`. The wrapper provides no internal
+    synchronization for concurrent host access or closure.
+
+    @see charmm_parameters
+    """
+
     _destroy_function_name = "apo_charmm_parameters_destroy"
 
     def __init__(self, paths: FilePaths) -> None:
+        """
+        @brief Constructs an owning wrapper from one or more parameter files.
+
+        A `list` or `tuple` is interpreted as an ordered file list. Every other
+        accepted path object is interpreted as one file. All path values are
+        encoded and copied before native parsing; this object does not retain
+        the original Python path objects. File-name extensions are not
+        validated.
+
+        @param[in] paths One path, or a non-empty `list` or `tuple` of paths.
+        Each path must be `str`, `bytes`, `os.PathLike[str]`, or
+        `os.PathLike[bytes]` and must encode to a non-empty native path.
+
+        @throws TypeError If `paths`, or an element of a `list` or `tuple`,
+        cannot be converted by `os.fsencode`.
+        @throws ApoCharmmError If the native C ABI rejects an empty path or file
+        list, cannot open or parse a file, or reports another native
+        construction failure.
+        @throws RuntimeError If `APOCHARMM_LIBRARY_PATH` is unset or empty, or
+        if the native function reports success but returns a NULL handle.
+        @throws OSError If the configured apoCHARMM C ABI shared library cannot
+        be loaded.
+
+        @post On success, this wrapper owns a live native parameter handle.
+        @warning An encoded path containing an embedded null byte is currently
+        truncated at that byte by the C-string boundary instead of being
+        rejected; see @ref charmm_parameters.
+        """
         _initialize_prototypes()
         super().__init__()
 

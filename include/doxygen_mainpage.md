@@ -8,6 +8,7 @@ CharmmContext / ForceManager / Subscriber / CudaIntegrator
 
 - @subpage apocharmm_error
 - @subpage charmm_context
+- @subpage charmm_parameters
 - @subpage cuda_container
 - @subpage device_vector
 - @subpage force_manager

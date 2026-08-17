@@ -16,6 +16,14 @@
 
 #include <memory>
 
+/**
+ * @brief Defines the private owning state behind the public opaque handle.
+ *
+ * A successful C construction allocates this structure and stores one shared
+ * owner of the parsed native parameter set. Other native C handle structures
+ * may copy `object` to preserve the parameter lifetime independently of this
+ * public handle. C callers never access this member directly.
+ */
 struct apo_charmm_parameters {
   std::shared_ptr<CharmmParameters> object = nullptr;
 };
