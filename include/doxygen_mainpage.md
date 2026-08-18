@@ -10,6 +10,7 @@ CharmmContext / ForceManager / Subscriber / CudaIntegrator
 - @subpage charmm_context
 - @subpage charmm_parameters
 - @subpage charmm_psf
+- @subpage coordinates
 - @subpage cuda_container
 - @subpage device_vector
 - @subpage force_manager

@@ -50,9 +50,54 @@ def _initialize_prototypes() -> None:
 
 
 class CharmmCrd(_ApoObject):
+    """
+    @anchor python_charmm_crd
+    @brief Owns coordinates parsed from one CHARMM CRD or COR file.
+
+    Construct the wrapper from a `str`, `bytes`, `os.PathLike[str]`, or
+    `os.PathLike[bytes]` path. The path is converted with `os.fsencode`, copied
+    through the C ABI, and not retained. Native parsing completes synchronously
+    before construction returns.
+
+    `getCoordinates()` returns a newly allocated nested Python list in
+    atom-major `[x, y, z]` order. Returned values never alias native storage.
+    The wrapper owns one C handle. `close()`, `destroy()`, and context-manager
+    exit release it idempotently. Accessing a getter after closure raises
+    `RuntimeError`.
+
+    The wrapper provides no internal synchronization. Do not overlap `close()`
+    with another method call from a different thread.
+
+    @see coordinates
+    """
+
     _destroy_function_name = "apo_charmm_crd_destroy"
 
     def __init__(self, path: FilePath) -> None:
+        """
+        @brief Constructs an owning wrapper from one CHARMM coordinate file.
+
+        Standard and extended CHARMM fixed-width coordinate records are
+        supported. File-name extensions are not validated. The encoded path and
+        file contents are not retained after native construction finishes.
+
+        @param[in] path Path supplied as `str`, `bytes`,
+        `os.PathLike[str]`, or `os.PathLike[bytes]`. Its encoded representation
+        must be nonempty.
+
+        @throws TypeError If `path` cannot be converted by `os.fsencode`.
+        @throws ApoCharmmError If the encoded path is empty, the file cannot be
+        read, the atom count or a coordinate record is malformed, a coordinate
+        is non-finite, or native host allocation fails.
+        @throws RuntimeError If `APOCHARMM_LIBRARY_PATH` is unset or empty, or
+        native construction reports success but produces a NULL handle.
+        @throws OSError If the configured apoCHARMM C ABI shared library cannot
+        be loaded.
+
+        @post On success, this wrapper owns a live coordinate handle.
+        @warning An encoded path containing an embedded null byte is truncated
+        at that byte by the C-string boundary instead of being rejected.
+        """
         _initialize_prototypes()
         super().__init__()
 
@@ -73,6 +118,14 @@ class CharmmCrd(_ApoObject):
         return
 
     def getNumAtoms(self) -> int:
+        """
+        @brief Returns the parsed atom count.
+
+        @return Non-negative dimensionless Python `int`.
+        @throws RuntimeError If this wrapper is closed.
+        @throws ApoCharmmError If the native handle is invalid or reports a
+        negative atom count.
+        """
         _initialize_prototypes()
 
         c_num_atoms = ctypes.c_size_t()
@@ -82,6 +135,25 @@ class CharmmCrd(_ApoObject):
         return int(c_num_atoms.value)
 
     def getCoordinates(self) -> list[list[float]]:
+        """
+        @brief Returns a copied nested list of Cartesian coordinates.
+
+        The result contains one three-element list per atom in `[x, y, z]`
+        order. Values are Python `float` objects copied from native
+        double-precision host storage and use angstroms. An empty coordinate set
+        returns an empty list.
+
+        @return Newly allocated `list[list[float]]` with exact shape `(N, 3)`.
+        @throws RuntimeError If this wrapper is closed.
+        @throws ApoCharmmError If the native count or coordinate getter rejects
+        the handle or output buffer.
+        @throws OverflowError If `3 * N` cannot be represented as a ctypes
+        array length.
+        @throws MemoryError If the temporary C buffer or returned Python lists
+        cannot be allocated.
+
+        @post Mutating the returned lists does not modify native coordinates.
+        """
         _initialize_prototypes()
 
         num_atoms: int = self.getNumAtoms()
