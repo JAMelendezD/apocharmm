@@ -16,7 +16,16 @@
 
 #include <memory>
 
+/**
+ * @brief Implements a C base-subscriber view with shared native ownership.
+ *
+ * Concrete C handles embed this structure and assign @ref object to the same
+ * `std::shared_ptr` stored by their concrete member. The public pointer to the
+ * embedded structure is borrowed and becomes invalid when the concrete C handle
+ * is deleted, even when another native owner keeps the C++ object alive.
+ */
 struct apo_subscriber {
+  /** @brief Shares ownership of the native polymorphic subscriber object. */
   std::shared_ptr<Subscriber> object = nullptr;
 };
 

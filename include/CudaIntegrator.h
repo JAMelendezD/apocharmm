@@ -89,13 +89,43 @@ public:
   virtual void propagateOneStep(void) final;
 
   /**
-   * @brief Propagate given number of steps
+   * @brief Propagates dynamics and invokes scheduled subscriber updates.
    *
-   * After each step, checks if one subscriber should be updated by computing
-   * modulos with report frequencies of each Subscriber of the attached
-   * CharmmContext.
+   * Steps are numbered locally from one through `numSteps`. After each
+   * completed dynamics step, the integrator synchronously calls subscribers
+   * whose cached reporting interval divides that local index. A later call to
+   * this method restarts the local schedule at one.
    *
-   * @param[in] numSteps Number of steps to propagate
+   * The total requested-step counter is increased before entering the loop.
+   * Subscriber callbacks run after the step, current-step increment, and NaN
+   * energy check for that iteration.
+   *
+   * @param[in] numSteps Positive number of dynamics steps to request.
+   *
+   * @throws ApoCharmmError With code
+   * `ApoCharmmErrorCode::InvalidArgument` if `numSteps` is not positive.
+   * @throws ApoCharmmError With code
+   * `ApoCharmmErrorCode::NotInitialized` if required integrator, context,
+   * force- manager, or subscriber state is missing.
+   * @throws ApoCharmmError With code
+   * `ApoCharmmErrorCode::NotImplemented` if a subscriber update reports an
+   * unsupported operation, including restart output for an unsupported
+   * integrator type.
+   * @throws ApoCharmmError With code `ApoCharmmErrorCode::Cuda` if dynamics,
+   * force evaluation, a subscriber transfer, a kernel, or CUDA synchronization
+   * fails.
+   * @throws ApoCharmmError With code `ApoCharmmErrorCode::Runtime` if a runtime
+   * readiness check, NaN check, subscriber file operation, or other native
+   * runtime operation fails.
+   * @throws std::invalid_argument If a scheduled legacy DynaSubscriber rejects
+   * its current integrator.
+   * @throws std::runtime_error If a scheduled legacy XYZSubscriber has no
+   * attached context.
+   *
+   * @post On success, exactly `numSteps` dynamics steps and every matching
+   * callback have completed.
+   * @warning The operation is not transactional. Earlier dynamics steps, state
+   * changes, and output bytes remain observable after a later failure.
    */
   void propagate(const int numSteps);
 
@@ -103,64 +133,119 @@ public:
 
   void setNonbondedListUpdateFrequency(const int freq);
 
-  // SUBSCRIBER FUNCTIONS
-  //======================
   /**
-   * @brief Add a Subscriber
-   * @param[in] sub Subscriber
+   * @brief Attaches one subscriber and caches its reporting interval.
    *
-   * Appends a Subscriber to the subscribers list, appends its report frequency
-   * to reportFreqList.
+   * The method rejects null and duplicate subscribers, obtains a shared owner
+   * of this integrator, calls `sub->setCharmmContext(m_Context)`, calls
+   * `sub->setIntegrator(...)`, appends the subscriber, and appends its current
+   * report frequency to the parallel scheduling array.
+   *
+   * @param[in] sub Non-null shared subscriber owner retained on success.
+   *
+   * @throws ApoCharmmError With code
+   * `ApoCharmmErrorCode::InvalidArgument` if `sub` is null, is already present,
+   * or rejects a second context or integrator attachment.
+   * @throws ApoCharmmError With code
+   * `ApoCharmmErrorCode::NotInitialized` if this integrator is not owned by a
+   * `std::shared_ptr` and therefore cannot obtain a shared self-reference.
+   * @throws std::bad_alloc If appending either scheduling array cannot
+   * allocate.
+   *
+   * @pre Call @ref setCharmmContext with a non-null context before attaching a
+   * subscriber that requires context state.
+   * @post On success, the integrator and subscriber retain each other, the
+   * subscriber retains the current context, and the current frequency is
+   * cached.
+   * @warning Attachment is not transactional. Failure after a backlink or first
+   * vector append can leave partial state.
    */
   void subscribe(std::shared_ptr<Subscriber> sub);
 
   /**
-   * @brief Add a list of Subscribers
-   * @param[in] sublist Subscriber vector (list of subscribers)
+   * @brief Attaches subscribers sequentially in vector order.
    *
-   * Appends a vector of Subscribers to the subscribers list, appends their
-   * respective report frequency to reportFreqList.
+   * @param[in] sublist Borrowed vector of shared subscriber owners. Each
+   * element is passed to the single-subscriber overload and retained on
+   * success.
+   *
+   * @note Exceptions from the single-subscriber overload propagate unchanged,
+   * including `ApoCharmmError` and `std::bad_alloc`.
+   *
+   * @post On success, every element has been attached in input order.
+   * @warning The operation is not transactional. Subscribers attached before a
+   * failing element remain attached.
    */
   void subscribe(const std::vector<std::shared_ptr<Subscriber>> &sublist);
 
   /**
-   * @brief Remove a Subscriber
+   * @brief Removes one subscriber and its cached reporting interval.
    *
-   * @param[in] sub Subscriber to be removed from the subscribers list
+   * @param[in] sub Non-null shared subscriber identity to remove. The argument
+   * is borrowed for lookup; removing it releases only the integrator's owner.
+   *
+   * @throws ApoCharmmError With code
+   * `ApoCharmmErrorCode::InvalidArgument` if `sub` is null or is not present.
+   *
+   * @post On success, the corresponding entries are erased from both parallel
+   * arrays.
+   * @warning The removed subscriber still retains its context and integrator.
+   * Those backlinks are not cleared, and normal resubscription of the same
+   * object therefore fails.
    */
   void unsubscribe(std::shared_ptr<Subscriber> sub);
 
   /**
-   * @brief Remove a list of Subscribers
-   * @param[in] sublist Subscriber vector (list of subscribers) to be removed
+   * @brief Removes subscribers sequentially in vector order.
+   *
+   * @param[in] sublist Borrowed vector of subscriber identities. Each element
+   * is passed to the single-subscriber overload.
+   *
+   * @note Exceptions from the single-subscriber overload propagate unchanged.
+   *
+   * @post On success, every listed subscriber has been removed.
+   * @warning The operation is not transactional. Subscribers removed before a
+   * failing element remain removed.
    */
   void unsubscribe(const std::vector<std::shared_ptr<Subscriber>> &sublist);
 
   /**
-   * @brief Return the list of subscribers attached
+   * @brief Returns the attached subscriber array.
+   *
+   * @return Borrowed const alias to the integrator-owned vector. Each element
+   * is a shared owner of a subscriber. The alias remains valid until vector
+   * reallocation, integrator destruction, or non-const mutation.
    */
   const std::vector<std::shared_ptr<Subscriber>> &getSubscribers(void) const;
 
   /**
-   * @brief Return the list of subscribers attached
+   * @brief Returns mutable access to the attached subscriber array.
+   *
+   * @return Borrowed mutable alias to the integrator-owned vector.
+   * @warning The vector must remain the same length and order as
+   * @ref m_ReportFreqList. Direct mutation can violate that invariant and cause
+   * out-of-bounds access or callbacks to the wrong subscriber.
    */
   std::vector<std::shared_ptr<Subscriber>> &getSubscribers(void);
 
   /**
-   * @brief Return list of all Subscriber frequencies
+   * @brief Returns the cached subscriber-frequency array.
+   *
+   * @return Borrowed const alias to positive, dimensionless intervals. Entry
+   * `i` schedules subscriber entry `i`. The alias remains valid until vector
+   * reallocation, integrator destruction, or non-const mutation.
    */
   const std::vector<int> &getReportFreqList(void) const;
 
   /**
-   * @brief Return list of all Subscriber frequencies
+   * @brief Returns mutable access to cached subscriber frequencies.
+   *
+   * @return Borrowed mutable alias to the integrator-owned vector.
+   * @warning Every value must remain positive and the vector must remain the
+   * same length and order as @ref m_Subscribers. Mutation bypasses validation.
    */
   std::vector<int> &getReportFreqList(void);
 
-  /**
-   * @brief Set the Remove Center Of Mass Frequency value
-   *
-   * @param freq
-   */
   void setRemoveCenterOfMassFrequency(const int freq);
 
   const CudaContainer<double4> &getCoordsDelta(void) const;
@@ -197,14 +282,18 @@ protected:
 
 protected:
   /**
-   * @brief Returns indices of Subscriber needing update
+   * @brief Invokes subscribers scheduled for one local propagation step.
    *
-   * @param[in] istep current timestep number
+   * The method iterates over the cached frequency array and calls
+   * `m_Subscribers[i]->update()` when `istep % m_ReportFreqList[i] == 0`.
+   * Calls are synchronous and occur in subscriber-vector order.
    *
-   * Computes modulo(i,reportFreq) for each member of reportFreqList. Returns
-   * list of all indices for which the modulo is 0.
+   * @param[in] istep Positive step index local to the current propagation call.
    *
-   * @return List of indices of Subscriber to be updated (can be empty)
+   * @pre @ref m_Subscribers and @ref m_ReportFreqList have identical lengths
+   * and corresponding order, and every cached frequency is positive.
+   * @note Any exception raised by a subscriber propagates immediately. Later
+   * subscribers scheduled for the same step are not called.
    */
   void reportIfNeeded(const int istep);
 
@@ -256,17 +345,20 @@ protected:
   bool m_UsingHolonomicConstraints;
 
   /**
-   * @brief Subscribers linked
+   * @brief Retains subscribers in callback order.
    *
-   * List of all Subscriber objects linked to the Integrator
+   * Entry `i` must correspond to entry `i` in @ref m_ReportFreqList. Each
+   * shared pointer owns the subscriber until successful unsubscription or
+   * integrator destruction.
    */
   std::vector<std::shared_ptr<Subscriber>> m_Subscribers;
 
   /**
-   * @brief Report frequencies
+   * @brief Stores the frequency snapshot for each attached subscriber.
    *
-   * List of all Subscriber report frequencies. Entry #i corresponds to
-   * reportFreq of Subscriber #i.
+   * Entry `i` is the positive, dimensionless reporting interval copied from
+   * subscriber `i` during attachment. Later changes to the subscriber property
+   * do not update this array.
    */
   std::vector<int> m_ReportFreqList;
 

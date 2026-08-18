@@ -19,6 +19,16 @@
 extern "C" {
 #endif
 
+/**
+ * @brief Represents a polymorphic CUDA-integrator handle in the C ABI.
+ *
+ * Concrete integrator constructors own this handle. Subscriber operations in
+ * this header borrow it for one call. Preserve the concrete owner and do not
+ * overlap propagation, subscription, unsubscription, or destruction involving
+ * the same native integrator from multiple threads.
+ *
+ * @see subscriber
+ */
 typedef struct apo_cuda_integrator apo_cuda_integrator;
 
 APOCHARMM_C_API apo_status apo_cuda_integrator_set_time_step(

@@ -15,6 +15,7 @@ CharmmContext / ForceManager / Subscriber / CudaIntegrator
 - @subpage cuda_container
 - @subpage device_vector
 - @subpage force_manager
+- @subpage subscriber
 
 ## Architecture ideas ##
 
