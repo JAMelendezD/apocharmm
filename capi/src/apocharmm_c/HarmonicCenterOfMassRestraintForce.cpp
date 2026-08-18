@@ -14,7 +14,6 @@
 #include "apocharmm_c/detail/HarmonicCenterOfMassRestraintForceHandle.h"
 #include "apocharmm_c/detail/Validation.h"
 
-#include <cmath>
 #include <cstddef>
 #include <memory>
 #include <string>
@@ -31,9 +30,6 @@ extern "C" apo_status apo_harmonic_center_of_mass_restraint_force_create(
             apocharmm_c::prepare_output_pointer<
                 apo_harmonic_center_of_mass_restraint_force>(out, function_name,
                                                              "out"));
-
-        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_positive_int(
-            num_atoms, function_name, "num_atoms"));
 
         std::unique_ptr<apo_harmonic_center_of_mass_restraint_force> handle(
             new apo_harmonic_center_of_mass_restraint_force);
@@ -101,16 +97,6 @@ apo_harmonic_center_of_mass_restraint_force_set_force_constant(
                 apo_harmonic_center_of_mass_restraint_force>(
                 restraint, function_name,
                 "HarmonicCenterOfMassRestraintForce"));
-
-        if (!std::isfinite(force_constant)) {
-          return apocharmm_c::invalid_argument(function_name,
-                                               "force_constant must be finite");
-        }
-
-        if (force_constant < 0.0) {
-          return apocharmm_c::invalid_argument(
-              function_name, "force_constant must be non-negative");
-        }
 
         restraint->object->setForceConstant(force_constant);
 
@@ -247,7 +233,7 @@ apo_force_manager_subscribe_harmonic_center_of_mass_restraint_force(
                 restraint, function_name,
                 "HarmonicCenterOfMassRestraintForce"));
 
-        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_c_string(
+        APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<char>(
             force_tag, function_name, "force_tag"));
 
         force_manager->object->subscribe(

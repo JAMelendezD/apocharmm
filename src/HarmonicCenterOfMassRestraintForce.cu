@@ -10,25 +10,34 @@
 
 #include "HarmonicCenterOfMassRestraintForce.h"
 
+#include "ApoCharmmError.h"
 #include "cuda_utils.h"
 #include "gpu_utils.h"
 
 #include <cmath>
 #include <cstddef>
-#include <stdexcept>
 #include <string>
 
 template <typename AT, typename CT>
 HarmonicCenterOfMassRestraintForce<AT, CT>::HarmonicCenterOfMassRestraintForce(
     const int numAtoms)
     : m_NumAtoms(numAtoms), m_NumSelected(numAtoms), m_ForceConstant(0.0),
-      m_ReferenceDistance(0.0), m_UseMassWeighting(false),
-      m_AtomIndices(numAtoms), m_AtomWeights(numAtoms), m_Masses(numAtoms),
-      m_PartialSums(1), m_RestraintState(2), m_BoxDimX(0.0), m_BoxDimY(0.0),
-      m_BoxDimZ(0.0), m_ReferencePosition(make_double4(0.0, 0.0, 0.0, 0.0)),
+      m_ReferenceDistance(0.0), m_UseMassWeighting(false), m_AtomIndices(),
+      m_AtomWeights(), m_Masses(), m_PartialSums(), m_RestraintState(),
+      m_BoxDimX(0.0), m_BoxDimY(0.0), m_BoxDimZ(0.0),
+      m_ReferencePosition(make_double4(0.0, 0.0, 0.0, 0.0)),
       m_ReferenceMaskX(1), m_ReferenceMaskY(1), m_ReferenceMaskZ(1),
-      m_Selection(numAtoms, AtomSelection::InitialValue::ALL),
-      m_EnergyVirial(nullptr), m_Forces(nullptr), m_Stream(nullptr) {
+      m_Selection(0, AtomSelection::InitialValue::ALL), m_EnergyVirial(nullptr),
+      m_Forces(nullptr), m_Stream(nullptr) {
+  APOCHARMM_REQUIRE(numAtoms > 0, ApoCharmmErrorCode::InvalidArgument,
+                    "Atom count must be positive; observed " +
+                        std::to_string(numAtoms));
+
+  m_Masses.resize(numAtoms);
+  m_PartialSums.resize(1);
+  m_RestraintState.resize(2);
+  m_Selection.setNumAtoms(numAtoms, AtomSelection::InitialValue::ALL);
+
   m_Masses.set(1.0);
   m_PartialSums.set(make_double4(0.0, 0.0, 0.0, 0.0));
   m_RestraintState.set(make_double4(0.0, 0.0, 0.0, 0.0));
@@ -57,15 +66,16 @@ HarmonicCenterOfMassRestraintForce<AT, CT>::~HarmonicCenterOfMassRestraintForce(
 template <typename AT, typename CT>
 void HarmonicCenterOfMassRestraintForce<AT, CT>::setSelection(
     const AtomSelection &selection) {
-  if (selection.getNumAtoms() != m_NumAtoms) {
-    throw std::invalid_argument("HarmonicCenterOfMassRestraintForce selection "
-                                "has incorrect number of atoms");
-  }
+  APOCHARMM_REQUIRE(selection.getNumAtoms() == m_NumAtoms,
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Selection atom count mismatch; expected " +
+                        std::to_string(m_NumAtoms) + ", observed " +
+                        std::to_string(selection.getNumAtoms()));
 
-  if (selection.getNumSelected() <= 0) {
-    throw std::invalid_argument("HarmonicCenterOfMassRestraintForce selection "
-                                "must contain at least one atom");
-  }
+  APOCHARMM_REQUIRE(selection.getNumSelected() > 0,
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Selection must contain at least one atom; observed " +
+                        std::to_string(selection.getNumSelected()));
 
   m_Selection = selection;
   this->updateSelectedAtoms();
@@ -76,15 +86,14 @@ void HarmonicCenterOfMassRestraintForce<AT, CT>::setSelection(
 template <typename AT, typename CT>
 void HarmonicCenterOfMassRestraintForce<AT, CT>::setForceConstant(
     const double forceConstant) {
-  if (!std::isfinite(forceConstant)) {
-    throw std::invalid_argument(
-        "HarmonicCenterOfMassRestraintForce force constant must be finite");
-  }
+  APOCHARMM_REQUIRE(std::isfinite(forceConstant),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Force constant must be finite; observed " +
+                        std::to_string(forceConstant));
 
-  if (forceConstant < 0.0) {
-    throw std::invalid_argument("HarmonicCenterOfMassRestraintForce force "
-                                "constant must be non-negative");
-  }
+  APOCHARMM_REQUIRE(forceConstant >= 0.0, ApoCharmmErrorCode::InvalidArgument,
+                    "Force constant must be non-negative; observed " +
+                        std::to_string(forceConstant));
 
   m_ForceConstant = forceConstant;
 
@@ -102,43 +111,36 @@ template <typename AT, typename CT>
 void HarmonicCenterOfMassRestraintForce<AT, CT>::setReferencePosition(
     const std::vector<double> &referencePosition,
     const std::vector<int> &referenceMask) {
-  if (referencePosition.size() != 3) {
-    std::string msg =
-        "ERROR: HarmonicCenterOfMassRestraintForce::setReferencePosition: "
-        "referencePosition must contain exactly 3 elements\n";
-    msg += "referencePosition.size() = " +
-           std::to_string(referencePosition.size()) + "\n";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(
+      referencePosition.size() == 3, ApoCharmmErrorCode::InvalidArgument,
+      "Reference-position array size mismatch; expected 3, observed " +
+          std::to_string(referencePosition.size()));
 
-  if (referenceMask.size() != 3) {
-    std::string msg =
-        "ERROR: HarmonicCenterOfMassRestraintForce::setReferencePosition: "
-        "referenceMask must contain exactly 3 elements\n";
-    msg +=
-        "referenceMask.size() = " + std::to_string(referenceMask.size()) + "\n";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(
+      referenceMask.size() == 3, ApoCharmmErrorCode::InvalidArgument,
+      "Reference-mask array size mismatch; expected 3, observed " +
+          std::to_string(referenceMask.size()));
 
   int numActiveComponents = 0;
   for (std::size_t i = 0; i < 3; i++) {
-    if (!std::isfinite(referencePosition[i])) {
-      throw std::invalid_argument("HarmonicCenterOfMassRestraintForce "
-                                  "reference position must be finite");
-    }
+    APOCHARMM_REQUIRE(std::isfinite(referencePosition[i]),
+                      ApoCharmmErrorCode::InvalidArgument,
+                      "Reference position at index " + std::to_string(i) +
+                          " must be finite; observed " +
+                          std::to_string(referencePosition[i]));
 
-    if ((referenceMask[i] != 0) && (referenceMask[i] != 1)) {
-      throw std::invalid_argument("HarmonicCenterOfMassRestraintForce "
-                                  "reference mask values must be 0 or 1");
-    }
+    APOCHARMM_REQUIRE((referenceMask[i] == 0) || (referenceMask[i] == 1),
+                      ApoCharmmErrorCode::InvalidArgument,
+                      "Reference mask at index " + std::to_string(i) +
+                          " must be 0 or 1; observed " +
+                          std::to_string(referenceMask[i]));
 
     numActiveComponents += referenceMask[i];
   }
 
-  if (numActiveComponents == 0) {
-    throw std::invalid_argument("HarmonicCenterOfMassRestraintForce reference "
-                                "mask must activate at least one coordinate");
-  }
+  APOCHARMM_REQUIRE(numActiveComponents > 0,
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Reference mask must activate at least one coordinate");
 
   m_ReferencePosition.x = referencePosition[0];
   m_ReferencePosition.y = referencePosition[1];
@@ -154,15 +156,15 @@ void HarmonicCenterOfMassRestraintForce<AT, CT>::setReferencePosition(
 template <typename AT, typename CT>
 void HarmonicCenterOfMassRestraintForce<AT, CT>::setReferenceDistance(
     const double referenceDistance) {
-  if (!std::isfinite(referenceDistance)) {
-    throw std::invalid_argument(
-        "HarmonicCenterOfMassRestraintForce reference distance must be finite");
-  }
+  APOCHARMM_REQUIRE(std::isfinite(referenceDistance),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Reference distance must be finite; observed " +
+                        std::to_string(referenceDistance));
 
-  if (referenceDistance < 0.0) {
-    throw std::invalid_argument("HarmonicCenterOfMassRestraintForce reference "
-                                "distance must be non-negative");
-  }
+  APOCHARMM_REQUIRE(referenceDistance >= 0.0,
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Reference distance must be non-negative; observed " +
+                        std::to_string(referenceDistance));
 
   m_ReferenceDistance = referenceDistance;
 
@@ -172,26 +174,22 @@ void HarmonicCenterOfMassRestraintForce<AT, CT>::setReferenceDistance(
 template <typename AT, typename CT>
 void HarmonicCenterOfMassRestraintForce<AT, CT>::setMasses(
     const std::vector<double> &masses) {
-  if (masses.size() != static_cast<std::size_t>(m_NumAtoms)) {
-    std::string msg =
-        "ERROR: HarmonicCenterOfMassRestraintForce::setMasses(const "
-        "std::vector<double> &): Size of input vector must match the total "
-        "number of atoms\n";
-    msg += "        NATOM = " + std::to_string(m_NumAtoms) + "\n";
-    msg += "masses.size() = " + std::to_string(masses.size()) + "\n";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(masses.size() == static_cast<std::size_t>(m_NumAtoms),
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Mass array size mismatch; expected " +
+                        std::to_string(m_NumAtoms) + ", observed " +
+                        std::to_string(masses.size()));
 
   for (std::size_t i = 0; i < masses.size(); i++) {
-    if (!std::isfinite(masses[i])) {
-      throw std::invalid_argument(
-          "HarmonicCenterOfMassRestraintForce masses must be finite");
-    }
+    APOCHARMM_REQUIRE(
+        std::isfinite(masses[i]), ApoCharmmErrorCode::InvalidArgument,
+        "Mass at index " + std::to_string(i) + " must be finite; observed " +
+            std::to_string(masses[i]));
 
-    if (masses[i] < 0.0) {
-      throw std::invalid_argument(
-          "HarmonicCenterOfMassRestraintForce masses must be non-negative");
-    }
+    APOCHARMM_REQUIRE(masses[i] >= 0.0, ApoCharmmErrorCode::InvalidArgument,
+                      "Mass at index " + std::to_string(i) +
+                          " must be non-negative; observed " +
+                          std::to_string(masses[i]));
   }
 
   m_Masses = masses;
@@ -212,26 +210,21 @@ void HarmonicCenterOfMassRestraintForce<AT, CT>::setMassWeighting(
 template <typename AT, typename CT>
 void HarmonicCenterOfMassRestraintForce<AT, CT>::setBoxDimensions(
     const std::vector<double> &boxDimensions) {
-  if (boxDimensions.size() != 3) {
-    std::string msg =
-        "ERROR: HarmonicCenterOfMassRestraintForce::setBoxDimensions(const "
-        "std::vector<double> &): boxDimensions must contain exactly 3 "
-        "elements\n";
-    msg +=
-        "boxDimensions.size() = " + std::to_string(boxDimensions.size()) + "\n";
-    throw std::invalid_argument(msg);
-  }
+  APOCHARMM_REQUIRE(boxDimensions.size() == 3,
+                    ApoCharmmErrorCode::InvalidArgument,
+                    "Box-dimension array size mismatch; expected 3, observed " +
+                        std::to_string(boxDimensions.size()));
 
   for (std::size_t i = 0; i < 3; i++) {
-    if (!std::isfinite(boxDimensions[i])) {
-      throw std::invalid_argument(
-          "HarmonicCenterOfMassRestraintForce box dimensions must be finite");
-    }
+    APOCHARMM_REQUIRE(
+        std::isfinite(boxDimensions[i]), ApoCharmmErrorCode::InvalidArgument,
+        "Box dimension at index " + std::to_string(i) +
+            " must be finite; observed " + std::to_string(boxDimensions[i]));
 
-    if (boxDimensions[i] <= 0.0) {
-      throw std::invalid_argument(
-          "HarmonicCenterOfMassRestraintForce box dimensions must be positive");
-    }
+    APOCHARMM_REQUIRE(
+        boxDimensions[i] > 0.0, ApoCharmmErrorCode::InvalidArgument,
+        "Box dimension at index " + std::to_string(i) +
+            " must be positive; observed " + std::to_string(boxDimensions[i]));
   }
 
   if ((m_BoxDimX == boxDimensions[0]) && (m_BoxDimY == boxDimensions[1]) &&
@@ -286,10 +279,10 @@ HarmonicCenterOfMassRestraintForce<AT, CT>::getStream(void) {
 template <typename AT, typename CT>
 void HarmonicCenterOfMassRestraintForce<AT, CT>::initialize(
     const int numAtoms, const std::vector<double> &boxDimensions) {
-  if (m_NumAtoms != numAtoms) {
-    throw std::runtime_error("HarmonicCenterOfMassRestraintForce: Attempted to "
-                             "initialize with different atom count");
-  }
+  APOCHARMM_REQUIRE(m_NumAtoms == numAtoms, ApoCharmmErrorCode::InvalidArgument,
+                    "Initialization atom count mismatch; expected " +
+                        std::to_string(m_NumAtoms) + ", observed " +
+                        std::to_string(numAtoms));
 
   this->setBoxDimensions(boxDimensions);
 
@@ -549,55 +542,56 @@ void HarmonicCenterOfMassRestraintForce<AT, CT>::calcForce(
   if ((m_NumSelected <= 0) || (m_ForceConstant == 0.0))
     return;
 
-  if ((m_BoxDimX <= 0.0) || (m_BoxDimY <= 0.0) || (m_BoxDimZ <= 0.0)) {
-    throw std::runtime_error("HarmonicCenterOfMassRestraintForce::calcForce "
-                             "requires positive box dimensions");
-  }
+  APOCHARMM_REQUIRE((m_BoxDimX > 0.0) && (m_BoxDimY > 0.0) && (m_BoxDimZ > 0.0),
+                    ApoCharmmErrorCode::NotInitialized,
+                    "Box dimensions must be set before force evaluation");
 
   constexpr int numThreads = 256;
   const int numBlocks = (m_NumSelected + numThreads - 1) / numThreads;
   const int numPartialSums = static_cast<int>(m_PartialSums.size());
 
-  PartialSumsKernel<<<numBlocks, numThreads, 0, *m_Stream>>>(
+  cudaCheckLaunch(PartialSumsKernel<<<numBlocks, numThreads, 0, *m_Stream>>>(
       m_PartialSums.getDeviceArray().data(),
       m_AtomIndices.getDeviceArray().data(),
       m_AtomWeights.getDeviceArray().data(), xyzq, m_NumSelected, m_BoxDimX,
-      m_BoxDimY, m_BoxDimZ);
-  cudaCheck(cudaGetLastError());
+      m_BoxDimY, m_BoxDimZ));
 
   if (calcEnergy == true) {
-    StateKernel<true><<<1, numThreads, 0, *m_Stream>>>(
+    cudaCheckLaunch(StateKernel<true><<<1, numThreads, 0, *m_Stream>>>(
         m_RestraintState.getDeviceArray().data(),
         m_EnergyVirial->getEnergyPointer("hmcm"),
         m_PartialSums.getDeviceArray().data(), numPartialSums, m_ForceConstant,
         m_ReferencePosition, m_ReferenceMaskX, m_ReferenceMaskY,
-        m_ReferenceMaskZ, m_ReferenceDistance, m_BoxDimX, m_BoxDimY, m_BoxDimZ);
+        m_ReferenceMaskZ, m_ReferenceDistance, m_BoxDimX, m_BoxDimY,
+        m_BoxDimZ));
   } else {
-    StateKernel<false><<<1, numThreads, 0, *m_Stream>>>(
+    cudaCheckLaunch(StateKernel<false><<<1, numThreads, 0, *m_Stream>>>(
         m_RestraintState.getDeviceArray().data(),
         m_EnergyVirial->getEnergyPointer("hmcm"),
         m_PartialSums.getDeviceArray().data(), numPartialSums, m_ForceConstant,
         m_ReferencePosition, m_ReferenceMaskX, m_ReferenceMaskY,
-        m_ReferenceMaskZ, m_ReferenceDistance, m_BoxDimX, m_BoxDimY, m_BoxDimZ);
+        m_ReferenceMaskZ, m_ReferenceDistance, m_BoxDimX, m_BoxDimY,
+        m_BoxDimZ));
   }
-  cudaCheck(cudaGetLastError());
 
   if (calcVirial == true) {
-    ApplyForcesKernel<AT, CT, true><<<numBlocks, numThreads, 0, *m_Stream>>>(
-        m_EnergyVirial->getVirialPointer(), m_Forces->xyz(), m_Forces->stride(),
-        m_AtomIndices.getDeviceArray().data(),
-        m_AtomWeights.getDeviceArray().data(), m_NumSelected, xyzq,
-        m_RestraintState.getDeviceArray().data(), m_BoxDimX, m_BoxDimY,
-        m_BoxDimZ);
+    cudaCheckLaunch(
+        ApplyForcesKernel<AT, CT, true>
+        <<<numBlocks, numThreads, 0, *m_Stream>>>(
+            m_EnergyVirial->getVirialPointer(), m_Forces->xyz(),
+            m_Forces->stride(), m_AtomIndices.getDeviceArray().data(),
+            m_AtomWeights.getDeviceArray().data(), m_NumSelected, xyzq,
+            m_RestraintState.getDeviceArray().data(), m_BoxDimX, m_BoxDimY,
+            m_BoxDimZ));
   } else {
-    ApplyForcesKernel<AT, CT, false><<<numBlocks, numThreads, 0, *m_Stream>>>(
-        nullptr, m_Forces->xyz(), m_Forces->stride(),
-        m_AtomIndices.getDeviceArray().data(),
-        m_AtomWeights.getDeviceArray().data(), m_NumSelected, xyzq,
-        m_RestraintState.getDeviceArray().data(), m_BoxDimX, m_BoxDimY,
-        m_BoxDimZ);
+    cudaCheckLaunch(ApplyForcesKernel<AT, CT, false>
+                    <<<numBlocks, numThreads, 0, *m_Stream>>>(
+                        nullptr, m_Forces->xyz(), m_Forces->stride(),
+                        m_AtomIndices.getDeviceArray().data(),
+                        m_AtomWeights.getDeviceArray().data(), m_NumSelected,
+                        xyzq, m_RestraintState.getDeviceArray().data(),
+                        m_BoxDimX, m_BoxDimY, m_BoxDimZ));
   }
-  cudaCheck(cudaGetLastError());
 
   return;
 }
@@ -605,11 +599,6 @@ void HarmonicCenterOfMassRestraintForce<AT, CT>::calcForce(
 template <typename AT, typename CT>
 void HarmonicCenterOfMassRestraintForce<AT, CT>::updateSelectedAtoms(void) {
   const std::vector<int> selectedAtomIndices = m_Selection.getAtomIndices();
-
-  if (selectedAtomIndices.empty()) {
-    throw std::invalid_argument("HarmonicCenterOfMassRestraintForce selection "
-                                "must contain at least one atom");
-  }
 
   m_NumSelected = static_cast<int>(selectedAtomIndices.size());
 
@@ -623,10 +612,10 @@ void HarmonicCenterOfMassRestraintForce<AT, CT>::updateSelectedAtoms(void) {
     totalWeight += weight;
   }
 
-  if (totalWeight <= 0.0) {
-    throw std::invalid_argument("HarmonicCenterOfMassRestraintForce selected "
-                                "atoms must have positive total weight");
-  }
+  APOCHARMM_REQUIRE(
+      totalWeight > 0.0, ApoCharmmErrorCode::InvalidArgument,
+      "Selected atoms must have positive total weight; observed " +
+          std::to_string(totalWeight));
 
   m_AtomIndices = selectedAtomIndices;
   m_AtomWeights = selectedAtomWeights;
