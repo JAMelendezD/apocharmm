@@ -7,6 +7,16 @@
 #
 # ENDLICENSE
 
+"""
+@brief Provides the Python atom-selection evaluator.
+
+`AtomSelector` evaluates CHARMM-style selection strings against one
+`CharmmPsf` and returns independently owned `AtomSelection` objects.
+
+@anchor python_atom_selector_module
+@see atom_selection
+"""
+
 import ctypes
 
 from ._base import _ApoObject
@@ -45,9 +55,49 @@ def _initialize_prototypes() -> None:
 
 
 class AtomSelector(_ApoObject):
+    """
+    @brief Evaluates atom-selection expressions against one native PSF.
+
+    The wrapper retains the supplied `CharmmPsf` Python object in `_psf`. The
+    native selector also shares ownership of the underlying native PSF, so
+    closing the original PSF wrapper after construction does not invalidate the
+    selector. The topology is shared rather than copied.
+
+    Each successful `select()` call returns a new owning `AtomSelection` that
+    remains valid after this selector is closed. Selection evaluation is
+    host-only and performs no CUDA transfer or synchronization.
+
+    `close()`, `destroy()`, context-manager exit, or finalization releases the
+    selector handle and is idempotent. Calling `select()` after closure raises
+    `RuntimeError`. The wrapper provides no internal synchronization; do not
+    overlap closure with selection from another thread.
+
+    @anchor python_atom_selector
+    @see atom_selection
+    """
+
     _destroy_function_name = "apo_atom_selector_destroy"
 
     def __init__(self, psf: CharmmPsf) -> None:
+        """
+        @brief Constructs a selector for one parsed PSF.
+
+        The wrapper retains `psf` as a Python reference and the C ABI copies
+        shared native ownership. No topology data is copied or moved.
+
+        @param[in] psf Live `CharmmPsf` instance whose atom metadata and derived
+        topology tables define every future selection.
+        @throws TypeError If `psf` is not a `CharmmPsf` instance.
+        @throws RuntimeError If `psf` has been closed or if the C ABI reports
+        success but returns a NULL selector handle.
+        @throws ApoCharmmError With native status
+        `APO_STATUS_NOT_INITIALIZED` if the PSF atom count is not initialized,
+        with `APO_STATUS_INVALID_ARGUMENT` if the native handle is invalid, or
+        with `APO_STATUS_RUNTIME_ERROR` if native allocation fails.
+
+        @post On success, this wrapper owns one selector handle and retains
+        `psf`.
+        """
         _initialize_prototypes()
         super().__init__()
 
@@ -69,6 +119,45 @@ class AtomSelector(_ApoObject):
         return
 
     def select(self, selection_string: str) -> AtomSelection:
+        """
+        @brief Evaluates an atom-selection string.
+
+        The string is encoded as UTF-8 and passed to the null-terminated C ABI.
+        Recognized keywords and dotted operators use ASCII spellings and
+        case-insensitive matching. Native diagnostic positions are UTF-8 byte
+        offsets, not Python character indices. See @ref atom_selection for the
+        complete language.
+
+        Example:
+
+        @code{.py}
+        selector = apo.AtomSelector(psf)
+        alpha_carbons = selector.select("type CA")
+        indices = alpha_carbons.getAtomIndices()
+        @endcode
+
+        @param[in] selection_string Python `str` containing one complete
+        expression. The encoded bytes are copied during the native call and are
+        not retained.
+        @return A newly owned `AtomSelection` independent of this selector and
+        the source PSF wrapper.
+        @throws TypeError If `selection_string` is not a `str`.
+        @throws UnicodeEncodeError If UTF-8 encoding rejects the string, such as
+        for an unpaired surrogate.
+        @throws RuntimeError If this selector has been closed or if the C ABI
+        reports success but returns a NULL selection handle.
+        @throws ApoCharmmError With native status
+        `APO_STATUS_INVALID_ARGUMENT` if the string is empty or the expression
+        has a lexical, syntax, operator, range, or parenthesis error, or if a
+        PSF bonded-neighbor index is out of range; or with
+        `APO_STATUS_RUNTIME_ERROR` for malformed PSF state, allocation failure,
+        or an internal parser failure.
+
+        @post This selector and its PSF are unchanged.
+        @warning The current wrapper does not reject embedded `"\\0"`
+        characters. Because the C ABI accepts a C string, only the prefix before
+        the first embedded null byte is parsed. Avoid embedded null characters.
+        """
         _initialize_prototypes()
 
         if not isinstance(selection_string, str):

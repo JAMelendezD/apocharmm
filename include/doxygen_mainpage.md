@@ -7,6 +7,7 @@ CharmmContext / ForceManager / Subscriber / CudaIntegrator
 ## Subsystem documentation ##
 
 - @subpage apocharmm_error
+- @subpage atom_selection
 - @subpage charmm_context
 - @subpage charmm_parameters
 - @subpage charmm_psf

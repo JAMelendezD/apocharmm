@@ -16,7 +16,20 @@
 
 #include <memory>
 
+/**
+ * @brief Defines the private owning state behind an atom-selector handle.
+ *
+ * Successful C construction allocates this wrapper and stores shared ownership
+ * of one native @ref AtomSelector. The selector in turn retains shared
+ * ownership of its const PSF, so destroying the public PSF handle does not
+ * invalidate this wrapper. Public C callers see only the opaque declaration and
+ * release the wrapper through @ref apo_atom_selector_destroy.
+ */
 struct apo_atom_selector {
+  /**
+   * @brief Retains shared ownership of the native selector and its PSF
+   * relationship.
+   */
   std::shared_ptr<AtomSelector> object = nullptr;
 };
 
