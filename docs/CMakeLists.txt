@@ -1,3 +1,21 @@
+cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
+
+# Allow the documentation to be configured without enabling the C++/CUDA
+# project. Keep this version synchronized with the top-level project()
+# declaration.
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  project(apoCHARMM
+    VERSION 1.0.0
+    LANGUAGES NONE
+  )
+
+  get_filename_component(
+    apoCHARMM_SOURCE_DIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/.."
+    ABSOLUTE
+  )
+endif()
+
 find_package(Doxygen REQUIRED COMPONENTS doxygen)
 
 set(APOCHARMM_DOCUMENTATION_PAGES

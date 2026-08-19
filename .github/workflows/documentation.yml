@@ -1,0 +1,95 @@
+name: Documentation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "CMakeLists.txt"
+      - "docs/**"
+      - "include/**"
+      - "src/**"
+      - "capi/**"
+      - "python/**"
+      - ".github/workflows/documentation.yml"
+
+  pull_request:
+    paths:
+      - "CMakeLists.txt"
+      - "docs/**"
+      - "include/**"
+      - "src/**"
+      - "capi/**"
+      - "python/**"
+      - ".github/workflows/documentation.yml"
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Doxygen HTML
+    runs-on: ubuntu-24.04
+
+    permissions:
+      contents: read
+      pages: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6.0.2
+
+      - name: Install Doxygen
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends doxygen
+
+      - name: Configure documentation
+        run: cmake -S docs -B build/docs
+
+      - name: Build documentation
+        run: cmake --build build/docs --target docs
+
+      - name: Print Doxygen warnings after a failed build
+        if: failure()
+        shell: bash
+        run: |
+          warnings_file="build/docs/doxygen-warnings.log"
+          if [[ -f "${warnings_file}" ]]; then
+            cat "${warnings_file}"
+          fi
+
+      - name: Verify generated entry point
+        run: test -s build/docs/html/index.html
+
+      - name: Configure GitHub Pages
+        if: github.ref == 'refs/heads/main'
+        uses: actions/configure-pages@v6.0.0
+
+      - name: Upload GitHub Pages artifact
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v5.0.0
+        with:
+          path: build/docs/html
+
+  deploy:
+    name: Deploy GitHub Pages
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-24.04
+
+    permissions:
+      pages: write
+      id-token: write
+
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy documentation
+        id: deployment
+        uses: actions/deploy-pages@v5.0.0
