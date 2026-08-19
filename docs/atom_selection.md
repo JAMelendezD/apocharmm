@@ -218,14 +218,14 @@ ASCII keywords, operators, and field patterns.
 
 ## Related Subsystems
 
-- @ref CharmmPSF supplies atom metadata, residue and group intervals, and
-  bonded connectivity.
-- @ref HarmonicRestraintForce consumes an @ref AtomSelection to choose
-  restrained atoms.
-- @ref HarmonicCenterOfMassRestraintForce consumes a nonempty
-  @ref AtomSelection to define its restrained center.
-- @ref ApoCharmmError, @ref apo_status, and @ref apo_last_error define native
-  and C ABI failure reporting.
+- @ref charmm_psf "CharmmPSF" supplies atom metadata, residue and group
+  intervals, and bonded connectivity.
+- `HarmonicRestraintForce` consumes an @ref AtomSelection to choose restrained
+  atoms.
+- `HarmonicCenterOfMassRestraintForce` consumes a nonempty @ref AtomSelection
+  to define its restrained center.
+- @ref apocharmm_error "ApoCharmmError" defines native and C ABI failure
+  reporting.
 
 ## Developer Architecture
 

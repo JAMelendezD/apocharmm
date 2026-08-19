@@ -4,15 +4,12 @@
 
 The Subscriber subsystem schedules side effects during dynamics propagation.
 A concrete @ref Subscriber writes selected simulation state when an attached
-@ref CudaIntegrator reaches the subscriber's reporting interval. The interval
-is a positive, dimensionless number of propagated steps.
+`CudaIntegrator` reaches the subscriber's reporting interval. The interval is a
+positive, dimensionless number of propagated steps.
 
 Use @ref DcdSubscriber for coordinate trajectories and @ref RestartSubscriber
 for restart state. Those two reporters are available through C++, the C ABI,
-and Python. The repository also contains native-only text reporters for state,
-dynamics, composite-force, alchemical, MBAR, and indexed-coordinate output.
-Several native-only reporters expose current implementation limitations and
-should be selected only after reading their class contracts.
+and Python.
 
 Subscribers are synchronous observers, not background tasks. An update runs on
 the propagation caller's thread after the corresponding dynamics step and may
@@ -96,11 +93,10 @@ int main() {
 
 ## Construction and Required State
 
-A concrete file-writing subscriber normally validates its positive report
-frequency, copies its path, checks the nonempty parent prefix with `stat()`, and
-creates or truncates the output during construction. @ref DcdSubscriber opens
-binary output. The base @ref Subscriber and the remaining current reporters use
-text output unless they override @ref Subscriber::openFile.
+A concrete file-writing subscriber validates its positive report frequency,
+copies its path, checks the nonempty parent prefix with `stat()`, and creates or
+truncates the output during construction. @ref DcdSubscriber opens binary
+output, while @ref RestartSubscriber uses text output.
 
 Establish state in this order:
 
@@ -129,12 +125,8 @@ call, rather than from an absolute lifetime-step modulus.
 atom count, exactly three positive box lengths, and a valid single-precision
 coordinate/charge device container. @ref RestartSubscriber additionally
 requires the subscriber and integrator to retain the same context and supports
-only @ref CudaNoseHooverIntegrator, @ref CudaLangevinPistonIntegrator, and
-@ref CudaLangevinThermostatIntegrator.
-
-Native-only reporters have additional preconditions documented on their class
-and update methods. Several do not validate null attachments, force-manager
-type, container shape, or stream state before dereferencing.
+only `CudaNoseHooverIntegrator`, `CudaLangevinPistonIntegrator`, and
+`CudaLangevinThermostatIntegrator`.
 
 ## Ownership and Lifetime
 
@@ -208,14 +200,6 @@ Restart Nose-Hoover and Langevin-piston state is serialized directly from the
 integrator. The current repository does not establish every one of those
 field-specific units clearly enough to make them a stable subscriber contract.
 
-Native text energy reporters use the force-manager convention of kilocalories
-per mole. @ref StateSubscriber also reports time in picoseconds, temperature in
-kelvin, box lengths in angstroms, volume in cubic angstroms, and density in grams
-per cubic centimeter. Its pressure columns are labeled in atmospheres but are
-currently populated with zeros. @ref XYZSubscriber writes zero-based atom
-indices and coordinates in angstroms; despite its name, its output is not the
-standard XYZ file format.
-
 ## Errors
 
 C++ constructors and base mutators use @ref ApoCharmmError. Empty paths,
@@ -225,12 +209,6 @@ nonexistent checked parent paths, and nonpositive frequencies use
 `ApoCharmmErrorCode::NotImplemented`. File open/write and state-consistency
 failures use `ApoCharmmErrorCode::Runtime`. CUDA transfers, kernels, and
 synchronization failures use `ApoCharmmErrorCode::Cuda`.
-
-Legacy native-only reporters are not uniform. @ref DynaSubscriber and
-@ref XYZSubscriber still expose verified standard-exception paths, and several
-specialized reporters rely on unchecked preconditions that can fail before an
-apoCHARMM exception is produced. Their individual API contracts identify those
-boundaries.
 
 C ABI status functions clear the calling thread's previous diagnostic at entry.
 Native error categories map to the matching `APO_STATUS_*` value. Unexpected
@@ -267,34 +245,18 @@ failure remain observable.
 - Restart updates truncate before writing and currently fill many CHARMM energy
   and statistics fields with zero. The recorded `NSAVC` and `NSAVV` values do
   not represent independent DCD coordinate and velocity saving frequencies.
-- @ref StateSubscriber does not currently emit box-size or volume values through
-  its public flags, does not compute pressure values, and uses a kinetic-energy
-  conversion inconsistent with the current scalar context API.
-- @ref DynaSubscriber is implemented only for the Langevin-piston integrator and
-  emits several placeholder values.
-- @ref CompositeSubscriber and @ref EDSSubscriber report stored energies rather
-  than requesting a fresh calculation.
-- @ref BEDSSubscriber, @ref FEPSubscriber, and @ref MBARSubscriber contain
-  unchecked force-manager casts. Their documented force-manager-type
-  preconditions are mandatory.
-- @ref MBARSubscriber's auxiliary force-manager list is not used by its current
-  update path, and its derived context setter is not invoked polymorphically by
-  integrator subscription.
-- @ref DualTopologySubscriber and @ref XYZSubscriber do not write explicit frame
-  delimiters suitable for their conventional format names.
 
 ## Related Subsystems
 
-- @subpage charmm_context supplies coordinates, velocities, box state, energies,
-  and the force manager queried by subscribers.
-- @subpage force_manager supplies potential energies and specialized composite
-  state.
-- @subpage cuda_container defines the explicit device-to-host transfers and
-  synchronization used by output writers.
-- @subpage apocharmm_error defines native errors, C ABI diagnostics, and Python
-  error translation.
-- @subpage coordinates describes the coordinate inputs used to initialize the
-  context before propagation.
+- @ref charmm_context "CharmmContext" supplies coordinates, velocities, box
+  state, energies, and the force manager queried by subscribers.
+- @ref force_manager "ForceManager" supplies potential energies.
+- @ref cuda_container "CudaContainer" defines the explicit device-to-host
+  transfers and synchronization used by output writers.
+- @ref apocharmm_error "ApoCharmmError" defines native errors, C ABI
+  diagnostics, and Python error translation.
+- @ref coordinates "Coordinates" describes the coordinate inputs used to
+  initialize the context before propagation.
 
 ## Developer Architecture
 
@@ -305,7 +267,7 @@ format-specific state required to write one update. Override `openFile()` only
 when the format requires non-default stream flags or format state reset, as
 @ref DcdSubscriber does for binary output.
 
-The scheduling collaborator is @ref CudaIntegrator. It stores parallel
+The scheduling collaborator is `CudaIntegrator`. It stores parallel
 `m_Subscribers` and `m_ReportFreqList` arrays. Entry `i` in one must always
 correspond to entry `i` in the other. Subscription appends both; unsubscription
 erases both; `reportIfNeeded()` indexes both and invokes `update()`. Mutable
@@ -313,12 +275,10 @@ accessors expose these arrays, so callers can violate the invariant. A future
 reorganization should replace the parallel representation with one attachment
 record and define explicit backlink clearing and resubscription semantics.
 
-The native implementation layer under `src/` performs format generation and
-CUDA transfers. DCD writes header, unit-cell, and coordinate records directly to
-`std::fstream`. Restart assembles one monolithic CHARMM-style file and reads
-integrator-specific containers through dynamic casts. Native-only reporters are
-compiled into `apoCHARMMlib` by `src/CMakeLists.txt`; disabled checkpoint and
-NetCDF subscriber sources are not part of the current target.
+The native implementation layer under `src/` performs DCD and restart format
+generation and CUDA transfers. DCD writes header, unit-cell, and coordinate
+records directly to `std::fstream`. Restart assembles one monolithic CHARMM-style
+file and reads integrator-specific containers through dynamic casts.
 
 The C ABI exposes only the base operations, DCD writer, restart writer, and the
 integrator attachment/propagation operations. Private handle structs store a
@@ -335,9 +295,7 @@ Python wrappers to preserve those views. Status translation is centralized in
 Host/device data flow is explicit. DCD copies `CudaContainer<float4>` device
 coordinates to host before splitting components. Restart copies each required
 context or integrator container to host before text formatting. These transfers
-are blocking at the device level. Other native reporters vary: some transfer
-stored energy scalars, some invoke force calculations, and some assume helper
-getters already expose host values.
+are blocking at the device level.
 
 The error boundary is layered. Public C++ contracts name native categories.
 `apocharmm_c::guard` maps those categories and captures diagnostics. Python
@@ -350,8 +308,7 @@ is concentrated in `unittest-subscriber.cpp`, `unittest-dcdSubscriber.cpp`,
 `unittest-restartSubscriber.cpp`, and `unittest-cudaIntegrator.cpp`. Direct C
 ABI coverage uses the corresponding `unittest-capi*.cpp` files. Python coverage
 uses the subscriber, DCD-subscriber, restart-subscriber, and CUDA-integrator
-pytest modules. The native-only specialized reporters currently lack dedicated
-registered tests.
+pytest modules.
 
 ## API Reference
 
@@ -360,9 +317,6 @@ C++:
 - @ref Subscriber
 - @ref DcdSubscriber
 - @ref RestartSubscriber
-- @ref CudaIntegrator::subscribe
-- @ref CudaIntegrator::unsubscribe
-- @ref CudaIntegrator::propagate
 
 C ABI:
 
@@ -379,9 +333,6 @@ C ABI:
 - @ref apo_restart_subscriber_create_with_report_frequency
 - @ref apo_restart_subscriber_destroy
 - @ref apo_restart_subscriber_as_subscriber
-- @ref apo_cuda_integrator_subscribe
-- @ref apo_cuda_integrator_unsubscribe
-- @ref apo_cuda_integrator_propagate
 
 Python:
 

@@ -8,6 +8,11 @@
 //
 // ENDLICENSE
 
+/**
+ * @file
+ * @brief Declares lexical token types and token records for atom selections.
+ */
+
 #pragma once
 
 #include <string>

@@ -5,18 +5,17 @@
 The Coordinates subsystem represents Cartesian atom positions before and at the
 boundary of an apoCHARMM simulation context. The native @ref Coordinates class
 owns parallel host vectors of `double3` and `float3` records. @ref CharmmCrd
-constructs that representation from a CHARMM coordinate file, and @ref PDB
-provides a native-only legacy PDB reader.
+constructs that representation from a CHARMM coordinate file.
 
 Use @ref CharmmCrd when coordinates are supplied in standard or extended CHARMM
 CRD/COR format. Use @ref Coordinates directly when native C++ code already has
 one `[x, y, z]` record per atom. The public C ABI and Python API expose
-CharmmCrd, but do not expose direct construction of the Coordinates base class
-or the PDB reader.
+CharmmCrd, but do not expose direct construction of the Coordinates base class.
 
 These objects are input-side host representations. Runtime coordinates and
-charges are owned separately by @ref CharmmContext in @ref CudaContainer
-instances after `setCoordinates()` copies the double-precision values.
+charges are owned separately by @ref charmm_context "CharmmContext" in
+@ref cuda_container "CudaContainer" instances after `setCoordinates()` copies
+those values.
 
 ## Quick Start
 
@@ -87,11 +86,6 @@ all other count lines select standard records. Counts from zero through
 `INT_MAX` are accepted. The parser retains only X, Y, and Z in file-record
 order and does not validate the file-name extension.
 
-@ref PDB scans consecutive nonempty lines and accepts records beginning with
-`ATOM` or `HETATM` in column one. It stops at the first empty line and parses
-coordinates through `float`, even for the inherited double-precision vector.
-The implementation is native-only and currently has no focused test suite.
-
 A @ref CharmmContext must already have a positive atom count before coordinates
 are assigned. The coordinate count must exactly match the context atom count.
 For a context created from a PSF and parameters, the PSF establishes that count.
@@ -115,8 +109,8 @@ borrowed reference. Mutating returned storage is never synchronized with the
 other precision representation.
 
 Coordinates is used as a public base class but does not have a virtual
-destructor. Derived CharmmCrd and PDB objects must be destroyed through their
-actual type rather than through a Coordinates pointer.
+destructor. Derived objects must be destroyed through their actual type rather
+than through a Coordinates pointer.
 
 A public @ref apo_charmm_crd handle owns a private
 `std::shared_ptr<CharmmCrd>`. Release it with
@@ -152,8 +146,7 @@ charge. Context coordinate-and-charge arrays use separate `float4` and
 Double-input native constructors and CharmmCrd preserve parsed values in the
 double-precision vector and convert each component for the single-precision
 vector. Float-input constructors preserve the single-precision values and widen
-them for the double-precision vector. PDB parses into float first, so its
-double-precision vector contains widened float values.
+them for the double-precision vector.
 
 Coordinates and its file readers perform no device allocation or transfer.
 `CharmmContext::setCoordinates()` copies the double-precision records into the
@@ -248,11 +241,6 @@ trailing fields, and does not retain the source path. Finite double fields that
 are outside the representable float range are not rejected before the
 single-precision conversion.
 
-PDB is a legacy native reader. It stops at the first empty line, accepts numeric
-prefixes according to `std::stof`, parses through float precision, exits with a
-success status when the file cannot be opened, and has no C ABI, Python wrapper,
-or focused test target.
-
 The subsystem performs no CUDA operation despite the `.cu` implementation-file
 suffix. CUDA failures become relevant only after coordinates are copied into a
 CharmmContext or another GPU-owning subsystem.
@@ -264,26 +252,22 @@ directly.
 
 ## Related Subsystems
 
-- @ref CharmmContext copies coordinate input into simulation state and controls
-  host/device transfers, imaging, and neighbor-list rebuilding.
-- @subpage charmm_context documents context construction, required state,
-  coordinate assignment, and runtime coordinate/charge storage.
-- @ref CharmmPSF supplies the topology whose atom order and count must match the
-  coordinate records.
-- @subpage charmm_psf documents PSF atom order and ownership.
-- @ref CudaContainer owns explicit host/device mirrors used after coordinates
-  enter a context.
-- @subpage cuda_container documents transfer and invalidation behavior.
-- @ref ApoCharmmError and @subpage apocharmm_error document native categories,
-  C ABI translation, and Python exceptions.
+- @ref charmm_context "CharmmContext" copies coordinate input into simulation
+  state and controls host/device transfers, imaging, and neighbor-list
+  rebuilding.
+- @ref charmm_psf "CharmmPSF" supplies the topology whose atom order and count
+  must match the coordinate records.
+- @ref cuda_container "CudaContainer" owns explicit host/device mirrors used
+  after coordinates enter a context.
+- @ref apocharmm_error "ApoCharmmError" documents native categories, C ABI
+  translation, and Python exceptions.
 
 ## Developer Architecture
 
 The native base declaration is `include/Coordinates.h`; host-only definitions
 are in `src/Coordinates.cu`. The `.cu` suffix does not imply device storage or
 kernel execution. `include/CharmmCrd.h` and `src/CharmmCrd.cu` implement the
-supported CHARMM file reader. `include/PDB.h` and `src/PDB.cu` implement the
-legacy native PDB reader. All three sources are registered in
+supported CHARMM file reader. Both documented sources are registered in
 `src/CMakeLists.txt`.
 
 The public C ABI is limited to CharmmCrd. Its opaque declaration is in
@@ -349,23 +333,22 @@ Focused native coverage is in `test/unittests/unittest-coordinates.cpp` and
 `test/unittests/unittest-capiCharmmCrd.cpp`. Python coverage is in
 `test/pytest/python_api_charmm_crd.py`. These files are registered by the
 corresponding test CMake lists. Stable minimal data is
-`test/data/nacl_pair.cor`. PDB currently has no focused coverage.
+`test/data/nacl_pair.cor`.
 
-Known architectural constraints visible in the implementation include the
-non-virtual base destructor, unchecked mutable representation access,
+Known architectural constraints visible in the documented implementation include
+the non-virtual base destructor, unchecked mutable representation access,
 `int`-sized atom counts, non-transactional resizing, unchecked double-to-float
-range conversion, whole-file CharmmCrd loading, and the legacy PDB reader's
-process-termination error path.
+range conversion, and whole-file CharmmCrd loading.
 
 ## API Reference
 
 - @ref Coordinates is the native host representation and mutable input base.
 - @ref CharmmCrd is the supported native CHARMM coordinate-file reader.
-- @ref PDB is the legacy native-only PDB reader.
 - @ref apo_charmm_crd is the public opaque C ABI handle.
 - @ref apo_charmm_crd_create and @ref apo_charmm_crd_destroy manage C handle
   lifetime.
 - @ref apo_charmm_crd_get_num_atoms and
   @ref apo_charmm_crd_get_coordinates copy C ABI outputs.
 - @ref python_charmm_crd is the owning Python wrapper reference.
-- @ref CharmmContext documents the native consumer of coordinate input.
+- @ref charmm_context "CharmmContext" documents the native consumer of
+  coordinate input.

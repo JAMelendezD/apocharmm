@@ -7,6 +7,11 @@
 //
 // ENDLICENSE
 
+/**
+ * @file
+ * @brief Declares the C ABI base-subscriber interface.
+ */
+
 #ifndef __APOCHARMM_C_SUBSCRIBER_H__
 #define __APOCHARMM_C_SUBSCRIBER_H__
 

@@ -7,6 +7,11 @@
 //
 // ENDLICENSE
 
+/**
+ * @file
+ * @brief Declares the C ABI DCD subscriber interface.
+ */
+
 #ifndef __APOCHARMM_C_DCD_SUBSCRIBER_H__
 #define __APOCHARMM_C_DCD_SUBSCRIBER_H__
 

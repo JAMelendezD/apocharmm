@@ -32,9 +32,9 @@
  * synchronizes all previously requested work on the current CUDA device; no
  * subscriber-specific stream is used.
  *
- * @warning Updates support only @ref CudaNoseHooverIntegrator,
- * @ref CudaLangevinPistonIntegrator, and
- * @ref CudaLangevinThermostatIntegrator.
+ * @warning Updates support only `CudaNoseHooverIntegrator`,
+ * `CudaLangevinPistonIntegrator`, and
+ * `CudaLangevinThermostatIntegrator`.
  * @warning Each update truncates the target before all sections are generated.
  * A later failure can destroy a previously usable restart and leave a partial
  * replacement.

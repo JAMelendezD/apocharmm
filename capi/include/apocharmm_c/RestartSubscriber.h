@@ -7,6 +7,11 @@
 //
 // ENDLICENSE
 
+/**
+ * @file
+ * @brief Declares the C ABI restart subscriber interface.
+ */
+
 #ifndef __APOCHARMM_C_RESTART_SUBSCRIBER_H__
 #define __APOCHARMM_C_RESTART_SUBSCRIBER_H__
 

@@ -37,7 +37,7 @@
  * pointers, and iterators.
  *
  * @warning The destructor is not virtual. Do not delete a derived
- * @ref CharmmCrd or @ref PDB object through a `Coordinates` pointer.
+ * @ref CharmmCrd object through a `Coordinates` pointer.
  * @warning The class provides no internal synchronization. Externally
  * serialize overlapping access whenever an operation can mutate the object or
  * either returned vector.

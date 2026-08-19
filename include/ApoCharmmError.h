@@ -8,6 +8,11 @@
 //
 // ENDLICENSE
 
+/**
+ * @file
+ * @brief Declares categorized native errors and source-capturing error macros.
+ */
+
 #pragma once
 
 #include <stdexcept>

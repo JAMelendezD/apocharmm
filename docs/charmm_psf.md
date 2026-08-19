@@ -310,16 +310,16 @@ CharmmPSF-level synchronization contract.
 
 ## Related Subsystems
 
-- @subpage charmm_parameters consumes PSF atom types and topology while packing
-  bonded and Lennard-Jones data.
-- @subpage force_manager retains shared PSF ownership and initializes native
-  force implementations.
-- @subpage charmm_context retains a PSF and imports its charges and masses into
-  simulation state.
-- @subpage cuda_container documents the host/device mirrors used for residues,
-  waters, and groups.
-- @subpage apocharmm_error documents native exceptions and C/Python error
-  translation.
+- @ref charmm_parameters "CharmmParameters" consumes PSF atom types and
+  topology while packing bonded and Lennard-Jones data.
+- @ref force_manager "ForceManager" retains shared PSF ownership and
+  initializes native force implementations.
+- @ref charmm_context "CharmmContext" retains a PSF and imports its charges and
+  masses into simulation state.
+- @ref cuda_container "CudaContainer" documents the host/device mirrors used
+  for residues, waters, and groups.
+- @ref apocharmm_error "ApoCharmmError" documents native exceptions and
+  C/Python error translation.
 
 ## Developer Architecture
 

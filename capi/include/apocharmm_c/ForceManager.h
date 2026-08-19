@@ -7,6 +7,11 @@
 //
 // ENDLICENSE
 
+/**
+ * @file
+ * @brief Declares the C ABI force-manager interface.
+ */
+
 #ifndef __APOCHARMM_C_FORCE_MANAGER_H__
 #define __APOCHARMM_C_FORCE_MANAGER_H__
 

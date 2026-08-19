@@ -14,8 +14,6 @@ The public constants and `ApoCharmmError` are re-exported by the top-level
 `apocharmm` package. Native wrapper functions use `configure_status_function()`
 to convert nonzero C ABI statuses into one Python exception type while
 retaining the numeric status, operation context, and copied native diagnostic.
-
-@anchor python_apocharmm_error_module
 """
 
 from collections.abc import Callable, Sequence

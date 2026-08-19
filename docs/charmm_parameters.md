@@ -24,7 +24,7 @@ parameters = apo.CharmmParameters("test/data/toppar_water_ions.str")
 psf = apo.CharmmPsf("test/data/waterbox.psf")
 context = apo.CharmmContext(psf, parameters)
 context.setBoxDimensions([50.0, 50.0, 50.0])
-````
+```
 
 After construction, `parameters` owns a parsed native parameter set. The context
 and its native ForceManager retain the native parameter data needed for later
@@ -303,12 +303,14 @@ library can raise `OSError`. Native invalid-argument and runtime statuses become
 
 ## Related Subsystems
 
-* @ref CharmmPSF supplies atom types and bonded topology used during packing.
-* @subpage force_manager consumes the packed host data and initializes CUDA
-  force objects.
-* @subpage charmm_context retains the ForceManager used by a simulation state.
-* @subpage apocharmm_error defines native error categories and C/Python error
-  translation.
+* @ref charmm_psf "CharmmPSF" supplies atom types and bonded topology used
+  during packing.
+* @ref force_manager "ForceManager" consumes the packed host data and
+  initializes CUDA force objects.
+* @ref charmm_context "CharmmContext" retains the ForceManager used by a
+  simulation state.
+* @ref apocharmm_error "ApoCharmmError" defines native error categories and
+  C/Python error translation.
 
 ## Developer Architecture
 

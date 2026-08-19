@@ -7,6 +7,11 @@
 //
 // ENDLICENSE
 
+/**
+ * @file
+ * @brief Declares the C ABI CHARMM PSF interface.
+ */
+
 #ifndef __APOCHARMM_C_CHARMM_PSF_H__
 #define __APOCHARMM_C_CHARMM_PSF_H__
 

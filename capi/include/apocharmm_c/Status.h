@@ -7,6 +7,11 @@
 //
 // ENDLICENSE
 
+/**
+ * @file
+ * @brief Declares the stable status values returned by the apoCHARMM C ABI.
+ */
+
 #ifndef __APOCHARMM_C_STATUS_H__
 #define __APOCHARMM_C_STATUS_H__
 

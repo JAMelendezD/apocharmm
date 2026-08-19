@@ -191,9 +191,10 @@ mirror or its contents.
 
 ## Related Subsystems
 
-- @ref device_vector documents the owned CUDA allocation used for the device
-  mirror.
-- @ref apocharmm_error documents native exceptions and CUDA error conversion.
+- @ref device_vector "DeviceVector" documents the owned CUDA allocation used
+  for the device mirror.
+- @ref apocharmm_error "ApoCharmmError" documents native exceptions and CUDA
+  error conversion.
 
 ## Developer Architecture
 

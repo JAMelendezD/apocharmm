@@ -8,6 +8,11 @@
 //
 // ENDLICENSE
 
+/**
+ * @file
+ * @brief Declares apoCHARMM periodic-boundary and crystal identifiers.
+ */
+
 #pragma once
 
 /**

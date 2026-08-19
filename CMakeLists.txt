@@ -64,8 +64,16 @@ if(APOCHARMM_ENABLE_PYTHON_API)
   add_subdirectory(${apoCHARMM_SOURCE_DIR}/capi)
 endif()
 
-# Compile the test cases
+# Register optional tests and documentation only for the top-level project.
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+  option(APOCHARMM_ENABLE_DOCUMENTATION
+    "Enable the apoCHARMM Doxygen documentation target"
+    OFF
+  )
+  if(APOCHARMM_ENABLE_DOCUMENTATION)
+    add_subdirectory(${apoCHARMM_SOURCE_DIR}/docs)
+  endif()
+
   include(CTest)
 
   if(BUILD_TESTING)

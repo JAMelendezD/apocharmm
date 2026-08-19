@@ -281,15 +281,15 @@ mutable storage aliases.
 
 ## Related Subsystems
 
-- @ref ForceManager performs bonded, direct-space, reciprocal, and subscribed
-  force calculations.
-- @ref CharmmPSF supplies topology, charges, masses, groups, bonds, water
-  records, and exclusions.
-- @ref CharmmParameters supplies force-field parameters.
-- @ref CudaContainer stores the context's paired host/device arrays.
-- @ref cuda_container explains mirror coherence, transfers, synchronization,
-  and reference invalidation.
-- @ref ApoCharmmError and @ref apocharmm_error describe native error codes and
+- @ref force_manager "ForceManager" performs bonded, direct-space, reciprocal,
+  and subscribed force calculations.
+- @ref charmm_psf "CharmmPSF" supplies topology, charges, masses, groups,
+  bonds, water records, and exclusions.
+- @ref charmm_parameters "CharmmParameters" supplies force-field parameters.
+- @ref cuda_container "CudaContainer" explains the context's paired host/device
+  arrays, mirror coherence, transfers, synchronization, and reference
+  invalidation.
+- @ref apocharmm_error "ApoCharmmError" describes native error codes and
   diagnostics.
 - @ref PBC and @ref python_periodic_boundary_condition describe periodic
   boundary identifiers.

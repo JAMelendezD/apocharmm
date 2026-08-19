@@ -299,18 +299,21 @@ synchronization.
 
 ## Related Subsystems
 
-- @ref charmm_context owns mutable molecular state and drives ForceManager
-  initialization and calculation.
-- @ref CharmmPSF supplies atom, topology, mass, charge, exclusion, and
-  constraint information.
-- @ref CharmmParameters supplies bonded and nonbonded parameter records.
-- @ref Force stores component and aggregate device force arrays.
-- @ref CudaEnergyVirial stores named energy components and virial data.
-- @ref cuda_container describes host/device mirrored container behavior.
-- @ref ForceManagerComposite is the direct composite-manager extension.
-- @ref HarmonicRestraintForce and
-  @ref HarmonicCenterOfMassRestraintForce are subscription clients.
-- @ref apocharmm_error describes native, C ABI, and Python error propagation.
+- @ref charmm_context "CharmmContext" owns mutable molecular state and drives
+  ForceManager initialization and calculation.
+- @ref charmm_psf "CharmmPSF" supplies atom, topology, mass, charge, exclusion,
+  and constraint information.
+- @ref charmm_parameters "CharmmParameters" supplies bonded and nonbonded
+  parameter records.
+- `Force` stores component and aggregate device force arrays.
+- `CudaEnergyVirial` stores named energy components and virial data.
+- @ref cuda_container "CudaContainer" describes host/device mirrored container
+  behavior.
+- `ForceManagerComposite` is the direct composite-manager extension.
+- `HarmonicRestraintForce` and `HarmonicCenterOfMassRestraintForce` are
+  subscription clients.
+- @ref apocharmm_error "ApoCharmmError" describes native, C ABI, and Python
+  error propagation.
 
 ## Developer Architecture
 

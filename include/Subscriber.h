@@ -22,10 +22,10 @@ class CudaIntegrator;
  *
  * A subscriber owns one host output stream, stores a positive report frequency,
  * and can retain shared ownership of one @ref CharmmContext and one
- * @ref CudaIntegrator. @ref CudaIntegrator::subscribe attaches those
- * collaborators, retains the subscriber, and snapshots its current report
- * frequency. During propagation, the integrator invokes @ref update
- * synchronously on the calling thread after each matching dynamics step.
+ * `CudaIntegrator`. `CudaIntegrator::subscribe()` attaches those collaborators,
+ * retains the subscriber, and snapshots its current report frequency. During
+ * propagation, the integrator invokes @ref update synchronously on the calling
+ * thread after each matching dynamics step.
  *
  * The base class is abstract. It is not copyable because it owns a
  * `std::fstream`, and its user-declared destructor prevents implicit move
@@ -33,7 +33,7 @@ class CudaIntegrator;
  * stream access, attachment, frequency changes, updates, and destruction.
  *
  * @warning A subscribed integrator and subscriber retain each other through
- * `std::shared_ptr`. Call @ref CudaIntegrator::unsubscribe before releasing the
+ * `std::shared_ptr`. Call `CudaIntegrator::unsubscribe()` before releasing the
  * final external owners.
  * @warning Configure the file name and report frequency before subscription.
  * The integrator caches the frequency and does not observe later changes.
@@ -197,7 +197,7 @@ public:
   /**
    * @brief Writes one subscriber-specific report.
    *
-   * @ref CudaIntegrator invokes this virtual operation synchronously after a
+   * `CudaIntegrator` invokes this virtual operation synchronously after a
    * propagated step whose local step index is divisible by the frequency
    * cached at subscription. Direct callers are responsible for establishing
    * every state precondition of the concrete subscriber.

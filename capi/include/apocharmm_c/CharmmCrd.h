@@ -7,6 +7,11 @@
 //
 // ENDLICENSE
 
+/**
+ * @file
+ * @brief Declares the C ABI CHARMM coordinate-file interface.
+ */
+
 #ifndef __APOCHARMM_C_CHARMM_CRD_H__
 #define __APOCHARMM_C_CHARMM_CRD_H__
 

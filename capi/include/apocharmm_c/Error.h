@@ -7,6 +7,11 @@
 //
 // ENDLICENSE
 
+/**
+ * @file
+ * @brief Declares access to the calling thread's last C ABI diagnostic.
+ */
+
 #ifndef __APOCHARMM_C_ERROR_H__
 #define __APOCHARMM_C_ERROR_H__
 

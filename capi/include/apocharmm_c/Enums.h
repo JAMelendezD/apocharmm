@@ -8,6 +8,11 @@
 //
 // ENDLICENSE
 
+/**
+ * @file
+ * @brief Declares public enumeration types used by the apoCHARMM C ABI.
+ */
+
 #ifndef __APOCHARMM_C_ENUMS_H__
 #define __APOCHARMM_C_ENUMS_H__
 

@@ -7,6 +7,11 @@
 //
 // ENDLICENSE
 
+/**
+ * @file
+ * @brief Declares the C ABI atom-selection result interface.
+ */
+
 #ifndef __APOCHARMM_C_ATOM_SELECTION_H__
 #define __APOCHARMM_C_ATOM_SELECTION_H__
 

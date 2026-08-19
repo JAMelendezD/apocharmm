@@ -34,6 +34,10 @@ The C++ unit tests use the vendored single-header Catch2 file at
 `test/unittests/catch.hpp`. This file is shipped with the test sources and is
 not fetched as an external library during configuration or build.
 
+Building the API documentation additionally requires Doxygen. CMake searches for
+it only when `APOCHARMM_ENABLE_DOCUMENTATION=ON`. Normal builds do not require
+Doxygen.
+
 The source code was developed using the tool and compiler versions listed in the
 installation section below. Other versions may work.
 
@@ -101,7 +105,23 @@ cmake -S . -B build -DAPOCHARMM_CUDA_ARCHITECTURES="80;90"
 cmake --build build --parallel
 ```
 
-### 2. Enable use of the Python API
+### 2. Build the API documentation
+
+Documentation generation is optional and is not part of the default build.
+Ensure that `doxygen` is available by running `doxygen --version`, configure the
+project with documentation enabled, then build the documentation target
+explicitly:
+
+```
+cmake -S . -B build -DAPOCHARMM_ENABLE_DOCUMENTATION=ON
+cmake --build build --target docs
+```
+
+The generated HTML entry point is `build/docs/html/index.html`. Doxygen warnings
+are written to `build/docs/doxygen-warnings.log` and cause the documentation
+target to fail.
+
+### 3. Enable use of the Python API
 
 In your shells's configuration script (typically `~/.bashrc`) add the following
 lines to the end.

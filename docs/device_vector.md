@@ -157,9 +157,10 @@ mutate an object.
 
 ## Related Subsystems
 
-- @ref CudaContainer maintains a host `std::vector<T>` and a device
-  `DeviceVector<T>` with explicit transfer operations.
-- @ref apocharmm_error describes @ref ApoCharmmError and CUDA error reporting.
+- @ref cuda_container "CudaContainer" maintains a host `std::vector<T>` and a
+  device `DeviceVector<T>` with explicit transfer operations.
+- @ref apocharmm_error "ApoCharmmError" describes native and CUDA error
+  reporting.
 
 ## Developer Architecture
 
