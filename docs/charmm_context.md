@@ -6,12 +6,13 @@
 state. It stores coordinates, charges, velocities, inverse masses, box and
 periodic-boundary state, random-velocity state, degree-of-freedom bookkeeping,
 and force-evaluation output. It delegates bonded, direct-space, reciprocal, and
-subscribed-force calculations to an attached @ref ForceManager.
+subscribed-force calculations to an attached [ForceManager](@ref ForceManager).
 
 Use a context whenever force calculation or integration requires one coherent
 set of molecular state. The context is also the point at which a
-@ref CharmmPSF, @ref CharmmParameters, and @ref ForceManager are reconciled and,
-once all required state is available, initialized.
+[CharmmPSF](@ref CharmmPSF), [CharmmParameters](@ref CharmmParameters), and
+[ForceManager](@ref ForceManager) are reconciled and, once all required state is
+available, initialized.
 
 The subsystem is exposed through native C++, the public C ABI, and Python.
 
@@ -188,7 +189,8 @@ not mass.
 
 ### Native C++
 
-Verified native failures use @ref ApoCharmmError and the following codes:
+Verified native failures use [ApoCharmmError](@ref ApoCharmmError) and the
+following codes:
 
 - `ApoCharmmErrorCode::InvalidArgument` for null collaborators, invalid counts
   and shapes, invalid scalar ranges, atom-count mismatches, and unsupported
@@ -281,19 +283,22 @@ mutable storage aliases.
 
 ## Related Subsystems
 
-- @ref force_manager "ForceManager" performs bonded, direct-space, reciprocal,
+- [ForceManager](@ref force_manager) performs bonded, direct-space, reciprocal,
   and subscribed force calculations.
-- @ref charmm_psf "CharmmPSF" supplies topology, charges, masses, groups,
+- [CharmmPSF](@ref charmm_psf) supplies topology, charges, masses, groups,
   bonds, water records, and exclusions.
-- @ref charmm_parameters "CharmmParameters" supplies force-field parameters.
-- @ref cuda_container "CudaContainer" explains the context's paired host/device
+- [CharmmParameters](@ref charmm_parameters) supplies force-field parameters.
+- [CudaContainer](@ref cuda_container) explains the context's paired host/device
   arrays, mirror coherence, transfers, synchronization, and reference
   invalidation.
-- @ref apocharmm_error "ApoCharmmError" describes native error codes and
+- [ApoCharmmError](@ref apocharmm_error) describes native error codes and
   diagnostics.
-- @ref PBC and @ref python_periodic_boundary_condition describe periodic
+- [PBC](@ref PBC) and
+  [python_periodic_boundary_condition](@ref python_periodic_boundary_condition)
+  describe periodic
   boundary identifiers.
-- @ref python_vdw_type describes Python van der Waals model values.
+- [python_vdw_type](@ref python_vdw_type) describes Python van der Waals model
+  values.
 
 ## Developer Architecture
 
@@ -304,12 +309,11 @@ coordinates force-manager initialization and neighbor-list state.
 
 The public C ABI is declared in
 `capi/include/apocharmm_c/CharmmContext.h`. Its private ownership payload is
-defined in
-`capi/private_include/apocharmm_c/detail/CharmmContextHandle.h`, and entry points
-are implemented in `capi/src/apocharmm_c/CharmmContext.cpp`. Every status
-entry point uses the shared C ABI guard and validation helpers. Constructor and
-force-manager output functions clear owned-handle output slots before later
-validation.
+defined in `capi/private_include/apocharmm_c/detail/CharmmContextHandle.h`, and
+entry points are implemented in `capi/src/apocharmm_c/CharmmContext.cpp`. Every
+status entry point uses the shared C ABI guard and validation helpers.
+Constructor and force-manager output functions clear owned-handle output slots
+before later validation.
 
 The Python wrapper is `python/apocharmm/charmm_context.py`. It initializes
 `ctypes` prototypes lazily, normalizes enums and paths, converts nested rows to
@@ -387,11 +391,12 @@ whose current backend forwarding order requires clarification.
 
 ## API Reference
 
-- Native C++: @ref CharmmContext and @ref PBC.
-- Public C ABI: @ref apo_charmm_context,
+- Native C++: [CharmmContext](@ref CharmmContext) and [PBC](@ref PBC).
+- Public C ABI: [apo_charmm_context](@ref apo_charmm_context),
   `apo_charmm_context_create()`,
   `apo_charmm_context_create_from_psf_parameters()`, and the
   `apo_charmm_context_*` functions in
   `capi/include/apocharmm_c/CharmmContext.h`.
-- Python: @ref python_charmm_context,
-  @ref python_periodic_boundary_condition, and @ref python_vdw_type.
+- Python: [python_charmm_context](@ref python_charmm_context),
+  [python_periodic_boundary_condition](@ref python_periodic_boundary_condition),
+  and [python_vdw_type](@ref python_vdw_type).

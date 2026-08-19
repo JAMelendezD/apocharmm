@@ -10,9 +10,10 @@ bonded-component intervals.
 
 Use this subsystem when constructing an apoCHARMM force manager or simulation
 context from a PSF file. `CharmmPSF` supplies topology and atom metadata. Force
-constants and Lennard-Jones parameters remain in @ref CharmmParameters, while
-coordinates, velocities, box state, and force-evaluation output remain in
-@ref CharmmContext and its collaborators.
+constants and Lennard-Jones parameters remain in
+[CharmmParameters](@ref CharmmParameters), while coordinates, velocities, box
+state, and force-evaluation output remain in [CharmmContext](@ref CharmmContext)
+and its collaborators.
 
 The native C++ API exposes the complete stored representation, including
 low-level mutable access. The public C ABI and Python wrapper expose
@@ -57,7 +58,8 @@ int main() {
 
 Link the example against the native apoCHARMM library and the CUDA runtime. The
 constructor can perform CUDA allocation while creating derived
-@ref CudaContainer data even though the primary PSF records are host-resident.
+[CudaContainer](@ref CudaContainer) data even though the primary PSF records are
+host-resident.
 
 ## Construction and Required State
 
@@ -105,9 +107,9 @@ After primary parsing, construction performs this derived-state sequence:
 3. build 1-2, 1-3, and 1-4 connectivity and CHARMM exclusion arrays.
 
 Residue intervals are built while ATOM records are parsed. Operations that
-consume a PSF through @ref CharmmParameters or @ref ForceManager expect the
-parsed counts, vectors, atom-index conventions, and derived state to remain
-consistent.
+consume a PSF through [CharmmParameters](@ref CharmmParameters) or
+[ForceManager](@ref ForceManager) expect the parsed counts, vectors, atom-index
+conventions, and derived state to remain consistent.
 
 ## Ownership and Lifetime
 
@@ -130,21 +132,22 @@ and leaves its source unchanged. The implicit copy-assignment operator performs
 memberwise assignment and is not transactional.
 
 The implicit destructor is non-throwing. Nested device allocations are released
-through @ref CudaContainer and @ref DeviceVector non-throwing destruction.
-Cleanup failures during destruction are not propagated.
+through [CudaContainer](@ref CudaContainer) and
+[DeviceVector](@ref DeviceVector) non-throwing destruction. Cleanup failures
+during destruction are not propagated.
 
 Each public `apo_charmm_psf` handle owns a private
 `std::shared_ptr<CharmmPSF>`. Release the handle exactly once with
-@ref apo_charmm_psf_destroy; passing `NULL` to that destroy function is
-accepted. A C ForceManager or CharmmContext created from the PSF copies native
-shared ownership, so destroying the source PSF handle does not invalidate those
-objects.
+[apo_charmm_psf_destroy](@ref apo_charmm_psf_destroy); passing `NULL` to that
+destroy function is accepted. A C ForceManager or CharmmContext created from the
+PSF copies native shared ownership, so destroying the source PSF handle does not
+invalidate those objects.
 
-The Python @ref python_charmm_psf wrapper owns one C handle. `close()` and
-context-manager exit release it idempotently. Calling a method after closure
-raises `RuntimeError`. Python ForceManager and CharmmContext wrappers retain
-source-wrapper references where required, while the corresponding native
-objects separately retain the shared native PSF.
+The Python [python_charmm_psf](@ref python_charmm_psf) wrapper owns one C
+handle. `close()` and context-manager exit release it idempotently. Calling a
+method after closure raises `RuntimeError`. Python ForceManager and
+CharmmContext wrappers retain source-wrapper references where required, while
+the corresponding native objects separately retain the shared native PSF.
 
 No layer provides internal synchronization for concurrent mutation or
 destruction. Externally serialize overlapping access whenever one operation can
@@ -168,11 +171,12 @@ ATOM-record order:
 PSF parsing requires finite charge and mass values but performs no positivity or
 other physical-range validation.
 
-@ref Bond stores two zero-based atom indices. @ref Angle stores three
-zero-based indices with the central atom in `jatom`. @ref Dihedral stores four
-zero-based indices and represents both proper and improper records. The
-current @ref CrossTerm representation contains two four-atom tuples but retains
-one-based file atom numbers.
+[Bond](@ref Bond) stores two zero-based atom indices. [Angle](@ref Angle) stores
+three zero-based indices with the central atom in `jatom`.
+[Dihedral](@ref Dihedral) stores four zero-based indices and represents both
+proper and improper records. The current [CrossTerm](@ref CrossTerm)
+representation contains two four-atom tuples but retains one-based file atom
+numbers.
 
 The 1-2, 1-3, and 1-4 connectivity members are host vectors of sets. The outer
 index is a zero-based source atom. Each set contains zero-based connected atom
@@ -203,16 +207,17 @@ types `OT`, `HT`, `HT`. Residue intervals currently split when the numeric
 residue identifier changes. Group intervals currently assume every bonded
 component occupies contiguous atom indices.
 
-The host and device arrays in each @ref CudaContainer are mirrors by
-convention, not continuously coherent storage. The PSF file constructor uses
-CudaContainer modifiers to populate both mirrors. Later host-only mutation is
-not visible on the device until `transferToDevice()` succeeds. Device-only
-mutation is not visible on the host until `transferToHost()` succeeds. These
-transfers preserve values without unit conversion.
+The host and device arrays in each [CudaContainer](@ref CudaContainer) are
+mirrors by convention, not continuously coherent storage. The PSF file
+constructor uses CudaContainer modifiers to populate both mirrors. Later
+host-only mutation is not visible on the device until `transferToDevice()`
+succeeds. Device-only mutation is not visible on the host until
+`transferToHost()` succeeds. These transfers preserve values without unit
+conversion.
 
 ## Errors
 
-The native file constructor throws @ref ApoCharmmError with
+The native file constructor throws [ApoCharmmError](@ref ApoCharmmError) with
 `ApoCharmmErrorCode::InvalidArgument` for an empty path. File I/O failures,
 missing sections, malformed records, non-finite numeric values, unsupported
 counts, and out-of-range topology atom numbers use
@@ -236,8 +241,9 @@ uncategorized runtime failures to `APO_STATUS_RUNTIME_ERROR`, CUDA failures to
 `APO_STATUS_CUDA_ERROR`, and uninitialized aggregate state to
 `APO_STATUS_NOT_INITIALIZED`. Every status-returning function clears the calling
 thread's previous diagnostic. Failure leaves borrowed thread-local text
-available through @ref apo_last_error. Copy that text before another guarded
-call on the same thread. Normal destruction preserves the previous diagnostic.
+available through [apo_last_error](@ref apo_last_error). Copy that text before
+another guarded call on the same thread. Normal destruction preserves the
+previous diagnostic.
 
 C ABI count and scalar output slots are set to zero before handle validation.
 After those output pointers are validated, a later failure leaves the zero
@@ -310,15 +316,15 @@ CharmmPSF-level synchronization contract.
 
 ## Related Subsystems
 
-- @ref charmm_parameters "CharmmParameters" consumes PSF atom types and
+- [CharmmParameters](@ref charmm_parameters) consumes PSF atom types and
   topology while packing bonded and Lennard-Jones data.
-- @ref force_manager "ForceManager" retains shared PSF ownership and
+- [ForceManager](@ref force_manager) retains shared PSF ownership and
   initializes native force implementations.
-- @ref charmm_context "CharmmContext" retains a PSF and imports its charges and
+- [CharmmContext](@ref charmm_context) retains a PSF and imports its charges and
   masses into simulation state.
-- @ref cuda_container "CudaContainer" documents the host/device mirrors used
+- [CudaContainer](@ref cuda_container) documents the host/device mirrors used
   for residues, waters, and groups.
-- @ref apocharmm_error "ApoCharmmError" documents native exceptions and
+- [ApoCharmmError](@ref apocharmm_error) documents native exceptions and
   C/Python error translation.
 
 ## Developer Architecture
@@ -403,13 +409,15 @@ buffer limit.
 
 ## API Reference
 
-- @ref CharmmPSF is the complete native C++ class reference.
-- @ref Bond, @ref Angle, @ref Dihedral, and @ref CrossTerm describe native
-  topology records.
-- @ref InclusionExclusion describes the owned flattened pair-list result.
-- @ref apo_charmm_psf is the public opaque C ABI handle.
-- @ref apo_charmm_psf_create and @ref apo_charmm_psf_destroy manage C handle
+- [CharmmPSF](@ref CharmmPSF) is the complete native C++ class reference.
+- [Bond](@ref Bond), [Angle](@ref Angle), [Dihedral](@ref Dihedral), and
+  [CrossTerm](@ref CrossTerm) describe native topology records.
+- [InclusionExclusion](@ref InclusionExclusion) describes the owned flattened
+  pair-list result.
+- [apo_charmm_psf](@ref apo_charmm_psf) is the public opaque C ABI handle.
+- [apo_charmm_psf_create](@ref apo_charmm_psf_create) and
+  [apo_charmm_psf_destroy](@ref apo_charmm_psf_destroy) manage C handle
   lifetime.
 - `apo_charmm_psf_get_*` functions expose C ABI counts, metadata, aggregates,
   and the stored path.
-- @ref python_charmm_psf is the Python wrapper reference.
+- [python_charmm_psf](@ref python_charmm_psf) is the Python wrapper reference.

@@ -5,13 +5,13 @@
 `CharmmParameters` is apoCHARMM's host-side representation of the bonded and
 Lennard-Jones records read from CHARMM `.prm` and `.str` files. It parses force
 field records, stores lookup tables keyed by atom type, and combines those
-tables with a @ref CharmmPSF when @ref ForceManager initializes its bonded and
-direct-space CUDA force objects.
+tables with a [CharmmPSF](@ref CharmmPSF) when [ForceManager](@ref ForceManager)
+initializes its bonded and direct-space CUDA force objects.
 
 Use this subsystem when constructing a simulation context or force manager from
 CHARMM force-field files. It stores force-field parameters only. Topology, atom
-charges, masses, and connectivity remain in @ref CharmmPSF; coordinates remain
-in the context and coordinate subsystems.
+charges, masses, and connectivity remain in [CharmmPSF](@ref CharmmPSF);
+coordinates remain in the context and coordinate subsystems.
 
 ## Quick Start
 
@@ -92,11 +92,13 @@ Supported data-record layouts are:
 
 The ignored numeric fields are still parsed and must be valid finite numbers.
 
-The public C++ method @ref CharmmParameters::readCharmmParameterFile merges an
-additional file into an existing object. It is not exposed by the current C ABI
-or Python wrapper. It also does not append the path to
-@ref CharmmParameters::getPrmFileNames; that getter reports only paths supplied
-to a successful file-reading constructor.
+The public C++ method
+[CharmmParameters::readCharmmParameterFile](@ref CharmmParameters::readCharmmParameterFile)
+merges an additional file into an existing object. It is not exposed by the
+current C ABI or Python wrapper. It also does not append the path to
+[CharmmParameters::getPrmFileNames](@ref CharmmParameters::getPrmFileNames);
+that getter reports only paths supplied to a successful file-reading
+constructor.
 
 Duplicate handling is section-specific:
 
@@ -123,22 +125,25 @@ replaces its state. Incremental reads are visible through existing map
 references; appending proper-dihedral terms can invalidate references and
 iterators into the affected term vector.
 
-The output of @ref CharmmParameters::getBondedParamsAndLists and
-@ref CharmmParameters::getVdwParamsAndTypes is an owned host-side copy. The
-input `std::shared_ptr<CharmmPSF>` is borrowed for the call and is neither
-mutated nor retained.
+The output of
+[CharmmParameters::getBondedParamsAndLists](@ref CharmmParameters::getBondedParamsAndLists)
+and
+[CharmmParameters::getVdwParamsAndTypes](@ref CharmmParameters::getVdwParamsAndTypes)
+is an owned host-side copy. The input `std::shared_ptr<CharmmPSF>` is borrowed
+for the call and is neither mutated nor retained.
 
 Each public `apo_charmm_parameters` C handle owns a private
 `std::shared_ptr<CharmmParameters>`. Destroy it exactly once with
-@ref apo_charmm_parameters_destroy. The destroy function accepts `NULL`. A C
-ForceManager created from the handle copies native shared ownership, so the
-source parameter handle may be destroyed without invalidating that manager.
+[apo_charmm_parameters_destroy](@ref apo_charmm_parameters_destroy). The destroy
+function accepts `NULL`. A C ForceManager created from the handle copies native
+shared ownership, so the source parameter handle may be destroyed without
+invalidating that manager.
 
-The Python @ref python_charmm_parameters wrapper owns one C handle. `close()`
-and context-manager exit release it idempotently. Original Python path objects
-and temporary encoded path buffers are not retained. A Python ForceManager
-wrapper also retains the parameter wrapper, while the native manager separately
-retains the native shared object.
+The Python [python_charmm_parameters](@ref python_charmm_parameters) wrapper
+owns one C handle. `close()` and context-manager exit release it idempotently.
+Original Python path objects and temporary encoded path buffers are not
+retained. A Python ForceManager wrapper also retains the parameter wrapper,
+while the native manager separately retains the native shared object.
 
 None of these layers provides internal synchronization for concurrent host
 mutation, use, or destruction. Coordinate concurrent access externally.
@@ -169,8 +174,8 @@ members before reading it.
 
 ### Bonded packing
 
-@ref BondedParamsAndLists contains four host vectors. `paramsSize` and
-`listsSize` each have six entries in this fixed order:
+[BondedParamsAndLists](@ref BondedParamsAndLists) contains four host vectors.
+`paramsSize` and `listsSize` each have six entries in this fixed order:
 
 1. bond;
 2. Urey-Bradley;
@@ -263,8 +268,8 @@ The C ABI maps invalid inputs to `APO_STATUS_INVALID_ARGUMENT` and parsing,
 file-I/O, allocation, or other uncategorized native failures to
 `APO_STATUS_RUNTIME_ERROR`. Each status-returning call clears the calling
 thread's previous diagnostic. On failure, copy the borrowed text returned by
-@ref apo_last_error before another guarded C ABI call on the same thread. A
-successful destroy preserves the previous diagnostic.
+[apo_last_error](@ref apo_last_error) before another guarded C ABI call on the
+same thread. A successful destroy preserves the previous diagnostic.
 
 The Python wrapper raises `TypeError` when `os.fsencode` cannot convert a path.
 It raises `RuntimeError` when `APOCHARMM_LIBRARY_PATH` is unset or empty, when
@@ -303,21 +308,21 @@ library can raise `OSError`. Native invalid-argument and runtime statuses become
 
 ## Related Subsystems
 
-* @ref charmm_psf "CharmmPSF" supplies atom types and bonded topology used
+* [CharmmPSF](@ref charmm_psf) supplies atom types and bonded topology used
   during packing.
-* @ref force_manager "ForceManager" consumes the packed host data and
+* [ForceManager](@ref force_manager) consumes the packed host data and
   initializes CUDA force objects.
-* @ref charmm_context "CharmmContext" retains the ForceManager used by a
+* [CharmmContext](@ref charmm_context) retains the ForceManager used by a
   simulation state.
-* @ref apocharmm_error "ApoCharmmError" defines native error categories and
+* [ApoCharmmError](@ref apocharmm_error) defines native error categories and
   C/Python error translation.
 
 ## Developer Architecture
 
 ### Layers and ownership graph
 
-The public C++ layer consists of @ref CharmmParameters, its key and value types,
-and the two packed host-data structs. The implementation in
+The public C++ layer consists of [CharmmParameters](@ref CharmmParameters), its
+key and value types, and the two packed host-data structs. The implementation in
 `src/CharmmParameters.cu` performs only host-side parsing and packing despite
 the `.cu` extension.
 
@@ -402,21 +407,24 @@ CudaBondedForce tests exercise the downstream packed-data consumers.
 
 C++ types:
 
-* @ref CharmmParameters
-* @ref BondKey and @ref BondValues
-* @ref AngleKey and @ref AngleValues
-* @ref DihedralKey, @ref DihedralValues, and @ref ImDihedralValues
-* @ref CmapKey
-* @ref VdwParameters and @ref NBFixParameters
-* @ref BondedParamsAndLists and @ref VdwParamsAndTypes
+* [CharmmParameters](@ref CharmmParameters)
+* [BondKey](@ref BondKey) and [BondValues](@ref BondValues)
+* [AngleKey](@ref AngleKey) and [AngleValues](@ref AngleValues)
+* [DihedralKey](@ref DihedralKey), [DihedralValues](@ref DihedralValues), and
+  [ImDihedralValues](@ref ImDihedralValues)
+* [CmapKey](@ref CmapKey)
+* [VdwParameters](@ref VdwParameters) and
+  [NBFixParameters](@ref NBFixParameters)
+* [BondedParamsAndLists](@ref BondedParamsAndLists) and
+  [VdwParamsAndTypes](@ref VdwParamsAndTypes)
 
 C ABI:
 
-* @ref apo_charmm_parameters
-* @ref apo_charmm_parameters_create
-* @ref apo_charmm_parameters_create_from_files
-* @ref apo_charmm_parameters_destroy
+* [apo_charmm_parameters](@ref apo_charmm_parameters)
+* [apo_charmm_parameters_create](@ref apo_charmm_parameters_create)
+* [apo_charmm_parameters_create_from_files](@ref apo_charmm_parameters_create_from_files)
+* [apo_charmm_parameters_destroy](@ref apo_charmm_parameters_destroy)
 
 Python:
 
-* @ref python_charmm_parameters
+* [python_charmm_parameters](@ref python_charmm_parameters)

@@ -3,18 +3,20 @@
 ## Purpose
 
 The Coordinates subsystem represents Cartesian atom positions before and at the
-boundary of an apoCHARMM simulation context. The native @ref Coordinates class
-owns parallel host vectors of `double3` and `float3` records. @ref CharmmCrd
-constructs that representation from a CHARMM coordinate file.
+boundary of an apoCHARMM simulation context. The native
+[Coordinates](@ref Coordinates) class owns parallel host vectors of `double3`
+and `float3` records. [CharmmCrd](@ref CharmmCrd) constructs that representation
+from a CHARMM coordinate file.
 
-Use @ref CharmmCrd when coordinates are supplied in standard or extended CHARMM
-CRD/COR format. Use @ref Coordinates directly when native C++ code already has
-one `[x, y, z]` record per atom. The public C ABI and Python API expose
-CharmmCrd, but do not expose direct construction of the Coordinates base class.
+Use [CharmmCrd](@ref CharmmCrd) when coordinates are supplied in standard or
+extended CHARMM CRD/COR format. Use [Coordinates](@ref Coordinates) directly
+when native C++ code already has one `[x, y, z]` record per atom. The public C
+ABI and Python API expose CharmmCrd, but do not expose direct construction of
+the Coordinates base class.
 
 These objects are input-side host representations. Runtime coordinates and
-charges are owned separately by @ref charmm_context "CharmmContext" in
-@ref cuda_container "CudaContainer" instances after `setCoordinates()` copies
+charges are owned separately by [CharmmContext](@ref charmm_context) in
+[CudaContainer](@ref cuda_container) instances after `setCoordinates()` copies
 those values.
 
 ## Quick Start
@@ -58,7 +60,7 @@ not itself allocate or synchronize CUDA storage.
 
 ## Construction and Required State
 
-Default construction of @ref Coordinates creates unset state:
+Default construction of [Coordinates](@ref Coordinates) creates unset state:
 `getNumAtoms() == -1` and both vectors are empty. The four value constructors
 accept either `std::vector<double3>`, `std::vector<float3>`, nested double rows,
 or nested float rows. An empty input constructs an explicit zero-atom object.
@@ -78,20 +80,20 @@ perform precision conversion. Code that mutates one representation must update
 the other representation and atom count explicitly when later consumers require
 coherence.
 
-@ref CharmmCrd requires a nonempty path. It reads the complete file into host
-memory, skips consecutive nonempty title records beginning with `*` in column
-one, and parses the atom count from the next line's first space-delimited token.
-An exact uppercase `EXT` second token selects extended fixed-width records;
-all other count lines select standard records. Counts from zero through
-`INT_MAX` are accepted. The parser retains only X, Y, and Z in file-record
-order and does not validate the file-name extension.
+[CharmmCrd](@ref CharmmCrd) requires a nonempty path. It reads the complete file
+into host memory, skips consecutive nonempty title records beginning with `*` in
+column one, and parses the atom count from the next line's first space-delimited
+token. An exact uppercase `EXT` second token selects extended fixed-width
+records; all other count lines select standard records. Counts from zero through
+`INT_MAX` are accepted. The parser retains only X, Y, and Z in file-record order
+and does not validate the file-name extension.
 
-A @ref CharmmContext must already have a positive atom count before coordinates
-are assigned. The coordinate count must exactly match the context atom count.
-For a context created from a PSF and parameters, the PSF establishes that count.
-Coordinates may be assigned before or after valid box dimensions; final context
-initialization occurs when all required context and force-manager state is
-available.
+A [CharmmContext](@ref CharmmContext) must already have a positive atom count
+before coordinates are assigned. The coordinate count must exactly match the
+context atom count. For a context created from a PSF and parameters, the PSF
+establishes that count. Coordinates may be assigned before or after valid box
+dimensions; final context initialization occurs when all required context and
+force-manager state is available.
 
 ## Ownership and Lifetime
 
@@ -112,17 +114,20 @@ Coordinates is used as a public base class but does not have a virtual
 destructor. Derived objects must be destroyed through their actual type rather
 than through a Coordinates pointer.
 
-A public @ref apo_charmm_crd handle owns a private
+A public [apo_charmm_crd](@ref apo_charmm_crd) handle owns a private
 `std::shared_ptr<CharmmCrd>`. Release it with
-@ref apo_charmm_crd_destroy. C ABI getter inputs are borrowed. Passing a handle
-to @ref apo_charmm_context_set_coordinates copies its coordinates into the
-context and does not retain the coordinate handle.
+[apo_charmm_crd_destroy](@ref apo_charmm_crd_destroy). C ABI getter inputs are
+borrowed. Passing a handle to
+[apo_charmm_context_set_coordinates](@ref apo_charmm_context_set_coordinates)
+copies its coordinates into the context and does not retain the coordinate
+handle.
 
-The Python @ref python_charmm_crd wrapper owns one C handle. `close()`,
-`destroy()`, and context-manager exit release it idempotently. The wrapper does
-not retain the path object. `getCoordinates()` returns new Python lists and no
-returned value aliases native storage. `CharmmContext.setCoordinates()` borrows
-a CharmmCrd wrapper for the native call and does not retain it.
+The Python [python_charmm_crd](@ref python_charmm_crd) wrapper owns one C
+handle. `close()`, `destroy()`, and context-manager exit release it
+idempotently. The wrapper does not retain the path object. `getCoordinates()`
+returns new Python lists and no returned value aliases native storage.
+`CharmmContext.setCoordinates()` borrows a CharmmCrd wrapper for the native call
+and does not retain it.
 
 No layer provides internal synchronization. Externally serialize concurrent
 mutation, destruction, and any read that overlaps mutation.
@@ -141,7 +146,7 @@ array lengths, and indices are dimensionless.
 
 There is no fourth coordinate component and this subsystem does not store
 charge. Context coordinate-and-charge arrays use separate `float4` and
-`double4` representations documented by @ref charmm_context.
+`double4` representations documented by [CharmmContext](@ref charmm_context).
 
 Double-input native constructors and CharmmCrd preserve parsed values in the
 double-precision vector and convert each component for the single-precision
@@ -158,7 +163,7 @@ list when the force manager is already initialized.
 
 ### Native C++
 
-Nested Coordinates constructors throw @ref ApoCharmmError with
+Nested Coordinates constructors throw [ApoCharmmError](@ref ApoCharmmError) with
 `ApoCharmmErrorCode::InvalidArgument` when a row does not contain exactly three
 values. `setNumAtoms()` uses the same code for a negative count and rejects that
 value before mutating the object.
@@ -182,34 +187,38 @@ can throw `std::out_of_range`; unconvertible coordinate text can throw
 
 ### C ABI
 
-@ref apo_charmm_crd_create returns `APO_STATUS_INVALID_ARGUMENT` for a NULL
-output slot or a NULL or empty path. Verified file, parse, count-range, host
-allocation, and translated standard-exception failures return
-`APO_STATUS_RUNTIME_ERROR`. Coordinate construction performs no CUDA work and
-has no verified `APO_STATUS_CUDA_ERROR` path.
+[apo_charmm_crd_create](@ref apo_charmm_crd_create) returns
+`APO_STATUS_INVALID_ARGUMENT` for a NULL output slot or a NULL or empty path.
+Verified file, parse, count-range, host allocation, and translated
+standard-exception failures return `APO_STATUS_RUNTIME_ERROR`. Coordinate
+construction performs no CUDA work and has no verified `APO_STATUS_CUDA_ERROR`
+path.
 
-@ref apo_charmm_crd_get_num_atoms sets a validated output slot to zero before
-handle validation. A later invalid-handle failure leaves zero visible. Its
-explicit negative-native-count guard returns `APO_STATUS_RUNTIME_ERROR`.
+[apo_charmm_crd_get_num_atoms](@ref apo_charmm_crd_get_num_atoms) sets a
+validated output slot to zero before handle validation. A later invalid-handle
+failure leaves zero visible. Its explicit negative-native-count guard returns
+`APO_STATUS_RUNTIME_ERROR`.
 
-@ref apo_charmm_crd_get_coordinates validates the handle and complete required
-capacity before writing. A rejected handle, NULL nonempty buffer, or short
-buffer returns `APO_STATUS_INVALID_ARGUMENT` and leaves all caller bytes
-unchanged. For a zero-length coordinate vector, a NULL output buffer is
-accepted. On success, trailing buffer elements beyond `3 * N` remain unchanged.
+[apo_charmm_crd_get_coordinates](@ref apo_charmm_crd_get_coordinates) validates
+the handle and complete required capacity before writing. A rejected handle,
+NULL nonempty buffer, or short buffer returns `APO_STATUS_INVALID_ARGUMENT` and
+leaves all caller bytes unchanged. For a zero-length coordinate vector, a NULL
+output buffer is accepted. On success, trailing buffer elements beyond `3 * N`
+remain unchanged.
 
 Each status-returning call clears the calling thread's previous diagnostic.
-Failure leaves borrowed thread-local text available through @ref apo_last_error
-until the next guarded call on that thread or thread exit. Normal destruction
-accepts NULL, does not throw across the C boundary, and preserves the previous
-diagnostic.
+Failure leaves borrowed thread-local text available through
+[apo_last_error](@ref apo_last_error) until the next guarded call on that thread
+or thread exit. Normal destruction accepts NULL, does not throw across the C
+boundary, and preserves the previous diagnostic.
 
 ### Python
 
 The Python constructor accepts `str`, `bytes`, `os.PathLike[str]`, and
 `os.PathLike[bytes]`. `os.fsencode` conversion can raise `TypeError`. Missing
 library configuration raises `RuntimeError`, loading failure raises `OSError`,
-and native nonzero statuses raise @ref python_apocharmm_error_class.
+and native nonzero statuses raise
+[python_apocharmm_error_class](@ref python_apocharmm_error_class).
 
 Using a closed wrapper raises `RuntimeError`. `getCoordinates()` can raise
 `OverflowError` if the native atom count cannot be represented as a ctypes
@@ -252,14 +261,14 @@ directly.
 
 ## Related Subsystems
 
-- @ref charmm_context "CharmmContext" copies coordinate input into simulation
+- [CharmmContext](@ref charmm_context) copies coordinate input into simulation
   state and controls host/device transfers, imaging, and neighbor-list
   rebuilding.
-- @ref charmm_psf "CharmmPSF" supplies the topology whose atom order and count
+- [CharmmPSF](@ref charmm_psf) supplies the topology whose atom order and count
   must match the coordinate records.
-- @ref cuda_container "CudaContainer" owns explicit host/device mirrors used
+- [CudaContainer](@ref cuda_container) owns explicit host/device mirrors used
   after coordinates enter a context.
-- @ref apocharmm_error "ApoCharmmError" documents native categories, C ABI
+- [ApoCharmmError](@ref apocharmm_error) documents native categories, C ABI
   translation, and Python exceptions.
 
 ## Developer Architecture
@@ -301,9 +310,10 @@ CharmmContext device coordinate-charge mirrors
 ```
 
 The C ABI boundary validates pointers and lengths, catches native exceptions,
-maps @ref ApoCharmmError categories to exact @ref apo_status values, and stores
-thread-local diagnostics. The Python ctypes `errcheck` boundary copies that
-diagnostic and raises one owned Python exception.
+maps [ApoCharmmError](@ref ApoCharmmError) categories to exact
+[apo_status](@ref apo_status) values, and stores thread-local diagnostics. The
+Python ctypes `errcheck` boundary copies that diagnostic and raises one owned
+Python exception.
 
 Normal representation invariants are a non-negative initialized count, equal
 DP and SP vector lengths, atom-major record order, and corresponding components
@@ -342,13 +352,18 @@ range conversion, and whole-file CharmmCrd loading.
 
 ## API Reference
 
-- @ref Coordinates is the native host representation and mutable input base.
-- @ref CharmmCrd is the supported native CHARMM coordinate-file reader.
-- @ref apo_charmm_crd is the public opaque C ABI handle.
-- @ref apo_charmm_crd_create and @ref apo_charmm_crd_destroy manage C handle
+- [Coordinates](@ref Coordinates) is the native host representation and mutable
+  input base.
+- [CharmmCrd](@ref CharmmCrd) is the supported native CHARMM coordinate-file
+  reader.
+- [apo_charmm_crd](@ref apo_charmm_crd) is the public opaque C ABI handle.
+- [apo_charmm_crd_create](@ref apo_charmm_crd_create) and
+  [apo_charmm_crd_destroy](@ref apo_charmm_crd_destroy) manage C handle
   lifetime.
-- @ref apo_charmm_crd_get_num_atoms and
-  @ref apo_charmm_crd_get_coordinates copy C ABI outputs.
-- @ref python_charmm_crd is the owning Python wrapper reference.
-- @ref charmm_context "CharmmContext" documents the native consumer of
+- [apo_charmm_crd_get_num_atoms](@ref apo_charmm_crd_get_num_atoms) and
+  [apo_charmm_crd_get_coordinates](@ref apo_charmm_crd_get_coordinates) copy C
+  ABI outputs.
+- [python_charmm_crd](@ref python_charmm_crd) is the owning Python wrapper
+  reference.
+- [CharmmContext](@ref charmm_context) documents the native consumer of
   coordinate input.

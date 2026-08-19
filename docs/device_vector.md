@@ -5,8 +5,8 @@
 `DeviceVector<T>` is apoCHARMM's native owning container for a contiguous,
 one-dimensional sequence in CUDA device memory. Use it when native C++ or CUDA
 code needs allocation ownership and vector-like size/capacity management but
-does not need a host mirror. Use @ref CudaContainer instead when the same data
-must be maintained on both the host and device.
+does not need a host mirror. Use [CudaContainer](@ref CudaContainer) instead
+when the same data must be maintained on both the host and device.
 
 `DeviceVector` is currently a native C++ subsystem. The repository does not
 expose it through the public C ABI or the Python package.
@@ -104,10 +104,11 @@ that owns the `DeviceVector<T>`.
 ## Errors
 
 Native allocation, copy, deallocation, and immediate kernel-launch checks report
-failure by throwing @ref ApoCharmmError with
+failure by throwing [ApoCharmmError](@ref ApoCharmmError) with
 `ApoCharmmErrorCode::Cuda`. Diagnostic construction can additionally propagate
-`std::bad_alloc` or `std::length_error`. See @ref apocharmm_error for the native
-error format and source-location behavior.
+`std::bad_alloc` or `std::length_error`. See
+[ApoCharmmError](@ref apocharmm_error) for the native error format and
+source-location behavior.
 
 A failed provisional allocation or device-to-device prefix copy during
 reallocation leaves the original vector unchanged. A failure while freeing the
@@ -150,16 +151,16 @@ other streams must establish the required CUDA ordering themselves.
 
 The class does not construct or destroy individual `T` objects and currently
 provides library specializations only for the scalar and CUDA vector types
-listed in @ref DeviceVector. It has no iterator interface, bounds-checked
-element access, allocator customization, stream selection, device tracking,
-or internal locking. Callers must serialize access whenever any caller may
-mutate an object.
+listed in [DeviceVector](@ref DeviceVector). It has no iterator interface,
+bounds-checked element access, allocator customization, stream selection, device
+tracking, or internal locking. Callers must serialize access whenever any caller
+may mutate an object.
 
 ## Related Subsystems
 
-- @ref cuda_container "CudaContainer" maintains a host `std::vector<T>` and a
+- [CudaContainer](@ref cuda_container) maintains a host `std::vector<T>` and a
   device `DeviceVector<T>` with explicit transfer operations.
-- @ref apocharmm_error "ApoCharmmError" describes native and CUDA error
+- [ApoCharmmError](@ref apocharmm_error) describes native and CUDA error
   reporting.
 
 ## Developer Architecture
@@ -212,6 +213,9 @@ of the old allocation pointer when `cudaFree` reports failure.
 
 ## API Reference
 
-- @ref DeviceVector is the native C++ template and complete symbol reference.
-- @ref CudaContainer is the host/device paired-container collaborator.
-- @ref ApoCharmmError and @ref ApoCharmmErrorCode describe native failures.
+- [DeviceVector](@ref DeviceVector) is the native C++ template and complete
+  symbol reference.
+- [CudaContainer](@ref CudaContainer) is the host/device paired-container
+  collaborator.
+- [ApoCharmmError](@ref ApoCharmmError) and
+  [ApoCharmmErrorCode](@ref ApoCharmmErrorCode) describe native failures.

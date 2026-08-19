@@ -3,13 +3,13 @@
 ## Purpose
 
 The Subscriber subsystem schedules side effects during dynamics propagation.
-A concrete @ref Subscriber writes selected simulation state when an attached
-`CudaIntegrator` reaches the subscriber's reporting interval. The interval is a
-positive, dimensionless number of propagated steps.
+A concrete [Subscriber](@ref Subscriber) writes selected simulation state when
+an attached `CudaIntegrator` reaches the subscriber's reporting interval. The
+interval is a positive, dimensionless number of propagated steps.
 
-Use @ref DcdSubscriber for coordinate trajectories and @ref RestartSubscriber
-for restart state. Those two reporters are available through C++, the C ABI,
-and Python.
+Use [DcdSubscriber](@ref DcdSubscriber) for coordinate trajectories and
+[RestartSubscriber](@ref RestartSubscriber) for restart state. Those two
+reporters are available through C++, the C ABI, and Python.
 
 Subscribers are synchronous observers, not background tasks. An update runs on
 the propagation caller's thread after the corresponding dynamics step and may
@@ -95,12 +95,13 @@ int main() {
 
 A concrete file-writing subscriber validates its positive report frequency,
 copies its path, checks the nonempty parent prefix with `stat()`, and creates or
-truncates the output during construction. @ref DcdSubscriber opens binary
-output, while @ref RestartSubscriber uses text output.
+truncates the output during construction. [DcdSubscriber](@ref DcdSubscriber)
+opens binary output, while [RestartSubscriber](@ref RestartSubscriber) uses text
+output.
 
 Establish state in this order:
 
-1. Construct and initialize the @ref CharmmContext.
+1. Construct and initialize the [CharmmContext](@ref CharmmContext).
 2. Construct the concrete integrator and attach the context.
 3. Construct the subscriber with its final path and report frequency.
 4. Subscribe it to the integrator.
@@ -121,11 +122,12 @@ but it does not change the integrator's cached callback interval. Each separate
 frequency 100 is therefore called at local steps 100, 200, and so on in every
 call, rather than from an absolute lifetime-step modulus.
 
-@ref DcdSubscriber requires a live binary stream, a context with a positive
-atom count, exactly three positive box lengths, and a valid single-precision
-coordinate/charge device container. @ref RestartSubscriber additionally
-requires the subscriber and integrator to retain the same context and supports
-only `CudaNoseHooverIntegrator`, `CudaLangevinPistonIntegrator`, and
+[DcdSubscriber](@ref DcdSubscriber) requires a live binary stream, a context
+with a positive atom count, exactly three positive box lengths, and a valid
+single-precision coordinate/charge device container.
+[RestartSubscriber](@ref RestartSubscriber) additionally requires the subscriber
+and integrator to retain the same context and supports only
+`CudaNoseHooverIntegrator`, `CudaLangevinPistonIntegrator`, and
 `CudaLangevinThermostatIntegrator`.
 
 ## Ownership and Lifetime
@@ -146,13 +148,15 @@ before releasing final owners. The retained backlinks also mean that the same
 native subscriber cannot currently be resubscribed through the normal
 attachment path.
 
-The public C ABI owns concrete handles such as @ref apo_dcd_subscriber and
-@ref apo_restart_subscriber. Each concrete handle embeds an @ref apo_subscriber
-base view. Conversion returns a borrowed pointer into that concrete allocation;
-it is not a separately owned handle and has no destroy function. Destroying the
-concrete C handle invalidates the base pointer even when a native integrator
-continues to retain the underlying C++ object. Keep the concrete handle alive
-until after C ABI unsubscription.
+The public C ABI owns concrete handles such as
+[apo_dcd_subscriber](@ref apo_dcd_subscriber) and
+[apo_restart_subscriber](@ref apo_restart_subscriber). Each concrete handle
+embeds an [apo_subscriber](@ref apo_subscriber) base view. Conversion returns a
+borrowed pointer into that concrete allocation; it is not a separately owned
+handle and has no destroy function. Destroying the concrete C handle invalidates
+the base pointer even when a native integrator continues to retain the
+underlying C++ object. Keep the concrete handle alive until after C ABI
+unsubscription.
 
 Python `DcdSubscriber` and `RestartSubscriber` wrappers own their concrete C
 handles and store the borrowed base pointer. A Python `CudaIntegrator` appends a
@@ -171,7 +175,7 @@ The reporting interval and frame counters are dimensionless step counts.
 Integrator constructor time steps and public `getTimeStep()` values use
 picoseconds.
 
-@ref DcdSubscriber writes:
+[DcdSubscriber](@ref DcdSubscriber) writes:
 
 - one six-`double` unit-cell record per frame, with X, Y, and Z box lengths in
   elements 0, 2, and 5;
@@ -184,8 +188,8 @@ picoseconds.
 The current DCD implementation writes native integer and floating-point
 representations and does not perform byte-order conversion.
 
-@ref RestartSubscriber writes a version-50 CHARMM-style text restart. Verified
-quantities include:
+[RestartSubscriber](@ref RestartSubscriber) writes a version-50 CHARMM-style
+text restart. Verified quantities include:
 
 | Section or value | Shape and order | Unit |
 | --- | --- | --- |
@@ -202,8 +206,8 @@ field-specific units clearly enough to make them a stable subscriber contract.
 
 ## Errors
 
-C++ constructors and base mutators use @ref ApoCharmmError. Empty paths,
-nonexistent checked parent paths, and nonpositive frequencies use
+C++ constructors and base mutators use [ApoCharmmError](@ref ApoCharmmError).
+Empty paths, nonexistent checked parent paths, and nonpositive frequencies use
 `ApoCharmmErrorCode::InvalidArgument`. Missing required update state uses
 `ApoCharmmErrorCode::NotInitialized`. Unsupported restart-integrator types use
 `ApoCharmmErrorCode::NotImplemented`. File open/write and state-consistency
@@ -213,10 +217,10 @@ synchronization failures use `ApoCharmmErrorCode::Cuda`.
 C ABI status functions clear the calling thread's previous diagnostic at entry.
 Native error categories map to the matching `APO_STATUS_*` value. Unexpected
 standard or nonstandard exceptions map to `APO_STATUS_RUNTIME_ERROR`. On
-failure, copy @ref apo_last_error immediately on the same thread; its pointer is
-borrowed and changes after the next diagnostic-changing call on that thread.
-Concrete destroy functions are void, accept `NULL`, and do not normally clear a
-previous diagnostic.
+failure, copy [apo_last_error](@ref apo_last_error) immediately on the same
+thread; its pointer is borrowed and changes after the next diagnostic-changing
+call on that thread. Concrete destroy functions are void, accept `NULL`, and do
+not normally clear a previous diagnostic.
 
 Python configures each status-returning function with a shared error callback.
 Every nonzero status raises `ApoCharmmError` containing the numeric status,
@@ -248,24 +252,24 @@ failure remain observable.
 
 ## Related Subsystems
 
-- @ref charmm_context "CharmmContext" supplies coordinates, velocities, box
+- [CharmmContext](@ref charmm_context) supplies coordinates, velocities, box
   state, energies, and the force manager queried by subscribers.
-- @ref force_manager "ForceManager" supplies potential energies.
-- @ref cuda_container "CudaContainer" defines the explicit device-to-host
+- [ForceManager](@ref force_manager) supplies potential energies.
+- [CudaContainer](@ref cuda_container) defines the explicit device-to-host
   transfers and synchronization used by output writers.
-- @ref apocharmm_error "ApoCharmmError" defines native errors, C ABI
+- [ApoCharmmError](@ref apocharmm_error) defines native errors, C ABI
   diagnostics, and Python error translation.
-- @ref coordinates "Coordinates" describes the coordinate inputs used to
+- [Coordinates](@ref coordinates) describes the coordinate inputs used to
   initialize the context before propagation.
 
 ## Developer Architecture
 
-The native public layer begins at @ref Subscriber. Its extension point is the
-pure virtual `update()` method. A concrete reporter normally delegates path,
-stream, frequency, context, and integrator storage to the base and adds only the
-format-specific state required to write one update. Override `openFile()` only
-when the format requires non-default stream flags or format state reset, as
-@ref DcdSubscriber does for binary output.
+The native public layer begins at [Subscriber](@ref Subscriber). Its extension
+point is the pure virtual `update()` method. A concrete reporter normally
+delegates path, stream, frequency, context, and integrator storage to the base
+and adds only the format-specific state required to write one update. Override
+`openFile()` only when the format requires non-default stream flags or format
+state reset, as [DcdSubscriber](@ref DcdSubscriber) does for binary output.
 
 The scheduling collaborator is `CudaIntegrator`. It stores parallel
 `m_Subscribers` and `m_ReportFreqList` arrays. Entry `i` in one must always
@@ -277,8 +281,9 @@ record and define explicit backlink clearing and resubscription semantics.
 
 The native implementation layer under `src/` performs DCD and restart format
 generation and CUDA transfers. DCD writes header, unit-cell, and coordinate
-records directly to `std::fstream`. Restart assembles one monolithic CHARMM-style
-file and reads integrator-specific containers through dynamic casts.
+records directly to `std::fstream`. Restart assembles one monolithic
+CHARMM-style file and reads integrator-specific containers through dynamic
+casts.
 
 The C ABI exposes only the base operations, DCD writer, restart writer, and the
 integrator attachment/propagation operations. Private handle structs store a
@@ -303,39 +308,39 @@ The error boundary is layered. Public C++ contracts name native categories.
 exception string. Destroy functions use a separate non-throwing boundary because
 they cannot return status.
 
-Relevant tests are registered in `test/unittests/CMakeLists.txt`. Native coverage
-is concentrated in `unittest-subscriber.cpp`, `unittest-dcdSubscriber.cpp`,
-`unittest-restartSubscriber.cpp`, and `unittest-cudaIntegrator.cpp`. Direct C
-ABI coverage uses the corresponding `unittest-capi*.cpp` files. Python coverage
-uses the subscriber, DCD-subscriber, restart-subscriber, and CUDA-integrator
-pytest modules.
+Relevant tests are registered in `test/unittests/CMakeLists.txt`. Native
+coverage is concentrated in `unittest-subscriber.cpp`,
+`unittest-dcdSubscriber.cpp`, `unittest-restartSubscriber.cpp`, and
+`unittest-cudaIntegrator.cpp`. Direct C ABI coverage uses the corresponding
+`unittest-capi*.cpp` files. Python coverage uses the subscriber, DCD-subscriber,
+restart-subscriber, and CUDA-integrator pytest modules.
 
 ## API Reference
 
 C++:
 
-- @ref Subscriber
-- @ref DcdSubscriber
-- @ref RestartSubscriber
+- [Subscriber](@ref Subscriber)
+- [DcdSubscriber](@ref DcdSubscriber)
+- [RestartSubscriber](@ref RestartSubscriber)
 
 C ABI:
 
-- @ref apo_subscriber
-- @ref apo_subscriber_set_report_frequency
-- @ref apo_subscriber_get_report_frequency
-- @ref apo_dcd_subscriber
-- @ref apo_dcd_subscriber_create
-- @ref apo_dcd_subscriber_create_with_report_frequency
-- @ref apo_dcd_subscriber_destroy
-- @ref apo_dcd_subscriber_as_subscriber
-- @ref apo_restart_subscriber
-- @ref apo_restart_subscriber_create
-- @ref apo_restart_subscriber_create_with_report_frequency
-- @ref apo_restart_subscriber_destroy
-- @ref apo_restart_subscriber_as_subscriber
+- [apo_subscriber](@ref apo_subscriber)
+- [apo_subscriber_set_report_frequency](@ref apo_subscriber_set_report_frequency)
+- [apo_subscriber_get_report_frequency](@ref apo_subscriber_get_report_frequency)
+- [apo_dcd_subscriber](@ref apo_dcd_subscriber)
+- [apo_dcd_subscriber_create](@ref apo_dcd_subscriber_create)
+- [apo_dcd_subscriber_create_with_report_frequency](@ref apo_dcd_subscriber_create_with_report_frequency)
+- [apo_dcd_subscriber_destroy](@ref apo_dcd_subscriber_destroy)
+- [apo_dcd_subscriber_as_subscriber](@ref apo_dcd_subscriber_as_subscriber)
+- [apo_restart_subscriber](@ref apo_restart_subscriber)
+- [apo_restart_subscriber_create](@ref apo_restart_subscriber_create)
+- [apo_restart_subscriber_create_with_report_frequency](@ref apo_restart_subscriber_create_with_report_frequency)
+- [apo_restart_subscriber_destroy](@ref apo_restart_subscriber_destroy)
+- [apo_restart_subscriber_as_subscriber](@ref apo_restart_subscriber_as_subscriber)
 
 Python:
 
-- @ref python_subscriber
-- @ref python_dcd_subscriber
-- @ref python_restart_subscriber
+- [python_subscriber](@ref python_subscriber)
+- [python_dcd_subscriber](@ref python_dcd_subscriber)
+- [python_restart_subscriber](@ref python_restart_subscriber)

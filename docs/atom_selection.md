@@ -218,13 +218,13 @@ ASCII keywords, operators, and field patterns.
 
 ## Related Subsystems
 
-- @ref charmm_psf "CharmmPSF" supplies atom metadata, residue and group
+- [CharmmPSF](@ref charmm_psf) supplies atom metadata, residue and group
   intervals, and bonded connectivity.
-- `HarmonicRestraintForce` consumes an @ref AtomSelection to choose restrained
-  atoms.
-- `HarmonicCenterOfMassRestraintForce` consumes a nonempty @ref AtomSelection
-  to define its restrained center.
-- @ref apocharmm_error "ApoCharmmError" defines native and C ABI failure
+- `HarmonicRestraintForce` consumes an [AtomSelection](@ref AtomSelection) to
+  choose restrained atoms.
+- `HarmonicCenterOfMassRestraintForce` consumes a nonempty
+  [AtomSelection](@ref AtomSelection) to define its restrained center.
+- [ApoCharmmError](@ref apocharmm_error) defines native and C ABI failure
   reporting.
 
 ## Developer Architecture
@@ -287,23 +287,28 @@ truncation at the Python-to-C boundary.
 
 C++:
 
-- @ref AtomSelection and @ref AtomSelection::InitialValue
-- @ref AtomSelector
-- @ref SelectionTokenType and @ref SelectionToken
-- @ref SelectionTokenizer
-- @ref SelectionParser
+- [AtomSelection](@ref AtomSelection) and
+  [AtomSelection::InitialValue](@ref AtomSelection::InitialValue)
+- [AtomSelector](@ref AtomSelector)
+- [SelectionTokenType](@ref SelectionTokenType) and
+  [SelectionToken](@ref SelectionToken)
+- [SelectionTokenizer](@ref SelectionTokenizer)
+- [SelectionParser](@ref SelectionParser)
 
 C ABI:
 
-- @ref apo_atom_selector and @ref apo_atom_selector_create
-- @ref apo_atom_selector_select and @ref apo_atom_selector_destroy
-- @ref apo_atom_selection and @ref apo_atom_selection_destroy
-- @ref apo_atom_selection_get_num_atoms
-- @ref apo_atom_selection_get_num_selected
-- @ref apo_atom_selection_get_atom_indices
-- @ref apo_atom_selection_contains
+- [apo_atom_selector](@ref apo_atom_selector) and
+  [apo_atom_selector_create](@ref apo_atom_selector_create)
+- [apo_atom_selector_select](@ref apo_atom_selector_select) and
+  [apo_atom_selector_destroy](@ref apo_atom_selector_destroy)
+- [apo_atom_selection](@ref apo_atom_selection) and
+  [apo_atom_selection_destroy](@ref apo_atom_selection_destroy)
+- [apo_atom_selection_get_num_atoms](@ref apo_atom_selection_get_num_atoms)
+- [apo_atom_selection_get_num_selected](@ref apo_atom_selection_get_num_selected)
+- [apo_atom_selection_get_atom_indices](@ref apo_atom_selection_get_atom_indices)
+- [apo_atom_selection_contains](@ref apo_atom_selection_contains)
 
 Python:
 
-- @ref python_atom_selector
-- @ref python_atom_selection
+- [python_atom_selector](@ref python_atom_selector)
+- [python_atom_selection](@ref python_atom_selection)

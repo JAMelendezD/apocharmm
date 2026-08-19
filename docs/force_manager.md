@@ -4,14 +4,16 @@
 
 `ForceManager` owns and coordinates apoCHARMM's built-in bonded,
 direct-space, and reciprocal-space force implementations. It combines a
-@ref CharmmPSF, @ref CharmmParameters, periodic box, long-range electrostatic
-configuration, nonbonded cutoff and switching configuration, CUDA streams,
-force arrays, energy and virial storage, and optional subscribed forces.
+[CharmmPSF](@ref CharmmPSF), [CharmmParameters](@ref CharmmParameters), periodic
+box, long-range electrostatic configuration, nonbonded cutoff and switching
+configuration, CUDA streams, force arrays, energy and virial storage, and
+optional subscribed forces.
 
 Users normally configure a manager and then attach it to a
-@ref CharmmContext. The context reconciles molecular state and initializes the
-manager once the PSF, parameters, and valid box dimensions are available.
-Direct C++ callers may invoke @ref ForceManager::initialize explicitly.
+[CharmmContext](@ref CharmmContext). The context reconciles molecular state and
+initializes the manager once the PSF, parameters, and valid box dimensions are
+available. Direct C++ callers may invoke
+[ForceManager::initialize](@ref ForceManager::initialize) explicitly.
 
 The native C++ interface exposes force evaluation and device storage. The
 public C ABI and Python wrapper currently expose construction, configuration,
@@ -97,7 +99,7 @@ The base defaults are:
 | `ctofnb` | `10.0` | current inner/on switching distance, angstroms |
 | FFT grid | `(-1, -1, -1)` | automatic selection |
 | PME spline order | `4` | dimensionless |
-| PBC | @ref PBC::P1 | translational periodicity |
+| PBC | [PBC::P1](@ref PBC::P1) | translational periodicity |
 | VDW model | `VDW_VFSW` | native model code `3` |
 | Energy printing | disabled | standard output side effect |
 
@@ -124,13 +126,14 @@ configuration and do not rebuild an active backend.
 ## Ownership and Lifetime
 
 The native manager retains shared ownership of its PSF and parameter set.
-@ref ForceManager::getPsf and @ref ForceManager::getPrm return copied shared
-owners that may outlive the manager.
+[ForceManager::getPsf](@ref ForceManager::getPsf) and
+[ForceManager::getPrm](@ref ForceManager::getPrm) return copied shared owners
+that may outlive the manager.
 
-The manager stores its @ref CharmmContext association as a `std::weak_ptr`.
-The manager therefore does not keep the context alive. Calling
-@ref ForceManager::getContext acquires a new shared owner only while the
-context still exists.
+The manager stores its [CharmmContext](@ref CharmmContext) association as a
+`std::weak_ptr`. The manager therefore does not keep the context alive. Calling
+[ForceManager::getContext](@ref ForceManager::getContext) acquires a new shared
+owner only while the context still exists.
 
 The manager owns its built-in CUDA backends, aggregate work containers, cached
 clear graph, and underlying CUDA streams. Stream getters return shared ownership
@@ -143,10 +146,11 @@ external owner can preserve that storage after manager destruction. It does not
 preserve backend updates, and an old force object is not updated if a later
 initialization replaces the manager's member.
 
-A successful C ABI constructor creates an owned @ref apo_force_manager. The
-handle independently retains native shared ownership of the PSF and parameter
-set, so the source C handles may be destroyed. Release the manager handle with
-@ref apo_force_manager_destroy.
+A successful C ABI constructor creates an owned
+[apo_force_manager](@ref apo_force_manager). The handle independently retains
+native shared ownership of the PSF and parameter set, so the source C handles
+may be destroyed. Release the manager handle with
+[apo_force_manager_destroy](@ref apo_force_manager_destroy).
 
 The Python `ForceManager` owns its C handle and retains the source
 `CharmmPsf` and `CharmmParameters` wrappers. It also retains every successfully
@@ -200,7 +204,7 @@ component-to-matrix order or sign convention.
 
 ### Native C++
 
-Validated native failures use @ref ApoCharmmError.
+Validated native failures use [ApoCharmmError](@ref ApoCharmmError).
 
 - `InvalidArgument` covers null collaborators, invalid box length or values,
   invalid scalar ranges, invalid FFT dimensions, invalid VDW codes, invalid
@@ -229,11 +233,11 @@ preserves all prior state.
 Every status-returning function is guarded. Success returns
 `APO_STATUS_OK` and clears the calling thread's previous diagnostic. Failure
 returns the status corresponding to the native category and leaves nonempty
-thread-local text available through @ref apo_last_error.
+thread-local text available through [apo_last_error](@ref apo_last_error).
 
 Invalid handles, pointers, buffer sizes, enum values, and scalar values return
 `APO_STATUS_INVALID_ARGUMENT`. Missing native PSF state in
-@ref apo_force_manager_get_num_atoms returns
+[apo_force_manager_get_num_atoms](@ref apo_force_manager_get_num_atoms) returns
 `APO_STATUS_NOT_INITIALIZED`. Categorized CUDA failures return
 `APO_STATUS_CUDA_ERROR`. Native allocation and uncategorized standard
 exceptions return `APO_STATUS_RUNTIME_ERROR`.
@@ -243,8 +247,8 @@ The atom-count getter sets its output to zero before handle validation. Other
 getters leave output storage unchanged on failure. Box and FFT getters write
 only their first three output elements and leave trailing capacity unchanged.
 
-@ref apo_force_manager_destroy accepts `NULL`, does not throw across the ABI,
-and normally preserves a stale diagnostic.
+[apo_force_manager_destroy](@ref apo_force_manager_destroy) accepts `NULL`, does
+not throw across the ABI, and normally preserves a stale diagnostic.
 
 ### Python
 
@@ -278,8 +282,8 @@ device transfer or synchronization.
 subscribed-force energies and is not equivalent to the aggregate energy
 produced by an energy-requesting force calculation.
 
-For @ref PBC::P21, `getVirial()` divides the reciprocal virial contribution by
-two before summation.
+For [PBC::P21](@ref PBC::P21), `getVirial()` divides the reciprocal virial
+contribution by two before summation.
 
 Mutable native accessors expose box, SHAKE, energy-virial, virial, and child
 storage directly. Mutation bypasses validation, propagation, and lifecycle
@@ -299,20 +303,20 @@ synchronization.
 
 ## Related Subsystems
 
-- @ref charmm_context "CharmmContext" owns mutable molecular state and drives
+- [CharmmContext](@ref charmm_context) owns mutable molecular state and drives
   ForceManager initialization and calculation.
-- @ref charmm_psf "CharmmPSF" supplies atom, topology, mass, charge, exclusion,
+- [CharmmPSF](@ref charmm_psf) supplies atom, topology, mass, charge, exclusion,
   and constraint information.
-- @ref charmm_parameters "CharmmParameters" supplies bonded and nonbonded
+- [CharmmParameters](@ref charmm_parameters) supplies bonded and nonbonded
   parameter records.
 - `Force` stores component and aggregate device force arrays.
 - `CudaEnergyVirial` stores named energy components and virial data.
-- @ref cuda_container "CudaContainer" describes host/device mirrored container
+- [CudaContainer](@ref cuda_container) describes host/device mirrored container
   behavior.
 - `ForceManagerComposite` is the direct composite-manager extension.
 - `HarmonicRestraintForce` and `HarmonicCenterOfMassRestraintForce` are
   subscription clients.
-- @ref apocharmm_error "ApoCharmmError" describes native, C ABI, and Python
+- [ApoCharmmError](@ref apocharmm_error) describes native, C ABI, and Python
   error propagation.
 
 ## Developer Architecture
@@ -320,8 +324,8 @@ synchronization.
 ### Public and private layers
 
 The public native contract is declared in `include/ForceManager.h` and
-implemented in `src/ForceManager.cu`. @ref ForceView is the non-owning
-type-erasure adapter for subscribed force implementations.
+implemented in `src/ForceManager.cu`. [ForceView](@ref ForceView) is the
+non-owning type-erasure adapter for subscribed force implementations.
 
 The stable C ABI is declared in
 `capi/include/apocharmm_c/ForceManager.h`. Its private owning handle is defined
@@ -425,9 +429,9 @@ identity. The base `addForceManager()` and
 `computeAllChildrenPotentialEnergy()` deliberately reject use.
 
 A subscribed force need not derive from a common base class. It must satisfy
-the compile-time interface consumed by @ref ForceView and supply matching
-stream, fixed-point force, and energy-virial shared owners. New force types must
-also provide a stable `contributesVirial` constant.
+the compile-time interface consumed by [ForceView](@ref ForceView) and supply
+matching stream, fixed-point force, and energy-virial shared owners. New force
+types must also provide a stable `contributesVirial` constant.
 
 The Python extension protocol consists of
 `_subscribe_to_force_manager()` and `_unsubscribe_from_force_manager()`.
@@ -474,12 +478,13 @@ be preserved or explicitly resolved when reorganizing the subsystem.
 
 ## API Reference
 
-- Native C++: @ref ForceManager and @ref ForceView.
-- Public C ABI: @ref apo_force_manager,
-  @ref apo_force_manager_create,
-  @ref apo_force_manager_destroy,
-  @ref apo_force_manager_set_box_dimensions, and the remaining
-  `apo_force_manager_*` configuration and query functions.
-- Python: @ref python_force_manager.
-- Related enums: @ref PBC, @ref apo_pbc,
-  @ref python_periodic_boundary_condition, and @ref python_vdw_type.
+- Native C++: [ForceManager](@ref ForceManager) and [ForceView](@ref ForceView).
+- Public C ABI: [apo_force_manager](@ref apo_force_manager),
+  [apo_force_manager_create](@ref apo_force_manager_create),
+  [apo_force_manager_destroy](@ref apo_force_manager_destroy),
+  [apo_force_manager_set_box_dimensions](@ref apo_force_manager_set_box_dimensions),
+  and the remaining `apo_force_manager_*` configuration and query functions.
+- Python: [python_force_manager](@ref python_force_manager).
+- Related enums: [PBC](@ref PBC), [apo_pbc](@ref apo_pbc),
+  [python_periodic_boundary_condition](@ref python_periodic_boundary_condition),
+  and [python_vdw_type](@ref python_vdw_type).

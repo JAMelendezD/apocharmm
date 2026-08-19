@@ -166,9 +166,9 @@ human diagnostic.
 
 ## Related Subsystems
 
-- @ref charmm_parameters "CharmmParameters" supplies the minimal Python failure
+- [CharmmParameters](@ref charmm_parameters) supplies the minimal Python failure
   example above.
-- @ref charmm_context "CharmmContext" and @ref force_manager "ForceManager"
+- [CharmmContext](@ref charmm_context) and [ForceManager](@ref force_manager)
   report state and runtime failures through this subsystem.
 - `CudaIntegrator` and its derived integrators use the same native-to-Python
   error boundary for integration failures.
@@ -226,11 +226,13 @@ arbitrarily large diagnostic under allocation failure.
 
 ## API Reference
 
-- Native C++: @ref ApoCharmmError, @ref ApoCharmmErrorCode,
-  @ref GetApoCharmmErrorCodeName(), @ref APOCHARMM_THROW, and
-  @ref APOCHARMM_REQUIRE.
-- C ABI: @ref apo_status and @ref apo_last_error().
-- Python: @ref python_apocharmm_error_class "ApoCharmmError",
-  @ref python_apocharmm_check_status "check_status()", and
-  @ref python_apocharmm_configure_status_function
-  "configure_status_function()".
+- Native C++: [ApoCharmmError](@ref ApoCharmmError),
+  [ApoCharmmErrorCode](@ref ApoCharmmErrorCode),
+  [GetApoCharmmErrorCodeName()](@ref GetApoCharmmErrorCodeName()),
+  [APOCHARMM_THROW](@ref APOCHARMM_THROW), and
+  [APOCHARMM_REQUIRE](@ref APOCHARMM_REQUIRE).
+- C ABI: [apo_status](@ref apo_status) and
+  [apo_last_error()](@ref apo_last_error()).
+- Python: [ApoCharmmError](@ref python_apocharmm_error_class),
+  [check_status()](@ref python_apocharmm_check_status), and
+  [configure_status_function()](@ref python_apocharmm_configure_status_function).
