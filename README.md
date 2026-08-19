@@ -6,8 +6,11 @@ simulation methods
 
 apoCHARMM is a GPU-only molecular dynamics package. Features that are used in
 the working unit tests (c.f. run_tests.sh) can be used for performing molecular
-dynamics simulations. The Python API is currently being overhauled and is
-deprecated.
+dynamics simulations. The Python API is under active development, and some
+apoCHARMM features may not yet be available through Python.
+
+The API and subsystem documentation is available from the
+[apoCHARMM documentation site](https://jeg7.github.io/apocharmm/).
 
 Any work that uses apoCHARMM should cite the following publication:
 
