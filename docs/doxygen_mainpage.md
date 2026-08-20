@@ -15,6 +15,7 @@ Start with the Python API index or browse the mainted subsystem documentation.
 - @subpage charmm_psf
 - @subpage coordinates
 - @subpage cuda_container
+- @subpage cuda_integrators
 - @subpage device_vector
 - @subpage force_manager
 - @subpage subscriber

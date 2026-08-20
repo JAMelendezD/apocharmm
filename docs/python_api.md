@@ -22,6 +22,9 @@ units, errors, limitations, and implementation details.
   selects the periodic boundary model used by contexts and force managers. See
   the [CharmmContext subsystem](@ref charmm_context) and
   [ForceManager subsystem](@ref force_manager).
+- [apocharmm.CrystalType](@ref python_crystal_type) selects the supported
+  crystal symmetry and Langevin-piston degree-of-freedom layout. See the
+  [CUDA Integrators subsystem](@ref cuda_integrators).
 - [apocharmm.VdwType](@ref python_vdw_type) selects the native van der Waals
   model. See the [ForceManager subsystem](@ref force_manager).
 
@@ -56,6 +59,22 @@ Their meanings and Python exception mapping are documented in the
   [CharmmContext subsystem](@ref charmm_context).
 - [apocharmm.ForceManager](@ref python_force_manager) configures and owns native
   force backends. See the [ForceManager subsystem](@ref force_manager).
+  
+## CUDA Integrators
+
+- [apocharmm.CudaIntegrator](@ref python_cuda_integrator) provides the shared
+  lifecycle, context, subscriber, restart, and propagation interface.
+- [apocharmm.CudaNoseHooverIntegrator](@ref python_cuda_nose_hoover_integrator)
+  provides deterministic Nose-Hoover temperature control (NVT).
+- [apocharmm.CudaLangevinThermostatIntegrator](@ref python_cuda_langevin_thermostat_integrator)
+  provides stochastic Langevin temperature control (NVT).
+- [apocharmm.CudaLangevinPistonIntegrator](@ref python_cuda_langevin_piston_integrator)
+  provides pressure control with optional Nose-Hoover temperature control
+  (NPH/NPT).
+  
+See the [CUDA Integrators subsystem](@ref cuda_integrators) for construction,
+call order, state, ownership, units, restart behavior, and cross-language
+errors.
 
 ## Atom Selection
 

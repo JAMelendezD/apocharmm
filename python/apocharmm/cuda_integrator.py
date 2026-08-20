@@ -70,7 +70,32 @@ def _initialize_prototypes() -> None:
 
 
 class CudaIntegrator(_ApoObject):
+    """
+    @brief Provides the common Python interface to native CUDA integrators.
+
+    This base wrapper does not construct a native integrator itself. Concrete
+    subclasses own a concrete C handle and install a borrowed base-integrator
+    view in `_integrator_handle`.
+
+    The wrapper retains the successfully attached `CharmmContext` and each
+    successfully subscribed `Subscriber`. It provides no internal
+    synchronization; serialize operations involving the same integrator,
+    context, or subscribers.
+
+    @anchor python_cuda_integrator
+    @see cuda_integrators
+    """
+
     def __init__(self) -> None:
+        """
+        @brief Constructs an empty Python base-integrator view.
+
+        This constructor allocates no native object. Concrete subclasses call it
+        before creating their owned handle and borrowed base view.
+
+        @post `integrator_handle` raises `RuntimeError` until a concrete
+        subclass installs a live view.
+        """
         super().__init__()
 
         self._integrator_handle: ctypes.c_void_p = ctypes.c_void_p()
@@ -81,12 +106,35 @@ class CudaIntegrator(_ApoObject):
 
     @property
     def integrator_handle(self) -> ctypes.c_void_p:
+        """
+        @brief Returns the borrowed C base-integrator pointer.
+
+        @return The live `ctypes.c_void_p` stored by this wrapper. It aliases an
+        embedded view owned by the concrete C handle and must not be destroyed
+        or retained past wrapper closure.
+        @throws RuntimeError If no concrete view has been installed or the
+        wrapper has been closed.
+        """
         if self._integrator_handle is None or self._integrator_handle.value is None:
             raise RuntimeError("apoCHARMM integrator object has been destroyed")
 
         return self._integrator_handle
 
     def close(self) -> None:
+        """
+        @brief Closes the concrete handle and invalidates the base view.
+
+        Closure is idempotent. The method destroys the owned concrete C handle,
+        clears the borrowed base view, and releases retained Python context and
+        subscriber references.
+
+        @return `None`.
+        @throws RuntimeError If a subclass has not configured a native destroy
+        function.
+        @post Later handle access raises `RuntimeError`.
+        @warning The method does not implicitly unsubscribe native subscribers.
+        Unsubscribe before closure to avoid retaining a native ownership cycle.
+        """
         super().close()
 
         self._integrator_handle = ctypes.c_void_p()
@@ -96,6 +144,22 @@ class CudaIntegrator(_ApoObject):
         return
 
     def setTimeStep(self, time_step: float) -> None:
+        """
+        @brief Sets the public integrator time step.
+
+        `time_step` is converted with `ctypes.c_double` and passed by value.
+
+        @param[in] time_step Finite positive time step in picoseconds.
+        @return `None`.
+        @throws TypeError If `time_step` cannot be converted to a C `double`.
+        @throws RuntimeError If the wrapper has been closed.
+        @throws ApoCharmmError With native status
+        `APO_STATUS_INVALID_ARGUMENT` if the converted value is non-finite or
+        not positive, or `APO_STATUS_RUNTIME_ERROR` for an unexpected native
+        failure.
+        @warning The native setter does not reinitialize attached constraint or
+        concrete-integrator derived state.
+        """
         _initialize_prototypes()
 
         c_time_step: ctypes.c_double = ctypes.c_double(time_step)
@@ -105,6 +169,24 @@ class CudaIntegrator(_ApoObject):
         return
 
     def setCharmmContext(self, context: CharmmContext) -> None:
+        """
+        @brief Attaches a context and initializes concrete native state.
+
+        The argument must be a live `CharmmContext`. The wrapper retains the
+        same Python object only after the native call succeeds.
+
+        @param[in] context Context wrapper to attach.
+        @return `None`.
+        @throws TypeError If `context` is not a `CharmmContext`.
+        @throws RuntimeError If this integrator or `context` has been closed.
+        @throws ApoCharmmError With native status
+        `APO_STATUS_INVALID_ARGUMENT` for null or duplicate attachment,
+        `APO_STATUS_NOT_INITIALIZED` for missing context or concrete
+        prerequisites, `APO_STATUS_NOT_IMPLEMENTED` for direct base
+        initialization, `APO_STATUS_CUDA_ERROR` for CUDA initialization
+        failure, or `APO_STATUS_RUNTIME_ERROR` for another native failure.
+        @post On success, `_context` retains `context`.
+        """
         _initialize_prototypes()
 
         if not isinstance(context, CharmmContext):
@@ -119,6 +201,26 @@ class CudaIntegrator(_ApoObject):
         return
 
     def subscribe(self, subscriber: Subscriber) -> None:
+        """
+        @brief Subscribes one output wrapper.
+
+        The native integrator caches the subscriber's current reporting
+        frequency and retains its native object. After native success, this
+        wrapper appends the same Python subscriber to `_subscribers`.
+
+        @param[in] subscriber Live concrete `Subscriber` wrapper.
+        @return `None`.
+        @throws TypeError If `subscriber` is not a `Subscriber`.
+        @throws RuntimeError If either wrapper has been closed.
+        @throws ApoCharmmError With native status
+        `APO_STATUS_INVALID_ARGUMENT` for null or duplicate attachment,
+        `APO_STATUS_NOT_INITIALIZED` if shared native ownership is unavailable,
+        or `APO_STATUS_RUNTIME_ERROR` for allocation or another native failure.
+        @throws MemoryError If the Python retention list cannot grow after
+        native attachment.
+        @warning A `MemoryError` after native success can leave native and
+        Python retention state inconsistent.
+        """
         _initialize_prototypes()
 
         if not isinstance(subscriber, Subscriber):
@@ -133,6 +235,24 @@ class CudaIntegrator(_ApoObject):
         return
 
     def unsubscribe(self, subscriber: Subscriber) -> None:
+        """
+        @brief Removes one subscriber from native and Python scheduling state.
+
+        The native unsubscription runs first. On native success, the matching
+        Python object is removed from `_subscribers`.
+
+        @param[in] subscriber Live `Subscriber` wrapper identifying the native
+        object to remove.
+        @return `None`.
+        @throws TypeError If `subscriber` is not a `Subscriber`.
+        @throws RuntimeError If either wrapper has been closed.
+        @throws ApoCharmmError With native status
+        `APO_STATUS_INVALID_ARGUMENT` if the subscriber is not attached or a
+        handle is rejected, or `APO_STATUS_RUNTIME_ERROR` for another native
+        failure.
+        @throws ValueError If native and Python retention state is inconsistent
+        and the Python list does not contain `subscriber`.
+        """
         _initialize_prototypes()
 
         if not isinstance(subscriber, Subscriber):
@@ -147,6 +267,29 @@ class CudaIntegrator(_ApoObject):
         return
 
     def propagate(self, num_steps: int) -> None:
+        """
+        @brief Propagates dynamics and scheduled subscribers.
+
+        `num_steps` must fit a signed 32-bit C `int`. Python booleans follow
+        integer rules: `True` becomes one, while `False` reaches native
+        validation as zero. On the main Python thread, the wrapper temporarily
+        installs the default `SIGINT` handler during the native call and restores
+        the previous handler in a `finally` block.
+
+        @param[in] num_steps Positive dimensionless number of steps.
+        @return `None`.
+        @throws TypeError If comparison or conversion to `ctypes.c_int` rejects
+        the supplied object.
+        @throws ValueError If the value is outside the signed 32-bit C `int`
+        range.
+        @throws RuntimeError If the wrapper has been closed.
+        @throws ApoCharmmError With native status
+        `APO_STATUS_INVALID_ARGUMENT`, `APO_STATUS_NOT_INITIALIZED`,
+        `APO_STATUS_NOT_IMPLEMENTED`, `APO_STATUS_CUDA_ERROR`, or
+        `APO_STATUS_RUNTIME_ERROR` according to the documented native failure.
+        @warning Propagation is not transactional and native requested-step
+        counters advance before the first concrete step.
+        """
         _initialize_prototypes()
 
         if num_steps < -(2**31) or num_steps > 2**31 - 1:
@@ -172,6 +315,26 @@ class CudaIntegrator(_ApoObject):
         return
 
     def initializeFromRestartFile(self, path: FilePath) -> None:
+        """
+        @brief Initializes concrete state from a restart file.
+
+        `path` may be `str`, `bytes`, `os.PathLike[str]`, or
+        `os.PathLike[bytes]`. It is encoded with `os.fsencode()`, passed as a
+        temporary null-terminated byte string, and not retained.
+
+        @param[in] path Restart-file path.
+        @return `None`.
+        @throws TypeError If `path` is not accepted by `os.fsencode()`.
+        @throws ValueError If path encoding rejects an embedded null byte.
+        @throws OSError If filesystem path conversion fails.
+        @throws RuntimeError If the wrapper has been closed.
+        @throws ApoCharmmError With native status
+        `APO_STATUS_INVALID_ARGUMENT`, `APO_STATUS_NOT_INITIALIZED`,
+        `APO_STATUS_NOT_IMPLEMENTED`, `APO_STATUS_CUDA_ERROR`, or
+        `APO_STATUS_RUNTIME_ERROR` according to restart validation, parsing,
+        transfer, or concrete support.
+        @warning Restart loading is not transactional.
+        """
         _initialize_prototypes()
 
         encoded_path: bytes = encode_path(path)

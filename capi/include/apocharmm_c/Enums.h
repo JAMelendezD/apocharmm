@@ -34,10 +34,24 @@ typedef enum apo_pbc {
   APO_PBC_P21 = 2
 } apo_pbc;
 
+/**
+ * @brief Selects the C ABI crystal symmetry for Langevin-piston propagation.
+ *
+ * The values map directly to the native @ref CRYSTAL enum. The piston setter
+ * accepts `APO_CRYSTAL_TYPE_CUBIC`, `APO_CRYSTAL_TYPE_TETRAGONAL`, and
+ * `APO_CRYSTAL_TYPE_ORTHORHOMBIC`. `APO_CRYSTAL_TYPE_NONE` represents the
+ * initial unconfigured state and is rejected as a setter input.
+ *
+ * @see apo_cuda_langevin_piston_integrator_set_crystal_type
+ */
 typedef enum apo_crystal_type {
+  /** Represents no configured piston degree of freedom. */
   APO_CRYSTAL_TYPE_NONE = 0,
+  /** Selects one isotropic X/Y/Z piston degree of freedom. */
   APO_CRYSTAL_TYPE_CUBIC = 1,
+  /** Selects coupled X/Y and independent Z piston degrees of freedom. */
   APO_CRYSTAL_TYPE_TETRAGONAL = 2,
+  /** Selects independent X, Y, and Z piston degrees of freedom. */
   APO_CRYSTAL_TYPE_ORTHORHOMBIC = 3,
 } apo_crystal_type;
 

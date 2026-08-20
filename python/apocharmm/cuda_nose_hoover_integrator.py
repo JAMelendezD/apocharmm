@@ -91,9 +91,34 @@ def _initialize_prototypes() -> None:
 
 
 class CudaNoseHooverIntegrator(CudaIntegrator):
+    """
+    @brief Provides deterministic Nose-Hoover temperature control.
+
+    The wrapper owns a concrete Nose-Hoover C handle and inherits context,
+    restart, subscription, propagation, and closure behavior from
+    `CudaIntegrator`.
+
+    @anchor python_cuda_nose_hoover_integrator
+    @see cuda_integrators
+    """
+
     _destroy_function_name = "apo_cuda_nose_hoover_integrator_destroy"
 
     def __init__(self, time_step: float) -> None:
+        """
+        @brief Constructs a Python-owned Nose-Hoover integrator.
+
+        @param[in] time_step Value accepted by `ctypes.c_double`, interpreted as
+        a finite positive time step in picoseconds.
+        @throws TypeError If conversion to a C `double` fails.
+        @throws ApoCharmmError With native status
+        `APO_STATUS_INVALID_ARGUMENT`, `APO_STATUS_CUDA_ERROR`, or
+        `APO_STATUS_RUNTIME_ERROR` if construction fails.
+        @throws RuntimeError If native construction or base-view conversion
+        reports success but produces a `NULL` handle.
+        @post The wrapper owns the concrete handle and stores a borrowed base
+        view.
+        """
         _initialize_prototypes()
         super().__init__()
 
@@ -125,6 +150,18 @@ class CudaNoseHooverIntegrator(CudaIntegrator):
         return
 
     def setReferenceTemperature(self, temperature: float) -> None:
+        """
+        @brief Sets the Nose-Hoover reference temperature.
+
+        @param[in] temperature Value converted to C `double`, in kelvin. It must
+        be finite and non-negative.
+        @return `None`.
+        @throws TypeError If C scalar conversion fails.
+        @throws RuntimeError If the wrapper has been closed.
+        @throws ApoCharmmError With native status
+        `APO_STATUS_INVALID_ARGUMENT` for an invalid value or
+        `APO_STATUS_RUNTIME_ERROR` for another native failure.
+        """
         _initialize_prototypes()
 
         c_temperature: ctypes.c_double = ctypes.c_double(temperature)
@@ -136,6 +173,20 @@ class CudaNoseHooverIntegrator(CudaIntegrator):
         return
 
     def setNoseHooverPistonMass(self, mass: float) -> None:
+        """
+        @brief Sets the scalar Nose-Hoover coupling mass.
+
+        @param[in] mass Value converted to C `double`. It must be finite and
+        non-negative. The exact dimensional convention is not established by
+        the repository.
+        @return `None`.
+        @throws TypeError If C scalar conversion fails.
+        @throws RuntimeError If the wrapper has been closed.
+        @throws ApoCharmmError With native status
+        `APO_STATUS_INVALID_ARGUMENT`, `APO_STATUS_CUDA_ERROR`, or
+        `APO_STATUS_RUNTIME_ERROR`.
+        @warning Zero is accepted, but active propagation divides by the mass.
+        """
         _initialize_prototypes()
 
         c_mass: ctypes.c_double = ctypes.c_double(mass)
@@ -147,6 +198,17 @@ class CudaNoseHooverIntegrator(CudaIntegrator):
         return
 
     def useOldTemperature(self, flag: bool = True) -> None:
+        """
+        @brief Selects the native on-step temperature estimator.
+
+        @param[in] flag Value converted with `ctypes.c_bool`. A truthy value
+        selects kinetic-energy element 1 for native feedback and instantaneous
+        temperature.
+        @return `None`.
+        @throws TypeError If C boolean conversion rejects the value.
+        @throws RuntimeError If the wrapper has been closed.
+        @throws ApoCharmmError If the native handle is rejected.
+        """
         _initialize_prototypes()
 
         c_flag: ctypes.c_bool = ctypes.c_bool(flag)
@@ -156,6 +218,15 @@ class CudaNoseHooverIntegrator(CudaIntegrator):
         return
 
     def resetAverageTemperature(self) -> None:
+        """
+        @brief Resets both running-temperature values and their sample count.
+
+        @return `None`.
+        @throws RuntimeError If the wrapper has been closed.
+        @throws ApoCharmmError With native status
+        `APO_STATUS_INVALID_ARGUMENT`, `APO_STATUS_CUDA_ERROR`, or
+        `APO_STATUS_RUNTIME_ERROR`.
+        """
         _initialize_prototypes()
 
         lib().apo_cuda_nose_hoover_integrator_reset_average_temperature(self.handle)
@@ -163,6 +234,13 @@ class CudaNoseHooverIntegrator(CudaIntegrator):
         return
 
     def getReferenceTemperature(self) -> float:
+        """
+        @brief Returns the reference temperature.
+
+        @return A new Python `float` in kelvin.
+        @throws RuntimeError If the wrapper has been closed.
+        @throws ApoCharmmError If the native handle or output operation fails.
+        """
         _initialize_prototypes()
 
         c_temperature = ctypes.c_double()
@@ -174,6 +252,13 @@ class CudaNoseHooverIntegrator(CudaIntegrator):
         return float(c_temperature.value)
 
     def getNoseHooverPistonMass(self) -> float:
+        """
+        @brief Returns the scalar Nose-Hoover coupling mass.
+
+        @return A new Python `float` in the native coupling-mass convention.
+        @throws RuntimeError If the wrapper has been closed.
+        @throws ApoCharmmError If the native handle or output operation fails.
+        """
         _initialize_prototypes()
 
         c_mass = ctypes.c_double()
@@ -185,6 +270,18 @@ class CudaNoseHooverIntegrator(CudaIntegrator):
         return float(c_mass.value)
 
     def getAverageTemperature(self) -> float:
+        """
+        @brief Returns one native running-average temperature.
+
+        @return A new Python `float` in kelvin.
+        @throws RuntimeError If the wrapper has been closed.
+        @throws ApoCharmmError With native status
+        `APO_STATUS_INVALID_ARGUMENT`, `APO_STATUS_CUDA_ERROR`, or
+        `APO_STATUS_RUNTIME_ERROR`.
+        @warning Current C ABI behavior returns estimator element 0 when
+        old-temperature mode is enabled and element 1 when it is disabled,
+        opposite the native instantaneous-temperature selector.
+        """
         _initialize_prototypes()
 
         c_temperature = ctypes.c_double()
@@ -196,6 +293,17 @@ class CudaNoseHooverIntegrator(CudaIntegrator):
         return float(c_temperature.value)
 
     def getInstantaneousTemperature(self) -> float:
+        """
+        @brief Returns the native selected instantaneous temperature.
+
+        @return A new Python `float` in kelvin. Native selection uses element 1
+        when old-temperature mode is enabled and element 0 otherwise.
+        @throws RuntimeError If the wrapper has been closed.
+        @throws ApoCharmmError With native status
+        `APO_STATUS_NOT_INITIALIZED` before context attachment,
+        `APO_STATUS_CUDA_ERROR` for transfer failure, or another documented
+        native status.
+        """
         _initialize_prototypes()
 
         c_temperature = ctypes.c_double()

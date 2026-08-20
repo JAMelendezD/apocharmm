@@ -31,6 +31,19 @@ class PeriodicBoundaryCondition(IntEnum):
 
 
 class CrystalType(IntEnum):
+    """
+    @brief Selects the Langevin-piston crystal symmetry.
+
+    `CUBIC` uses one isotropic X/Y/Z degree of freedom. `TETRAGONAL`
+    uses one coupled X/Y degree of freedom and one Z degree of freedom.
+    `ORTHORHOMBIC` uses independent X, Y, and Z degrees of freedom.
+    `NONE` represents the initial unconfigured state and is rejected by
+    `CudaLangevinPistonIntegrator.setCrystalType()`.
+
+    @anchor python_crystal_type
+    @see cuda_integrators
+    """
+
     NONE = 0
     CUBIC = 1
     TETRAGONAL = 2
