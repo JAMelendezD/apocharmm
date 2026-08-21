@@ -59,6 +59,9 @@ Their meanings and Python exception mapping are documented in the
   [CharmmContext subsystem](@ref charmm_context).
 - [apocharmm.ForceManager](@ref python_force_manager) configures and owns native
   force backends. See the [ForceManager subsystem](@ref force_manager).
+- [apocharmm.HarmonicRestraintForce](@ref python_harmonic_restraint_force)
+  configures absolute mass-weighted harmonic restraints. See the
+  [HarmonicRestraintForce subsystem](@ref harmonic_restraint_force).
   
 ## CUDA Integrators
 

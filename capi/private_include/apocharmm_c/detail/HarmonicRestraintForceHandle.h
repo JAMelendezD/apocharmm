@@ -16,6 +16,19 @@
 
 #include <memory>
 
+/**
+ * @brief Owns the native restraint referenced by one opaque C ABI handle.
+ *
+ * A successfully created handle retains shared ownership of the supported
+ * `HarmonicRestraintForce<long long int, float>` specialization. Public C ABI
+ * entry points require both the handle pointer and `object` to be non-null.
+ *
+ * `ForceManager` subscription copies the native shared owner. Deleting this
+ * handle therefore does not remove an existing subscription or necessarily
+ * destroy the native restraint.
+ *
+ * This private representation is not part of the stable C ABI.
+ */
 struct apo_harmonic_restraint_force {
   std::shared_ptr<HarmonicRestraintForce<long long int, float>> object =
       nullptr;

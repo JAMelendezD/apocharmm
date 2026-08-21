@@ -31,6 +31,7 @@ set(APOCHARMM_DOCUMENTATION_PAGES
   "${CMAKE_CURRENT_SOURCE_DIR}/cuda_integrators.md"
   "${CMAKE_CURRENT_SOURCE_DIR}/device_vector.md"
   "${CMAKE_CURRENT_SOURCE_DIR}/force_manager.md"
+  "${CMAKE_CURRENT_SOURCE_DIR}/harmonic_restraint_force.md"
   "${CMAKE_CURRENT_SOURCE_DIR}/subscriber.md"
 )
 
@@ -50,6 +51,7 @@ set(APOCHARMM_DOCUMENTATION_CPP_API
   "${apoCHARMM_SOURCE_DIR}/include/CudaNoseHooverIntegrator.h"
   "${apoCHARMM_SOURCE_DIR}/include/DeviceVector.h"
   "${apoCHARMM_SOURCE_DIR}/include/ForceManager.h"
+  "${apoCHARMM_SOURCE_DIR}/include/HarmonicRestraintForce.h"
   "${apoCHARMM_SOURCE_DIR}/include/PBC.h"
   "${apoCHARMM_SOURCE_DIR}/include/SelectionParser.h"
   "${apoCHARMM_SOURCE_DIR}/include/SelectionToken.h"
@@ -74,6 +76,7 @@ set(APOCHARMM_DOCUMENTATION_C_API
   "${apoCHARMM_SOURCE_DIR}/capi/include/apocharmm_c/Enums.h"
   "${apoCHARMM_SOURCE_DIR}/capi/include/apocharmm_c/Error.h"
   "${apoCHARMM_SOURCE_DIR}/capi/include/apocharmm_c/ForceManager.h"
+  "${apoCHARMM_SOURCE_DIR}/capi/include/apocharmm_c/HarmonicRestraintForce.h"
   "${apoCHARMM_SOURCE_DIR}/capi/include/apocharmm_c/RestartSubscriber.h"
   "${apoCHARMM_SOURCE_DIR}/capi/include/apocharmm_c/Status.h"
   "${apoCHARMM_SOURCE_DIR}/capi/include/apocharmm_c/Subscriber.h"
@@ -94,6 +97,7 @@ set(APOCHARMM_DOCUMENTATION_PYTHON_API
   "${apoCHARMM_SOURCE_DIR}/python/apocharmm/enums.py"
   "${apoCHARMM_SOURCE_DIR}/python/apocharmm/error.py"
   "${apoCHARMM_SOURCE_DIR}/python/apocharmm/force_manager.py"
+  "${apoCHARMM_SOURCE_DIR}/python/apocharmm/harmonic_restraint_force.py"
   "${apoCHARMM_SOURCE_DIR}/python/apocharmm/restart_subscriber.py"
   "${apoCHARMM_SOURCE_DIR}/python/apocharmm/subscriber.py"
 )

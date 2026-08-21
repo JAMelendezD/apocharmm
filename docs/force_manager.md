@@ -314,8 +314,8 @@ synchronization.
 - [CudaContainer](@ref cuda_container) describes host/device mirrored container
   behavior.
 - `ForceManagerComposite` is the direct composite-manager extension.
-- `HarmonicRestraintForce` and `HarmonicCenterOfMassRestraintForce` are
-  subscription clients.
+- [HarmonicRestraintForce](@ref harmonic_restraint_force) and
+  `HarmonicCenterOfMassRestraintForce` are subscription clients.
 - [ApoCharmmError](@ref apocharmm_error) describes native, C ABI, and Python
   error propagation.
 
