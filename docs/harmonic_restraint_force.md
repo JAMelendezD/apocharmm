@@ -361,8 +361,8 @@ No layer provides internal host-thread synchronization.
   synchronous transfer behavior.
 - `Force` defines fixed-point structure-of-arrays force storage.
 - `CudaEnergyVirial` stores the named `harm` energy.
-- `HarmonicCenterOfMassRestraintForce` restrains a selected group center rather
-  than each atom independently.
+- [HarmonicCenterOfMassRestraintForce](@ref harmonic_center_of_mass_restraint_force)
+  restrains a selected group center rather than each atom independently.
 - [ApoCharmmError](@ref apocharmm_error) describes native, C ABI, and Python
   error propagation.
 

@@ -315,7 +315,8 @@ synchronization.
   behavior.
 - `ForceManagerComposite` is the direct composite-manager extension.
 - [HarmonicRestraintForce](@ref harmonic_restraint_force) and
-  `HarmonicCenterOfMassRestraintForce` are subscription clients.
+  [HarmonicCenterOfMassRestraintForce](@ref harmonic_center_of_mass_restraint_force)
+  are subscription clients.
 - [ApoCharmmError](@ref apocharmm_error) describes native, C ABI, and Python
   error propagation.
 

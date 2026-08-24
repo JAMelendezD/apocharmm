@@ -18,5 +18,6 @@ Start with the Python API index or browse the mainted subsystem documentation.
 - @subpage cuda_integrators
 - @subpage device_vector
 - @subpage force_manager
+- @subpage harmonic_center_of_mass_restraint_force
 - @subpage harmonic_restraint_force
 - @subpage subscriber

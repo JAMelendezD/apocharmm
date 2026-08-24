@@ -296,6 +296,32 @@ void HarmonicCenterOfMassRestraintForce<AT, CT>::clear(void) {
   return;
 }
 
+/**
+ * @brief Reduces periodically unwrapped selected coordinates by CUDA block.
+ *
+ * The first selected atom is the image anchor. Each selected coordinate is
+ * minimum-imaged relative to that anchor before its weighted Cartesian
+ * components and weight are accumulated. One `double4` partial record is
+ * written per launch block as `{sum_x, sum_y, sum_z, sum_weight}`.
+ *
+ * @param[out] partialSums Non-NULL device array with at least `gridDim.x`
+ * elements. Element `blockIdx.x` is overwritten by thread zero in that block.
+ * @param[in] atomIndices Non-NULL device array of `numSelected` zero-based atom
+ * indices. Element zero supplies the periodic image anchor.
+ * @param[in] atomWeights Non-NULL device array of `numSelected` finite,
+ * non-negative weights corresponding to `atomIndices`.
+ * @param[in] xyzq Non-NULL device array containing every indexed `float4`
+ * coordinate-charge record. Cartesian components use angstroms; component `w`
+ * is ignored.
+ * @param[in] numSelected Positive dimensionless selected-atom count.
+ * @param[in] boxx Positive orthorhombic X box length in angstroms.
+ * @param[in] boxy Positive orthorhombic Y box length in angstroms.
+ * @param[in] boxz Positive orthorhombic Z box length in angstroms.
+ *
+ * @pre The three input arrays remain valid for the complete kernel execution.
+ * @note The anchor-based representation assumes each selected atom has an
+ * unambiguous minimum image relative to the first selected atom.
+ */
 __global__ static void PartialSumsKernel(double4 *__restrict__ partialSums,
                                          const int *__restrict__ atomIndices,
                                          const double *__restrict__ atomWeights,
@@ -342,6 +368,39 @@ __global__ static void PartialSumsKernel(double4 *__restrict__ partialSums,
   return;
 }
 
+/**
+ * @brief Converts block partials into center state and optional energy.
+ *
+ * The kernel reduces all block records, normalizes the selected center, applies
+ * the Cartesian mask, and minimum-images each active center-to-reference
+ * component. It writes the potential gradient and inverse total weight to state
+ * element zero and integer center image counts to state element one.
+ *
+ * @tparam calcEnergy Whether thread zero atomically adds the current energy to
+ * `energy`.
+ * @param[out] restraintState Non-NULL device array of at least two `double4`
+ * elements. The kernel overwrites both elements.
+ * @param[in,out] energy Non-NULL device pointer to the `hmcm` scalar in
+ * kilocalories per mole. It is modified only when `calcEnergy` is `true`.
+ * @param[in] partialSums Non-NULL device array of `numPartialSums` block
+ * records produced by `PartialSumsKernel`.
+ * @param[in] numPartialSums Positive dimensionless partial-record count.
+ * @param[in] forceConstant Non-negative coefficient in kilocalories per mole
+ * per square angstrom.
+ * @param[in] referencePosition Reference `[x, y, z]` position in angstroms;
+ * component `w` is ignored.
+ * @param[in] referenceMaskX Dimensionless X activation flag, zero or one.
+ * @param[in] referenceMaskY Dimensionless Y activation flag, zero or one.
+ * @param[in] referenceMaskZ Dimensionless Z activation flag, zero or one.
+ * @param[in] referenceDistance Non-negative radial target in angstroms.
+ * @param[in] boxx Positive orthorhombic X box length in angstroms.
+ * @param[in] boxy Positive orthorhombic Y box length in angstroms.
+ * @param[in] boxz Positive orthorhombic Z box length in angstroms.
+ *
+ * @pre The partial weights sum to a positive finite value.
+ * @note At positive reference distance and exactly zero displacement, the
+ * implementation writes a zero gradient at the nondifferentiable point.
+ */
 template <bool calcEnergy>
 __global__ static void
 StateKernel(double4 *__restrict__ restraintState, double *__restrict__ energy,
@@ -425,6 +484,41 @@ StateKernel(double4 *__restrict__ restraintState, double *__restrict__ energy,
   return;
 }
 
+/**
+ * @brief Distributes the center gradient and records periodic virial shifts.
+ *
+ * Each selected atom receives its normalized weight fraction of the center
+ * potential gradient. Fixed-point or floating-point component values are added
+ * to structure-of-arrays force storage. When requested, the kernel also adds
+ * atom-anchor and center-reference periodic shift forces to virial work state.
+ *
+ * @tparam AT Device force-accumulator representation written to `forces`.
+ * @tparam CT Arithmetic representation used for weight fractions and gradient
+ * components.
+ * @tparam calcVirial Whether virial shift-force records are accumulated.
+ * @param[in,out] virial Device virial work state. It must be non-NULL when
+ * `calcVirial` is `true` and may be NULL when `calcVirial` is `false`.
+ * @param[in,out] forces Non-NULL device structure-of-arrays storage containing
+ * at least `3 * forceStride` elements. Contributions are added atomically.
+ * @param[in] forceStride Dimensionless element offset between X, Y, and Z
+ * component arrays.
+ * @param[in] atomIndices Non-NULL device array of `numSelected` zero-based atom
+ * indices. Element zero supplies the periodic image anchor.
+ * @param[in] atomWeights Non-NULL device array of `numSelected` weights
+ * corresponding to `atomIndices`.
+ * @param[in] numSelected Positive dimensionless selected-atom count.
+ * @param[in] xyzq Non-NULL device array containing every indexed `float4`
+ * coordinate-charge record. Coordinates use angstroms and component `w` is
+ * ignored.
+ * @param[in] restraintState Non-NULL device array of two records produced by
+ * `StateKernel`.
+ * @param[in] boxx Positive orthorhombic X box length in angstroms.
+ * @param[in] boxy Positive orthorhombic Y box length in angstroms.
+ * @param[in] boxz Positive orthorhombic Z box length in angstroms.
+ *
+ * @warning Center-reference virial bookkeeping uses the 27 neighboring image
+ * slots and omits a center image count outside `[-1, 1]` on any axis.
+ */
 template <typename AT, typename CT, bool calcVirial>
 __global__ static void
 ApplyForcesKernel(Virial_t *__restrict__ virial, AT *__restrict__ forces,
@@ -454,8 +548,9 @@ ApplyForcesKernel(Virial_t *__restrict__ virial, AT *__restrict__ forces,
                                      static_cast<float>(0.5 * boxy),
                                      static_cast<float>(0.5 * boxz));
 
-  // JEG260617: This assumes the center-reference minimum image shift is within
-  // one periodic image in each dimension
+  // JEG260824: The 27 sforce slots encode only image counts from -1 through 1.
+  // Keep force and energy evaluation valid for larger counts, but omit the
+  // center shift from virial bookkeeping because it has no representable slot.
   int centerIsh = 13;
   const bool validCenterShift =
       (centerShiftCountX >= -1) && (centerShiftCountX <= 1) &&
@@ -550,6 +645,9 @@ void HarmonicCenterOfMassRestraintForce<AT, CT>::calcForce(
   const int numBlocks = (m_NumSelected + numThreads - 1) / numThreads;
   const int numPartialSums = static_cast<int>(m_PartialSums.size());
 
+  // One stream establishes the reduction -> state -> distribution dependency
+  // without host synchronization. Immediate launch checks do not report later
+  // asynchronous execution failures.
   cudaCheckLaunch(PartialSumsKernel<<<numBlocks, numThreads, 0, *m_Stream>>>(
       m_PartialSums.getDeviceArray().data(),
       m_AtomIndices.getDeviceArray().data(),
