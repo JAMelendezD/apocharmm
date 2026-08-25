@@ -16,6 +16,7 @@
 #include <cctype>
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <istream>
@@ -278,8 +279,9 @@ bool apo::try_get_fixed_width_field(std::string_view &field,
 }
 
 void apo::read_file_into_string(std::string &file_data,
-                                const std::string &file_name) {
-  std::ifstream ifs(file_name, std::ios::in | std::ios::binary);
+                                const std::filesystem::path &file_path) {
+  const std::string file_name = file_path.string();
+  std::ifstream ifs(file_path, std::ios::in | std::ios::binary);
 
   APOCHARMM_REQUIRE(ifs.is_open(), ApoCharmmErrorCode::Runtime,
                     "Failed to open file \"" + file_name + "\"");

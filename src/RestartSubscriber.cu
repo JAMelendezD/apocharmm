@@ -19,6 +19,7 @@
 #include "str_utils.h"
 
 #include <cstdint>
+#include <filesystem>
 #include <iomanip>
 #include <ios>
 #include <memory>
@@ -27,15 +28,15 @@
 
 RestartSubscriber::RestartSubscriber(void) : Subscriber() {}
 
-RestartSubscriber::RestartSubscriber(const std::string &fileName)
-    : Subscriber(fileName) {}
+RestartSubscriber::RestartSubscriber(const std::filesystem::path &filePath)
+    : Subscriber(filePath) {}
 
-RestartSubscriber::RestartSubscriber(const std::string &fileName,
+RestartSubscriber::RestartSubscriber(const std::filesystem::path &filePath,
                                      const int reportFrequency)
-    : Subscriber(fileName, reportFrequency) {}
+    : Subscriber(filePath, reportFrequency) {}
 
 void RestartSubscriber::update(void) {
-  APOCHARMM_REQUIRE(!m_FileName.empty(), ApoCharmmErrorCode::NotInitialized,
+  APOCHARMM_REQUIRE(!m_FilePath.empty(), ApoCharmmErrorCode::NotInitialized,
                     "RestartSubscriber requires an output file before update");
 
   APOCHARMM_REQUIRE(m_CharmmContext != nullptr,
@@ -88,11 +89,12 @@ void RestartSubscriber::update(void) {
     m_FileStream.close();
 
   m_FileStream.clear();
-  m_FileStream.open(m_FileName, std::ios::out);
+  m_FileStream.open(m_FilePath, std::ios::out);
 
   APOCHARMM_REQUIRE(m_FileStream.is_open() && m_FileStream.good(),
                     ApoCharmmErrorCode::Runtime,
-                    "Failed to open restart file for writing: " + m_FileName);
+                    "Failed to open restart file for writing: " +
+                        m_FilePath.string());
 
   std::string crystalString = "NONE";
 
@@ -437,7 +439,7 @@ void RestartSubscriber::update(void) {
   m_FileStream.close();
 
   APOCHARMM_REQUIRE(!m_FileStream.fail(), ApoCharmmErrorCode::Runtime,
-                    "Failed to write restart file: " + m_FileName);
+                    "Failed to write restart file: " + m_FilePath.string());
 
   return;
 }

@@ -23,6 +23,7 @@
 
 #include <cstddef>
 #include <cuda_runtime.h>
+#include <filesystem>
 #include <map>
 #include <memory>
 #include <string>
@@ -428,7 +429,7 @@ public:
    * replaced only after construction succeeds, then the initialized flag is
    * cleared.
    *
-   * @param[in] psfFile Path to the CHARMM PSF file.
+   * @param[in] psfPath Non-empty file-system path to the CHARMM PSF file.
    *
    * @post On success, `getPsf()` owns the newly parsed PSF and
    * `isInitialized()` returns `false`.
@@ -441,7 +442,7 @@ public:
    * @warning Existing initialized CUDA force state is not deallocated by this
    * call.
    */
-  void addPsf(const std::string &psfFile);
+  void addPsf(const std::filesystem::path &psfPath);
 
   /**
    * @brief Loads and installs parameters from one file.
@@ -450,7 +451,8 @@ public:
    * parameter set is replaced only after construction succeeds, then the
    * initialized flag is cleared.
    *
-   * @param[in] prmFile Path to a CHARMM parameter or stream file.
+   * @param[in] prmPath Non-empty file-system path to a CHARMM parameter or
+   * stream file.
    *
    * @post On success, `getPrm()` owns the newly parsed parameter set and
    * `isInitialized()` returns `false`.
@@ -461,7 +463,7 @@ public:
    * @warning Existing initialized CUDA force state is not deallocated by this
    * call.
    */
-  void addPrm(const std::string &prmFile);
+  void addPrm(const std::filesystem::path &prmPath);
 
   /**
    * @brief Loads and installs parameters from an ordered list of files.
@@ -470,8 +472,8 @@ public:
    * The existing parameter set is replaced only after all files are parsed
    * successfully, then the initialized flag is cleared.
    *
-   * @param[in] prmList Non-empty ordered list of CHARMM parameter or stream
-   * file paths.
+   * @param[in] prmList Non-empty ordered list of file-system paths to CHARMM
+   * parameter or stream files.
    *
    * @post On success, `getPrm()` owns the newly parsed parameter set and
    * `isInitialized()` returns `false`.
@@ -484,7 +486,7 @@ public:
    * @warning Existing initialized CUDA force state is not deallocated by this
    * call.
    */
-  void addPrm(const std::vector<std::string> &prmList);
+  void addPrm(const std::vector<std::filesystem::path> &prmList);
 
   /**
    * @brief Sets the orthorhombic box dimensions.

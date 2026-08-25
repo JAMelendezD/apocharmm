@@ -17,7 +17,7 @@ def main(argc: int, argv: list[str]) -> int:
     temperature = 300.0
 
     # Load CHARMM force field
-    prm = apo.CharmmParameters("test/data/toppar_water_ions.str")
+    prm = apo.CharmmParameters("toppar/toppar_water_ions.str")
 
     # Load PSF and coordinates
     psf = apo.CharmmPsf("test/data/waterbox.psf")

@@ -15,6 +15,7 @@
 #include "gpu_utils.h"
 
 #include <cmath>
+#include <filesystem>
 #include <iostream>
 #include <string>
 
@@ -151,22 +152,23 @@ void ForceManager::setPrm(std::shared_ptr<CharmmParameters> prm) {
   return;
 }
 
-void ForceManager::addPsf(const std::string &psfFile) {
-  m_Psf = std::make_shared<CharmmPSF>(psfFile);
+void ForceManager::addPsf(const std::filesystem::path &psfPath) {
+  m_Psf = std::make_shared<CharmmPSF>(psfPath);
   // If changing the CharmmPSF, set "initialized" flag to FALSE
   m_IsInitialized = false;
   return;
 }
 
-void ForceManager::addPrm(const std::string &prmFile) {
-  m_Prm = std::make_unique<CharmmParameters>(prmFile);
+void ForceManager::addPrm(const std::filesystem::path &prmPath) {
+  m_Prm = std::make_unique<CharmmParameters>(prmPath);
   // If changing the CharmmParameters, set "initialized" flag to FALSE
   m_IsInitialized = false;
   return;
 }
 
-void ForceManager::addPrm(const std::vector<std::string> &prmList) {
+void ForceManager::addPrm(const std::vector<std::filesystem::path> &prmList) {
   m_Prm = std::make_unique<CharmmParameters>(prmList);
+  // If changing the CharmmParameters, set "initialized" flag to FALSE
   m_IsInitialized = false;
   return;
 }

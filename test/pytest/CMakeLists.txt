@@ -32,13 +32,12 @@ set(PYTHON_API_TESTS
 
 # Python files that are imported by tests, but should not be registered as tests.
 set(PYTHON_API_SUPPORT_FILES
-  python_api_test_helpers.py
+  apo_test_helpers.py
 )
 
 ###################################################
 #### STUFF BELOW SHOULDN'T NEED TO BE MODIFIED ####
 ###################################################
-########################################################################
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
 set(PYTHON_API_TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR})
@@ -88,7 +87,7 @@ foreach(test_file ${PYTHON_API_TESTS})
 
   set_tests_properties(${test_name} PROPERTIES
     LABELS "python_api"
-    ENVIRONMENT "APOCHARMM_REPO_ROOT=${PROJECT_SOURCE_DIR};APOCHARMM_TEST_DATA_PATH=${PROJECT_SOURCE_DIR}/test/data;APOCHARMM_LIBRARY_PATH=$<TARGET_FILE:apocharmm_c>;PYTHONPATH=${PROJECT_SOURCE_DIR}/python:$ENV{PYTHONPATH};LD_LIBRARY_PATH=$<TARGET_FILE_DIR:apocharmm_c>:$ENV{LD_LIBRARY_PATH}"
+    ENVIRONMENT "APOCHARMM_REPO_ROOT=${PROJECT_SOURCE_DIR};APOCHARMM_TEST_DATA_DIR=${PROJECT_SOURCE_DIR}/test/data;APOCHARMM_TOPPAR_DIR=${PROJECT_SOURCE_DIR}/toppar;APOCHARMM_LIBRARY_PATH=$<TARGET_FILE:apocharmm_c>;PYTHONPATH=${PROJECT_SOURCE_DIR}/python:$ENV{PYTHONPATH};LD_LIBRARY_PATH=$<TARGET_FILE_DIR:apocharmm_c>:$ENV{LD_LIBRARY_PATH}"
   )
 endforeach()
 

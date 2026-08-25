@@ -21,9 +21,9 @@
 #include "RestartSubscriber.h"
 #include "apo_test_helpers.h"
 #include "catch.hpp"
-#include "test_paths.h"
 
 #include <cstdint>
+#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <stdexcept>
@@ -50,12 +50,12 @@ const std::vector<double> REFERENCE_PRESSURE_TENSOR = {1.0, 0.0, 0.0, 0.0, 1.0,
                                                        0.0, 0.0, 0.0, 1.0};
 
 std::shared_ptr<CharmmContext> CreateContext(const bool assignVelocities) {
-  const std::string dataPath = getDataPath();
-
-  auto prm =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
-  auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                "toppar_water_ions.str");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx = std::make_shared<CharmmContext>(psf, prm);
   ctx->setBoxDimensions(BOX_DIMENSIONS);
@@ -110,18 +110,19 @@ CreateLangevinPistonIntegrator(std::shared_ptr<CharmmContext> ctx) {
   return integrator;
 }
 
-void WriteRestartFile(const std::string &fileName,
+void WriteRestartFile(const std::filesystem::path &filePath,
                       const std::shared_ptr<CharmmContext> &ctx,
                       const std::shared_ptr<CudaIntegrator> &integrator) {
-  RestartSubscriber rst(fileName, REPORT_FREQUENCY);
+  RestartSubscriber rst(filePath, REPORT_FREQUENCY);
   rst.setCharmmContext(ctx);
   rst.setIntegrator(integrator);
   rst.update();
   return;
 }
 
-void CheckRestartFileContainsRequiredSections(const std::string &fileName) {
-  std::ifstream fin(fileName);
+void CheckRestartFileContainsRequiredSections(
+    const std::filesystem::path &filePath) {
+  std::ifstream fin(filePath);
   REQUIRE(fin.good());
 
   const std::string contents((std::istreambuf_iterator<char>(fin)),
@@ -344,38 +345,40 @@ TEST_CASE("RestartSubscriberConstructionAndReportFrequency") {
   SECTION("DefaultConstruction") {
     RestartSubscriber rst;
 
-    CHECK(rst.getFileName().empty() == true);
+    CHECK(rst.getFilePath().empty() == true);
     CHECK(rst.getReportFrequency() == 1000);
   }
 
   SECTION("FileConstructor") {
-    const std::string fileName = "tmpRestartSubscriberConstructor.rst";
-    apo_test::RemoveIfExists(fileName);
+    const std::filesystem::path filePath =
+        "tmpRestartSubscriberConstructor.rst";
+    apo_test::RemoveIfExists(filePath);
 
-    RestartSubscriber rst(fileName);
+    RestartSubscriber rst(filePath);
 
-    CHECK(rst.getFileName() == fileName);
+    CHECK(rst.getFilePath() == filePath);
     CHECK(rst.getReportFrequency() == 1000);
 
-    std::ifstream fin(fileName);
+    std::ifstream fin(filePath);
     CHECK(fin.good());
 
-    apo_test::RemoveIfExists(fileName);
+    apo_test::RemoveIfExists(filePath);
   }
 
   SECTION("FileAndReportFrequencyConstructor") {
-    const std::string fileName = "tmpRestartSubscriberReportFrequency.rst";
-    apo_test::RemoveIfExists(fileName);
+    const std::filesystem::path filePath =
+        "tmpRestartSubscriberReportFrequency.rst";
+    apo_test::RemoveIfExists(filePath);
 
-    RestartSubscriber rst(fileName, REPORT_FREQUENCY);
+    RestartSubscriber rst(filePath, REPORT_FREQUENCY);
 
-    CHECK(rst.getFileName() == fileName);
+    CHECK(rst.getFilePath() == filePath);
     CHECK(rst.getReportFrequency() == REPORT_FREQUENCY);
 
     rst.setReportFrequency(1);
     CHECK(rst.getReportFrequency() == 1);
 
-    apo_test::RemoveIfExists(fileName);
+    apo_test::RemoveIfExists(filePath);
   }
 
   SECTION("RejectsMissingOutputDirectory") {
@@ -502,7 +505,7 @@ TEST_CASE("RestartSubscriberUpdateReportsOutputOpenFailure") {
 
   RestartSubscriber rst;
   rst.setReportFrequency(REPORT_FREQUENCY);
-  rst.setFileName(".");
+  rst.setFilePath(".");
   rst.setCharmmContext(ctx);
   rst.setIntegrator(integrator);
 

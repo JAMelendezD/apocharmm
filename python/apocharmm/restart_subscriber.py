@@ -75,8 +75,8 @@ class RestartSubscriber(Subscriber):
     and each transfer synchronizes the current CUDA device.
 
     The wrapper owns the concrete C handle. Its `subscriber_handle` property is
-    a borrowed view into that handle. Use the object as a context manager or call
-    `close()` through the wrapper; never destroy the borrowed view.
+    a borrowed view into that handle. Use the object as a context manager or
+    call `close()` through the wrapper; never destroy the borrowed view.
 
     @warning Unsubscribe before closing the wrapper. Closing invalidates the C
     base view even when the native integrator still retains the underlying C++
@@ -105,9 +105,10 @@ class RestartSubscriber(Subscriber):
         becomes one and `False` is rejected by native validation.
 
         @param[in] path Filesystem path to create or truncate. It must encode to
-        a nonempty native path; when the path contains `/`, its nonempty parent
-        must exist. Encoded bytes are passed as a null-terminated C string, so an
-        embedded null byte truncates the path observed by native code.
+        a nonempty native path; when the path has a nonempty parent path, that
+        parent path must exist. Encoded bytes are passed as a null-terminated C
+        string, so an embedded null byte truncates the path observed by native
+        code.
         @param[in] report_frequency Optional positive, dimensionless number of
         propagated steps between restart replacements.
         @throws TypeError If `path` is not accepted by `os.fsencode()`, or an

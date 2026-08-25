@@ -23,9 +23,9 @@
 #include "apocharmm_c/detail/CharmmPsfHandle.h"
 #include "apocharmm_c/detail/ForceManagerHandle.h"
 #include "catch.hpp"
-#include "test_paths.h"
 
 #include <cstddef>
+#include <filesystem>
 #include <limits>
 #include <memory>
 #include <string>
@@ -56,8 +56,9 @@ struct ContextInputs {
   apo_force_manager forceManagerHandle;
 
   ContextInputs()
-      : psf(std::make_shared<CharmmPSF>(getDataPath() + "nacl_pair.psf")),
-        parameters(std::make_shared<CharmmParameters>(getDataPath() +
+      : psf(std::make_shared<CharmmPSF>(apo_test::GetDataDir() /
+                                        "nacl_pair.psf")),
+        parameters(std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
                                                       "toppar_water_ions.str")),
         forceManager(std::make_shared<ForceManager>(psf, parameters)),
         psfHandle(), parametersHandle(), forceManagerHandle() {
@@ -70,12 +71,12 @@ struct ContextInputs {
 };
 
 std::shared_ptr<CharmmParameters> MakeParameters(void) {
-  return std::make_shared<CharmmParameters>(getDataPath() +
+  return std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
                                             "toppar_water_ions.str");
 }
 
 std::shared_ptr<CharmmPSF> MakePsf(void) {
-  return std::make_shared<CharmmPSF>(getDataPath() + "nacl_pair.psf");
+  return std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
 }
 
 class LogicallyInitializedForceManager final : public ForceManager {

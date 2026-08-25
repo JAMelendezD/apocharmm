@@ -11,6 +11,7 @@
 #pragma once
 
 #include <cstddef>
+#include <filesystem>
 #include <iosfwd>
 #include <string>
 #include <string_view>
@@ -67,7 +68,7 @@ bool try_get_fixed_width_field(std::string_view &field,
                                const std::size_t width) noexcept;
 
 void read_file_into_string(std::string &file_data,
-                           const std::string &file_name);
+                           const std::filesystem::path &file_path);
 
 bool try_parse_int(int &value, const std::string_view token);
 

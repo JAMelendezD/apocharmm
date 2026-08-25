@@ -21,38 +21,18 @@ def main(argc, argv):
     time_step = 0.001
 
     # Load CHARMM force field
-    prm = apo.CharmmParameters("test/data/toppar_water_ions.str")
+    prm = apo.CharmmParameters("toppar/toppar_water_ions.str")
 
     # Load PSF and coordinates
     psf = apo.CharmmPsf("test/data/nacl_pair.psf")
     crd = apo.CharmmCrd("test/data/nacl_pair.cor")
 
-    ############################
-    #### OLD INITIALIZATION ####
-    ############################
-    ########################################################################
-    ## Setup ForceManager
-    # fm = apo.ForceManager(psf, prm)
-    # fm.setBoxDimensions(box_dims)
-    #
-    ## Setup CharmmContext
-    # ctx = apo.CharmmContext(fm)
-    # ctx.setCoordinates(crd)
-    # ctx.setRandomSeed(random_seed)
-    # ctx.assignVelocitiesAtTemperature(temperature)
-    ########################################################################
-
-    ############################
-    #### NEW INITIALIZATION ####
-    ############################
-    ########################################################################
     # Setup CharmmContext
     ctx = apo.CharmmContext(psf, prm)
     ctx.setBoxDimensions(box_dims)
     ctx.setCoordinates(crd)
     ctx.setRandomSeed(random_seed)
     ctx.assignVelocitiesAtTemperature(temperature)
-    ########################################################################
 
     # Setup integrator
     integrator = apo.CudaLangevinThermostatIntegrator(time_step)

@@ -130,7 +130,7 @@ TEST_CASE("CapiDcdSubscriberMapsNativeConstructionValidation") {
   apo_test::CheckNativeError(status, APO_STATUS_INVALID_ARGUMENT,
                              "InvalidArgument", "apo_dcd_subscriber_create",
                              "Output file name must not be empty",
-                             "src/Subscriber.cu", "setFileName");
+                             "src/Subscriber.cu", "setFilePath");
   CHECK(subscriber == nullptr);
 
   CHECK_NOTHROW((status = apo_dcd_subscriber_create_with_report_frequency(
@@ -218,7 +218,7 @@ TEST_CASE("CapiSubscriberAttachmentValidatesHandles") {
 TEST_CASE("CapiSubscriberMapsNativeAttachmentValidation") {
   apo_cuda_integrator integrator = MakeIntegratorHandle();
   apo_subscriber subscriber = MakeSubscriberHandle();
-  subscriber.object->setFileName("capiSubscriber.out");
+  subscriber.object->setFilePath("capiSubscriber.out");
 
   apo_status status = APO_STATUS_OK;
 

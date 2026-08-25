@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <filesystem>
 #include <limits>
 #include <string>
 #include <string_view>
@@ -87,10 +88,10 @@ CharmmPSF::CharmmPSF(void)
       m_NumDihedrals(-1), m_Dihedrals(), m_NumImpropers(-1), m_Impropers(),
       m_NumCrossTerms(-1), m_CrossTerms(), m_Connected12(), m_Connected13(),
       m_Connected14(), m_Iblo14(), m_Inb14(), m_WaterMolecules(), m_Residues(),
-      m_Groups(), m_FileName("") {}
+      m_Groups(), m_FilePath() {}
 
-CharmmPSF::CharmmPSF(const std::string &fileName) : CharmmPSF() {
-  this->readCharmmPSF(fileName);
+CharmmPSF::CharmmPSF(const std::filesystem::path &filePath) : CharmmPSF() {
+  this->readCharmmPSF(filePath);
   this->initializeWaterMolecules();
   this->createConnectedComponents();
   this->buildTopologicalExclusions();
@@ -111,7 +112,7 @@ CharmmPSF::CharmmPSF(const CharmmPSF &other)
       m_Connected13(other.m_Connected13), m_Connected14(other.m_Connected14),
       m_Iblo14(other.m_Iblo14), m_Inb14(other.m_Inb14),
       m_WaterMolecules(other.m_WaterMolecules), m_Residues(other.m_Residues),
-      m_Groups(other.m_Groups), m_FileName(other.m_FileName) {}
+      m_Groups(other.m_Groups), m_FilePath(other.m_FilePath) {}
 
 CharmmPSF::CharmmPSF(const CharmmPSF &&other)
     : m_NumAtoms(other.m_NumAtoms),
@@ -128,7 +129,7 @@ CharmmPSF::CharmmPSF(const CharmmPSF &&other)
       m_Connected13(other.m_Connected13), m_Connected14(other.m_Connected14),
       m_Iblo14(other.m_Iblo14), m_Inb14(other.m_Inb14),
       m_WaterMolecules(other.m_WaterMolecules), m_Residues(other.m_Residues),
-      m_Groups(other.m_Groups), m_FileName(other.m_FileName) {}
+      m_Groups(other.m_Groups), m_FilePath(other.m_FilePath) {}
 
 void CharmmPSF::setNumAtoms(const int numAtoms) {
   APOCHARMM_REQUIRE(numAtoms >= 0, ApoCharmmErrorCode::InvalidArgument,
@@ -243,7 +244,9 @@ const CudaContainer<int2> &CharmmPSF::getResidues(void) const {
 
 const CudaContainer<int2> &CharmmPSF::getGroups(void) const { return m_Groups; }
 
-const std::string &CharmmPSF::getFileName(void) const { return m_FileName; }
+const std::filesystem::path &CharmmPSF::getFilePath(void) const {
+  return m_FilePath;
+}
 
 std::vector<std::string> &CharmmPSF::getSegmentIdentifiers(void) {
   return m_SegmentIdentifiers;
@@ -299,7 +302,7 @@ CudaContainer<int2> &CharmmPSF::getResidues(void) { return m_Residues; }
 
 CudaContainer<int2> &CharmmPSF::getGroups(void) { return m_Groups; }
 
-std::string &CharmmPSF::getFileName(void) { return m_FileName; }
+std::filesystem::path &CharmmPSF::getFilePath(void) { return m_FilePath; }
 
 double CharmmPSF::getNetCharge(void) const {
   APOCHARMM_REQUIRE(m_NumAtoms >= 0, ApoCharmmErrorCode::NotInitialized,
@@ -504,16 +507,16 @@ void CharmmPSF::buildTopologicalExclusions(void) {
   return;
 }
 
-void CharmmPSF::readCharmmPSF(const std::string &fileName) {
-  APOCHARMM_REQUIRE(!fileName.empty(), ApoCharmmErrorCode::InvalidArgument,
+void CharmmPSF::readCharmmPSF(const std::filesystem::path &filePath) {
+  APOCHARMM_REQUIRE(!filePath.empty(), ApoCharmmErrorCode::InvalidArgument,
                     "CHARMM PSF file path must not be empty");
 
-  // Store file name
-  m_FileName = fileName;
+  m_FilePath = filePath;
 
   std::string fileData = "";
-  apo::read_file_into_string(fileData, fileName);
+  apo::read_file_into_string(fileData, filePath);
 
+  const std::string fileName = filePath.string();
   const std::string psfSource = "PSF \"" + fileName + "\"";
 
   std::size_t pos = 0;

@@ -19,6 +19,7 @@
 
 #include <cmath>
 #include <cstddef>
+#include <filesystem>
 #include <fstream>
 #include <random>
 #include <vector_functions.h>
@@ -357,12 +358,13 @@ void CudaLangevinThermostatIntegrator::initializeImpl(void) {
 }
 
 void CudaLangevinThermostatIntegrator::initializeFromRestartFileImpl(
-    const std::string &rstFileName) {
-  std::ifstream fin(rstFileName);
+    const std::filesystem::path &rstFilePath) {
+  std::ifstream fin(rstFilePath);
   APOCHARMM_REQUIRE(fin.is_open(), ApoCharmmErrorCode::Runtime,
-                    "Could not open file \"" + rstFileName + "\"");
+                    "Could not open file \"" + rstFilePath.string() + "\"");
 
-  const std::string restartContext = "restart file \"" + rstFileName + "\"";
+  const std::string restartContext =
+      "restart file \"" + rstFilePath.string() + "\"";
 
   std::size_t lineNumber = 0;
   std::string line = "";
@@ -513,13 +515,13 @@ void CudaLangevinThermostatIntegrator::initializeFromRestartFileImpl(
     RNGSTATE = line.substr(106);
   }
 
-  APOCHARMM_REQUIRE(NATOM == m_Context->getNumAtoms(),
-                    ApoCharmmErrorCode::InvalidArgument,
-                    "NATOM mismatch in restart file \"" + rstFileName + "\"");
+  APOCHARMM_REQUIRE(
+      NATOM == m_Context->getNumAtoms(), ApoCharmmErrorCode::InvalidArgument,
+      "NATOM mismatch in restart file \"" + rstFilePath.string() + "\"");
 
   if (NDEGF != m_Context->getNumDegreesOfFreedom()) {
-    std::cout << "WARNING: NDEGF mismatch in restart file \"" << rstFileName
-              << "\"\n";
+    std::cout << "WARNING: NDEGF mismatch in restart file \""
+              << rstFilePath.string() << "\"\n";
     std::cout << "RST: " << NDEGF << '\n';
     std::cout << "CTX: " << m_Context->getNumDegreesOfFreedom() << std::endl;
   }

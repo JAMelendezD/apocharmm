@@ -15,23 +15,25 @@
 
 #include <array>
 #include <cstddef>
+#include <filesystem>
 #include <limits>
 #include <string>
 #include <string_view>
 #include <vector>
 
-CharmmCrd::CharmmCrd(const std::string &fileName) : Coordinates() {
-  APOCHARMM_REQUIRE(!fileName.empty(), ApoCharmmErrorCode::InvalidArgument,
+CharmmCrd::CharmmCrd(const std::filesystem::path &filePath) : Coordinates() {
+  APOCHARMM_REQUIRE(!filePath.empty(), ApoCharmmErrorCode::InvalidArgument,
                     "CHARMM coordinate file path must not be empty");
 
-  this->readCharmmCrdFile(fileName);
+  this->readCharmmCrdFile(filePath);
 }
 
-void CharmmCrd::readCharmmCrdFile(const std::string &fileName) {
+void CharmmCrd::readCharmmCrdFile(const std::filesystem::path &filePath) {
   std::string fileData = "";
-  apo::read_file_into_string(fileData, fileName);
+  apo::read_file_into_string(fileData, filePath);
 
-  const std::string sourceName = "CHARMM coordinate file \"" + fileName + "\"";
+  const std::string sourceName =
+      "CHARMM coordinate file \"" + filePath.string() + "\"";
 
   std::size_t pos = 0;
   std::size_t lineNumber = 0;

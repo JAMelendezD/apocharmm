@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <string>
@@ -35,7 +36,7 @@ class CudaIntegrator;
  * @warning A subscribed integrator and subscriber retain each other through
  * `std::shared_ptr`. Call `CudaIntegrator::unsubscribe()` before releasing the
  * final external owners.
- * @warning Configure the file name and report frequency before subscription.
+ * @warning Configure the file path and report frequency before subscription.
  * The integrator caches the frequency and does not observe later changes.
  *
  * @see subscriber
@@ -45,7 +46,7 @@ public:
   /**
    * @brief Constructs an unattached subscriber with no output file.
    *
-   * @post The report frequency is `1000`, the file name is empty, the stream is
+   * @post The report frequency is `1000`, the file path is empty, the stream is
    * closed, and no context or integrator is retained.
    */
   Subscriber(void);
@@ -53,22 +54,24 @@ public:
   /**
    * @brief Constructs a subscriber and opens a text output file.
    *
-   * The path is copied, its nonempty parent path is checked with `stat()`, and
-   * the file is opened with `std::ios::out`. An existing file is truncated.
+   * The path is copied, any nonempty parent path is checked with
+   * `std::filesystem::exists()`, and the file is opened with `std::ios::out`.
+   * An existing file is truncated.
    *
-   * @param[in] fileName Output path copied by the subscriber. The value must be
-   * nonempty; when it contains `/`, its nonempty parent path must exist.
+   * @param[in] filePath File-system path copied by the subscriber. The value
+   * must be nonempty; when it has a nonempty parent path, that parent path must
+   * exist.
    *
    * @throws ApoCharmmError With code
-   * `ApoCharmmErrorCode::InvalidArgument` if `fileName` is empty or its checked
+   * `ApoCharmmErrorCode::InvalidArgument` if `filePath` is empty or its checked
    * parent path does not exist.
    * @throws ApoCharmmError With code `ApoCharmmErrorCode::Runtime` if the
    * output file cannot be opened for writing.
    *
    * @post On success, the report frequency is `1000` and the text stream is
-   * open at `fileName`.
+   * open at `filePath`.
    */
-  Subscriber(const std::string &fileName);
+  Subscriber(const std::filesystem::path &filePath);
 
   /**
    * @brief Constructs a subscriber with an explicit reporting interval.
@@ -76,27 +79,28 @@ public:
    * The frequency is validated before the path is stored or the file is opened.
    * The output is opened as a truncating text stream.
    *
-   * @param[in] fileName Output path copied by the subscriber. The value must be
-   * nonempty; when it contains `/`, its nonempty parent path must exist.
+   * @param[in] filePath File-system path copied by the subscriber. The value
+   * must be nonempty; when it has a nonempty parent path, that parent path must
+   * exist.
    * @param[in] reportFrequency Positive, dimensionless number of propagated
    * steps between scheduled updates.
    *
    * @throws ApoCharmmError With code
    * `ApoCharmmErrorCode::InvalidArgument` if `reportFrequency` is not positive,
-   * `fileName` is empty, or its checked parent path does not exist.
+   * `filePath` is empty, or its checked parent path does not exist.
    * @throws ApoCharmmError With code `ApoCharmmErrorCode::Runtime` if the
    * output file cannot be opened for writing.
    *
-   * @post On success, the text stream is open at `fileName` and
+   * @post On success, the text stream is open at `filePath` and
    * `getReportFrequency() == reportFrequency`.
    */
-  Subscriber(const std::string &fileName, const int reportFrequency);
+  Subscriber(const std::filesystem::path &filePath, const int reportFrequency);
 
   /**
    * @brief Destroys the stream and releases retained collaborators.
    *
    * Destruction is non-throwing. All references returned by
-   * @ref getFileName are invalid after destruction.
+   * @ref getFilePath are invalid after destruction.
    */
   virtual ~Subscriber(void) noexcept = default;
 
@@ -117,21 +121,21 @@ public:
   void setReportFrequency(const int reportFrequency);
 
   /**
-   * @brief Sets the logical output-file name without reopening the stream.
+   * @brief Sets the logical output-file path without reopening the stream.
    *
-   * @param[in] fileName Output path copied by the subscriber. The value must be
+   * @param[in] filePath Output path copied by the subscriber. The value must be
    * nonempty; when it contains `/`, its nonempty parent path must exist.
    *
    * @throws ApoCharmmError With code
-   * `ApoCharmmErrorCode::InvalidArgument` if `fileName` is empty or its checked
+   * `ApoCharmmErrorCode::InvalidArgument` if `filePath` is empty or its checked
    * parent path does not exist.
    *
-   * @post On success, both overloads of @ref getFileName return `fileName`.
+   * @post On success, both overloads of @ref getFilePath return `filePath`.
    * The current stream, if any, remains attached to its previous file.
-   * @warning Call @ref openFile explicitly after changing the name when output
+   * @warning Call @ref openFile explicitly after changing the path when output
    * should move to the new path.
    */
-  void setFileName(const std::string &fileName);
+  void setFilePath(const std::filesystem::path &filePath);
 
   /**
    * @brief Retains the context exposed to subscriber implementations.
@@ -173,25 +177,24 @@ public:
   int getReportFrequency(void) const;
 
   /**
-   * @brief Returns the logical output-file name.
+   * @brief Returns the logical output-file path.
    *
-   * @return Borrowed const alias to the subscriber-owned path string. The
-   * reference remains valid until the string is modified or the subscriber is
+   * @return Borrowed const alias to the subscriber-owned file-system path. The
+   * reference remains valid until the path is modified or the subscriber is
    * destroyed. No file operation is performed.
    */
-  const std::string &getFileName(void) const;
+  const std::filesystem::path &getFilePath(void) const;
 
   /**
-   * @brief Returns mutable access to the logical output-file name.
+   * @brief Returns mutable access to the logical output-file path.
    *
-   * @return Borrowed mutable alias to the subscriber-owned path string. The
-   * reference remains valid until string reallocation or subscriber
-   * destruction.
+   * @return Borrowed mutable alias to the subscriber-owned file-system path.
+   * The reference remains valid until the subscriber is destroyed.
    *
    * @warning Mutation bypasses empty-path and parent-path validation and does
    * not reopen or retarget the current stream.
    */
-  std::string &getFileName(void);
+  std::filesystem::path &getFilePath(void);
 
 public:
   /**
@@ -213,21 +216,21 @@ public:
   /**
    * @brief Checks whether the parent portion of an output path exists.
    *
-   * Paths containing no `/`, and paths whose final `/` has an empty prefix,
-   * return without a filesystem query. Otherwise the prefix before the final
-   * slash is passed to `stat()`. The current implementation checks existence,
-   * not whether the result is a directory.
+   * A path with no parent component returns without a filesystem query.
+   * Otherwise, the parent path is checked with `std::filesystem::exists()`.
+   * The current implementation checks existence, not whether the result is a
+   * directory.
    *
-   * @param[in] fileName Path inspected for one nonempty parent prefix. The
-   * string is borrowed for the call and is not retained.
+   * @param[in] filePath Path whose parent component is inspected. The path is
+   * borrowed for the call and is not retained.
    *
    * @throws ApoCharmmError With code
-   * `ApoCharmmErrorCode::InvalidArgument` if `stat()` fails for the checked
-   * prefix.
+   * `ApoCharmmErrorCode::InvalidArgument` if the parent does not exist or its
+   * filesystem status cannot be queried.
    *
    * @post The subscriber and filesystem are unchanged.
    */
-  void checkPath(const std::string &fileName);
+  void checkPath(const std::filesystem::path &filePath);
 
   /**
    * @brief Opens the stored path as a truncating text output stream.
@@ -236,7 +239,7 @@ public:
    * stream state is cleared, and the stored path is revalidated.
    *
    * @throws ApoCharmmError With code
-   * `ApoCharmmErrorCode::NotInitialized` if the stored file name is empty.
+   * `ApoCharmmErrorCode::NotInitialized` if the stored file path is empty.
    * @throws ApoCharmmError With code
    * `ApoCharmmErrorCode::InvalidArgument` if the checked parent path does not
    * exist.
@@ -285,10 +288,10 @@ protected:
    * @brief Stores the logical output path owned by the subscriber.
    *
    * The value can differ from the file currently associated with
-   * @ref m_FileStream after a name change that is not followed by
+   * @ref m_FileStream after a path change that is not followed by
    * @ref openFile.
    */
-  std::string m_FileName;
+  std::filesystem::path m_FilePath;
 
   /**
    * @brief Owns the host file stream used by concrete reporters.

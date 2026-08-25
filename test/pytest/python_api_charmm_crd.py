@@ -15,13 +15,7 @@ import sys
 
 import apocharmm as apo
 
-from python_api_test_helpers import (
-    require_file,
-    remove_if_exists,
-    assert_equal,
-    assert_nested_sequence_close,
-    expect_apo_error,
-)
+import apo_test_helpers as apo_test
 
 TOLERANCE: float = 1.0e-10
 
@@ -158,8 +152,8 @@ def check_standard_crd(path: Path) -> None:
 
     crd = apo.CharmmCrd(str(path))
 
-    assert_equal("standard CharmmCrd.getNumAtoms", crd.getNumAtoms(), 3)
-    assert_nested_sequence_close(
+    apo_test.assert_equal("standard CharmmCrd.getNumAtoms", crd.getNumAtoms(), 3)
+    apo_test.assert_nested_sequence_close(
         "standard CharmmCrd.getCoordinates",
         crd.getCoordinates(),
         STANDARD_COORDINATES,
@@ -176,8 +170,8 @@ def check_extended_crd(path: Path) -> None:
 
     crd = apo.CharmmCrd(str(path))
 
-    assert_equal("extended CharmmCrd.getNumAtoms", crd.getNumAtoms(), 3)
-    assert_nested_sequence_close(
+    apo_test.assert_equal("extended CharmmCrd.getNumAtoms", crd.getNumAtoms(), 3)
+    apo_test.assert_nested_sequence_close(
         "extended CharmmCrd.getCoordinates",
         crd.getCoordinates(),
         EXTENDED_COORDINATES,
@@ -190,7 +184,7 @@ def check_extended_crd(path: Path) -> None:
 def check_repository_nacl_pair(repo_root: Path) -> None:
     print("Checking repository nacl_pair.cor...")
 
-    crd_path: str = require_file(repo_root / "test/data/nacl_pair.cor")
+    crd_path: str = apo_test.require_file(repo_root / "test/data/nacl_pair.cor")
     crd = apo.CharmmCrd(crd_path)
 
     expected_coordinates: list[list[float]] = [
@@ -198,8 +192,8 @@ def check_repository_nacl_pair(repo_root: Path) -> None:
         [2.82, 2.82, 2.82],
     ]
 
-    assert_equal("nacl_pair CharmmCrd.getNumAtoms", crd.getNumAtoms(), 2)
-    assert_nested_sequence_close(
+    apo_test.assert_equal("nacl_pair CharmmCrd.getNumAtoms", crd.getNumAtoms(), 2)
+    apo_test.assert_nested_sequence_close(
         "nacl_pair CharmmCrd.getCoordinates",
         crd.getCoordinates(),
         expected_coordinates,
@@ -212,9 +206,9 @@ def check_repository_nacl_pair(repo_root: Path) -> None:
 def check_missing_crd(path: Path) -> None:
     print("Checking missing CharmmCrd file error path...")
 
-    remove_if_exists(path)
+    apo_test.remove_if_exists(path)
 
-    expect_apo_error(
+    apo_test.expect_apo_error(
         "CharmmCrd rejects a missing coordinate file",
         lambda: apo.CharmmCrd(str(path)),
         apo.APO_STATUS_RUNTIME_ERROR,
@@ -230,7 +224,7 @@ def check_malformed_crd(path: Path) -> None:
 
     write_malformed_crd(path)
 
-    expect_apo_error(
+    apo_test.expect_apo_error(
         "CharmmCrd rejects a malformed coordinate file",
         lambda: apo.CharmmCrd(str(path)),
         apo.APO_STATUS_RUNTIME_ERROR,
@@ -252,7 +246,7 @@ def check_invalid_atom_count_crd(path: Path) -> None:
         encoding="utf-8",
     )
 
-    expect_apo_error(
+    apo_test.expect_apo_error(
         "CharmmCrd rejects an invalid atom count",
         lambda: apo.CharmmCrd(str(path)),
         apo.APO_STATUS_RUNTIME_ERROR,
@@ -269,7 +263,7 @@ def check_invalid_atom_count_crd(path: Path) -> None:
 def check_empty_path() -> None:
     print("Checking empty CharmmCrd path error path...")
 
-    expect_apo_error(
+    apo_test.expect_apo_error(
         "CharmmCrd rejects an empty coordinate-file path",
         lambda: apo.CharmmCrd(""),
         apo.APO_STATUS_INVALID_ARGUMENT,
@@ -302,7 +296,7 @@ def main(argc: int, argv: list[str]) -> int:
     )
 
     for path in generated_files:
-        remove_if_exists(path)
+        apo_test.remove_if_exists(path)
 
     try:
         check_standard_crd(standard_crd_path)
@@ -315,7 +309,7 @@ def main(argc: int, argv: list[str]) -> int:
     finally:
         print("Cleaning up CharmmCrd Python API test files...")
         for path in generated_files:
-            remove_if_exists(path)
+            apo_test.remove_if_exists(path)
 
     print("\033[32m" + "PASS: CharmmCrd Python API tests completed." + "\033[0m")
 

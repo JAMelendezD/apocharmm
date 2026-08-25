@@ -21,25 +21,13 @@ def main(argc, argv):
     time_step = 0.002
 
     # Load CHARMM force field
-    prm = apo.CharmmParameters("test/data/toppar_water_ions.str")
+    prm = apo.CharmmParameters("toppar/toppar_water_ions.str")
 
     # Load PSF and coordinates
     psf = apo.CharmmPsf("test/data/waterbox.psf")
     crd = apo.CharmmCrd("test/data/waterbox.crd")
 
-    ## OLD INITIALIZATION
-    ## Setup the ForceManager
-    # fm = apo.ForceManager(psf, prm)
-    # fm.setBoxDimensions(box_dims)
-    #
-    ## Setup the CharmmContext
-    # ctx = apo.CharmmContext(fm)
-    # ctx.setCoordinates(crd)
-    # ctx.setRandomSeed(random_seed)
-    # ctx.assignVelocitiesAtTemperature(temperature)
-    # ctx.useHolonomicConstraints(use_holonomic_constraints)
-
-    # NEW INITIALIZATION
+    # Setup the CharmmContext
     ctx = apo.CharmmContext(psf, prm)
     ctx.setBoxDimensions(box_dims)
     ctx.setCoordinates(crd)

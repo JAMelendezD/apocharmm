@@ -87,7 +87,7 @@ TEST_CASE("CharmPSFDefaultConstructor") {
   CHECK(psf.getWaterMolecules().size() == 0);
   CHECK(psf.getResidues().size() == 0);
   CHECK(psf.getGroups().size() == 0);
-  CHECK(psf.getFileName().empty() == true);
+  CHECK(psf.getFilePath().empty() == true);
 }
 
 TEST_CASE("CharmmPSFParsesLinearChain") {
@@ -117,8 +117,8 @@ TEST_CASE("CharmmPSFParsesLinearChain") {
 
   CharmmPSF psf(fileName);
 
-  SECTION("CountsAndFileName") {
-    CHECK(psf.getFileName() == fileName);
+  SECTION("CountsAndFilePath") {
+    CHECK(psf.getFilePath() == fileName);
     CHECK(psf.getNumAtoms() == 4);
     CHECK(psf.getNumBonds() == 3);
     CHECK(psf.getNumAngles() == 2);
@@ -224,7 +224,7 @@ TEST_CASE("CharmmPSFParsesLinearChain") {
   SECTION("CopyConstructorDeepCopy") {
     CharmmPSF copy(psf);
 
-    CHECK(copy.getFileName() == psf.getFileName());
+    CHECK(copy.getFilePath() == psf.getFilePath());
     CHECK(copy.getNumAtoms() == psf.getNumAtoms());
     CHECK(copy.getNumBonds() == psf.getNumBonds());
     CHECK(copy.getCharges().data() != psf.getCharges().data());
@@ -244,7 +244,7 @@ TEST_CASE("CharmmPSFParsesLinearChain") {
     CharmmPSF source(fileName);
     CharmmPSF copy(std::move(source));
 
-    CHECK(copy.getFileName() == fileName);
+    CHECK(copy.getFilePath() == fileName);
     CHECK(copy.getNumAtoms() == 4);
     CHECK(copy.getNumBonds() == 3);
     CHECK(copy.getAtomNames() ==

@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <curand_kernel.h>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -258,9 +259,11 @@ protected:
   /**
    * @brief Restores thermostat displacement and RNG state from a restart file.
    *
-   * @param[in] rstFileName Borrowed restart-file path.
+   * @param[in] rstFilePath Borrowed restart-file path. The path is not
+   * canonicalized or retained.
    */
-  void initializeFromRestartFileImpl(const std::string &rstFileName) override;
+  void initializeFromRestartFileImpl(
+      const std::filesystem::path &rstFilePath) override;
 
   /** @brief Executes one synchronized stochastic thermostat step. */
   void propagateOneStepImpl(void) override;

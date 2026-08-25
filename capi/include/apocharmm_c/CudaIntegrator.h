@@ -171,8 +171,9 @@ APOCHARMM_C_API apo_status apo_cuda_integrator_propagate(
  * @brief Initializes concrete integrator state from a restart file.
  *
  * @param[in] integrator Borrowed live base view. The pointer may not be `NULL`.
- * @param[in] path Borrowed non-`NULL`, null-terminated path. The string is not
- * retained. An empty string reaches native file-open handling.
+ * @param[in] path Borrowed non-`NULL`, null-terminated path. The string is
+ * converted to a native file-system path for the call and is not retained. An
+ * empty string reaches native file-open handling.
  *
  * @retval APO_STATUS_OK Compatible state was restored.
  * @retval APO_STATUS_INVALID_ARGUMENT `integrator`, its native object, or

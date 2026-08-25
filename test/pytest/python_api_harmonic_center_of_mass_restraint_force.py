@@ -14,14 +14,7 @@ import sys
 
 import apocharmm as apo
 
-from python_api_test_helpers import (
-    get_data_path,
-    require_file,
-    assert_equal,
-    assert_finite_temperature,
-    expect_exception,
-    expect_invalid_argument,
-)
+import apo_test_helpers as apo_test
 
 BOX_DIMENSIONS: list[float] = [50.0, 50.0, 50.0]
 RANDOM_SEED: int = 314159
@@ -36,9 +29,11 @@ def create_system() -> tuple[
     apo.ForceManager,
     apo.CharmmContext,
 ]:
-    prm_path: str = require_file(get_data_path() / "toppar_water_ions.str")
-    psf_path: str = require_file(get_data_path() / "nacl_pair.psf")
-    crd_path: str = require_file(get_data_path() / "nacl_pair.cor")
+    prm_path: str = apo_test.require_file(
+        apo_test.get_toppar_dir() / "toppar_water_ions.str"
+    )
+    psf_path: str = apo_test.require_file(apo_test.get_data_dir() / "nacl_pair.psf")
+    crd_path: str = apo_test.require_file(apo_test.get_data_dir() / "nacl_pair.cor")
 
     prm = apo.CharmmParameters(prm_path)
     psf = apo.CharmmPsf(psf_path)
@@ -81,7 +76,7 @@ def check_construction_and_setters() -> None:
 
     restraint = create_configured_restraint(psf)
 
-    assert_equal(
+    apo_test.assert_equal(
         "HarmonicCenterOfMassRestraintForce.default_force_tag",
         restraint.default_force_tag,
         "hmcm",
@@ -101,7 +96,7 @@ def check_subscription_and_short_propagation() -> None:
 
     fm.subscribe(restraint)
 
-    expect_invalid_argument(
+    apo_test.expect_invalid_argument(
         "ForceManager rejects duplicate HarmonicCenterOfMassRestraintForce subscription",
         lambda: fm.subscribe(restraint),
         "Force is already subscribed to this ForceManager",
@@ -116,13 +111,13 @@ def check_subscription_and_short_propagation() -> None:
 
     integrator.propagate(10)
 
-    assert_finite_temperature(
+    apo_test.assert_finite_temperature(
         "post harmonic center-of-mass restraint propagation", ctx.computeTemperature()
     )
 
     fm.unsubscribe(restraint)
 
-    expect_invalid_argument(
+    apo_test.expect_invalid_argument(
         "ForceManager rejects missing HarmonicCenterOfMassRestraintForce unsubscription",
         lambda: fm.unsubscribe(restraint),
         "Force is not subscribed to this ForceManager",
@@ -148,35 +143,35 @@ def check_validation() -> None:
     selector = apo.AtomSelector(psf)
     selection = selector.select("all")
 
-    expect_exception(
+    apo_test.expect_exception(
         "HarmonicCenterOfMassRestraintForce rejects non-int num_atoms",
         TypeError,
         lambda: apo.HarmonicCenterOfMassRestraintForce(2.0),  # type: ignore[arg-type]
     )
-    expect_invalid_argument(
+    apo_test.expect_invalid_argument(
         "HarmonicCenterOfMassRestraintForce rejects zero num_atoms",
         lambda: apo.HarmonicCenterOfMassRestraintForce(0),
         "Atom count must be positive; observed 0",
         expected_context="HarmonicCenterOfMassRestraintForce construction",
     )
-    expect_invalid_argument(
+    apo_test.expect_invalid_argument(
         "HarmonicCenterOfMassRestraintForce rejects negative num_atoms",
         lambda: apo.HarmonicCenterOfMassRestraintForce(-1),
         "Atom count must be positive; observed -1",
         expected_context="HarmonicCenterOfMassRestraintForce construction",
     )
-    expect_exception(
+    apo_test.expect_exception(
         "HarmonicCenterOfMassRestraintForce rejects out-of-range num_atoms",
         ValueError,
         lambda: apo.HarmonicCenterOfMassRestraintForce(2**31),
     )
-    expect_exception(
+    apo_test.expect_exception(
         "setSelection rejects non-AtomSelection",
         TypeError,
         lambda: restraint.setSelection(object()),  # type: ignore[arg-type]
     )
 
-    force_constant_error = expect_invalid_argument(
+    force_constant_error = apo_test.expect_invalid_argument(
         "setForceConstant rejects negative force constant",
         lambda: restraint.setForceConstant(-1.0),
         "Force constant must be non-negative",
@@ -184,14 +179,14 @@ def check_validation() -> None:
             "HarmonicCenterOfMassRestraintForce.setForceConstant(force_constant)"
         ),
     )
-    assert_equal(
+    apo_test.assert_equal(
         "setForceConstant rendered native function occurrence count",
         force_constant_error.message.count(
             "apo_harmonic_center_of_mass_restraint_force_set_force_constant"
         ),
         1,
     )
-    expect_invalid_argument(
+    apo_test.expect_invalid_argument(
         "setForceConstant rejects non-finite force constant",
         lambda: restraint.setForceConstant(math.inf),
         "Force constant must be finite",
@@ -201,7 +196,7 @@ def check_validation() -> None:
     )
     restraint.setForceConstant(0.0)
 
-    expect_invalid_argument(
+    apo_test.expect_invalid_argument(
         "setReferencePosition rejects wrong coordinate length",
         lambda: restraint.setReferencePosition([0.0, 0.0]),
         "Reference-position array size mismatch; expected 3, observed 2",
@@ -209,28 +204,28 @@ def check_validation() -> None:
             "HarmonicCenterOfMassRestraintForce.setReferencePosition(reference_position)"
         ),
     )
-    expect_invalid_argument(
+    apo_test.expect_invalid_argument(
         "setReferencePosition rejects wrong reference mask length",
         lambda: restraint.setReferencePosition([0.0, 0.0, 0.0], [1, 1]),
         "Reference-mask array size mismatch; expected 3, observed 2",
     )
-    expect_invalid_argument(
+    apo_test.expect_invalid_argument(
         "setReferencePosition rejects inactive reference mask",
         lambda: restraint.setReferencePosition([0.0, 0.0, 0.0], [0, 0, 0]),
         "Reference mask must activate at least one coordinate",
     )
-    expect_invalid_argument(
+    apo_test.expect_invalid_argument(
         "setReferencePosition rejects invalid reference mask value",
         lambda: restraint.setReferencePosition([0.0, 0.0, 0.0], [1, 2, 1]),
         "Reference mask at index 1 must be 0 or 1; observed 2",
     )
-    expect_invalid_argument(
+    apo_test.expect_invalid_argument(
         "setReferencePosition rejects non-finite coordinate",
         lambda: restraint.setReferencePosition([0.0, math.inf, 0.0]),
         "Reference position at index 1 must be finite",
     )
 
-    expect_invalid_argument(
+    apo_test.expect_invalid_argument(
         "setReferenceDistance rejects negative reference distance",
         lambda: restraint.setReferenceDistance(-1.0),
         "Reference distance must be non-negative",
@@ -238,13 +233,13 @@ def check_validation() -> None:
             "HarmonicCenterOfMassRestraintForce.setReferenceDistance(reference_distance)"
         ),
     )
-    expect_invalid_argument(
+    apo_test.expect_invalid_argument(
         "setReferenceDistance rejects non-finite reference distance",
         lambda: restraint.setReferenceDistance(math.inf),
         "Reference distance must be finite",
     )
 
-    expect_invalid_argument(
+    apo_test.expect_invalid_argument(
         "setMasses rejects wrong length",
         lambda: restraint.setMasses([1.0]),
         f"Mass array size mismatch; expected {num_atoms}, observed 1",
@@ -253,7 +248,7 @@ def check_validation() -> None:
 
     nonfinite_masses: list[float] = [1.0 for _ in range(num_atoms)]
     nonfinite_masses[1] = math.inf
-    expect_invalid_argument(
+    apo_test.expect_invalid_argument(
         "setMasses rejects non-finite mass",
         lambda: restraint.setMasses(nonfinite_masses),
         "Mass at index 1 must be finite",
@@ -261,21 +256,21 @@ def check_validation() -> None:
 
     negative_masses: list[float] = [1.0 for _ in range(num_atoms)]
     negative_masses[1] = -1.0
-    expect_invalid_argument(
+    apo_test.expect_invalid_argument(
         "setMasses rejects negative mass",
         lambda: restraint.setMasses(negative_masses),
         "Mass at index 1 must be non-negative",
     )
 
     zero_masses: list[float] = [0.0 for _ in range(num_atoms)]
-    expect_invalid_argument(
+    apo_test.expect_invalid_argument(
         "setMasses rejects zero selected total weight",
         lambda: restraint.setMasses(zero_masses),
         "Selected atoms must have positive total weight",
     )
 
     restraint.setMassWeighting(False)
-    expect_invalid_argument(
+    apo_test.expect_invalid_argument(
         "setMassWeighting rejects zero selected total weight",
         lambda: restraint.setMassWeighting(True),
         "Selected atoms must have positive total weight",
@@ -283,12 +278,12 @@ def check_validation() -> None:
     )
     restraint.setMasses(psf.getMasses())
 
-    expect_exception(
+    apo_test.expect_exception(
         "subscribe rejects non-ForceManager",
         TypeError,
         lambda: restraint._subscribe_to_force_manager(object()),  # type: ignore[arg-type]
     )
-    expect_invalid_argument(
+    apo_test.expect_invalid_argument(
         "subscribe rejects empty force tag",
         lambda: fm.subscribe(restraint, ""),
         "Force tag must not be empty",
@@ -316,7 +311,7 @@ def check_close_invalidates_handle() -> None:
     restraint = apo.HarmonicCenterOfMassRestraintForce(2)
     restraint.close()
 
-    expect_exception(
+    apo_test.expect_exception(
         "closed HarmonicCenterOfMassRestraintForce rejects setter",
         RuntimeError,
         lambda: restraint.setForceConstant(1.0),

@@ -116,7 +116,7 @@ TEST_CASE("CapiRestartSubscriberValidatesCreationArguments") {
   apo_test::CheckNativeError(status, APO_STATUS_INVALID_ARGUMENT,
                              "InvalidArgument", "apo_restart_subscriber_create",
                              "Output file name must not be empty",
-                             "src/Subscriber.cu", "setFileName");
+                             "src/Subscriber.cu", "setFilePath");
   CHECK(subscriber == nullptr);
 
   apo_test::CheckStatusAndDiagnostic(
@@ -139,7 +139,7 @@ TEST_CASE("CapiRestartSubscriberValidatesCreationArguments") {
   apo_test::CheckNativeError(
       status, APO_STATUS_INVALID_ARGUMENT, "InvalidArgument",
       "apo_restart_subscriber_create_with_report_frequency",
-      "Output file name must not be empty", "src/Subscriber.cu", "setFileName");
+      "Output file name must not be empty", "src/Subscriber.cu", "setFilePath");
   CHECK(subscriber == nullptr);
 
   subscriber = &sentinel;

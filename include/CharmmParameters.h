@@ -14,6 +14,7 @@
 #include "CharmmPSF.h"
 
 #include <cstddef>
+#include <filesystem>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -721,11 +722,12 @@ public:
  * CharmmPSF supplies topology and atom types when packed force data is needed.
  *
  * Parsed record text is comment-stripped, trimmed, and converted to uppercase;
- * constructor file paths are retained exactly as supplied. Compiler-generated
- * copy construction and assignment deep-copy all owned containers; move
- * construction and assignment transfer their contents and leave the source
- * valid but otherwise unspecified. Destruction is non-throwing, releases the
- * host storage, and performs no CUDA work.
+ * constructor file paths are retained as `std::filesystem::path` objects
+ * without canonicalization. Compiler-generated copy construction and assignment
+ * deep-copy all owned containers; move construction and assignment transfer
+ * their contents and leave the source valid but otherwise unspecified.
+ * Destruction is non-throwing, releases the host storage, and performs no CUDA
+ * work.
  *
  * The class provides no internal synchronization. Concurrent const access
  * requires that no thread mutate, assign, move, or destroy the same object.
@@ -744,21 +746,21 @@ public:
   /**
    * @brief Constructs a parameter set from one `.prm` or `.str` file.
    *
-   * @param[in] fileName Non-empty file-system path. The path is copied and is
+   * @param[in] filePath Non-empty file-system path. The path is copied and is
    * not retained as a pointer or reference.
    *
    * @throws ApoCharmmError with code `ApoCharmmErrorCode::InvalidArgument` if
-   * `fileName` is empty.
+   * `filePath` is empty.
    * @throws ApoCharmmError with code `ApoCharmmErrorCode::Runtime` if the file
    * cannot be opened or read, a required TOPPAR parameter block is absent, a
    * NONBONDED header continuation is unterminated, or a parsed record has an
    * invalid shape or numeric field.
    * @throws std::bad_alloc If host-side string or container allocation fails.
    *
-   * @post On successful construction, `fileName` is the sole entry returned by
-   * getPrmFileNames().
+   * @post On successful construction, `filePath` is the sole entry returned by
+   * getPrmFilePaths().
    */
-  CharmmParameters(const std::string &fileName);
+  CharmmParameters(const std::filesystem::path &filePath);
 
   /**
    * @brief Constructs a parameter set by reading files in the supplied order.
@@ -767,21 +769,21 @@ public:
    * depends on the parameter section and is described on @ref
    * charmm_parameters.
    *
-   * @param[in] fileNames Non-empty ordered list of non-empty `.prm` or `.str`
+   * @param[in] filePaths Non-empty ordered list of non-empty `.prm` or `.str`
    * paths. All strings are copied.
    *
    * @throws ApoCharmmError with code `ApoCharmmErrorCode::InvalidArgument` if
-   * `fileNames` is empty or any contained path is empty.
+   * `filePaths` is empty or any contained path is empty.
    * @throws ApoCharmmError with code `ApoCharmmErrorCode::Runtime` if any file
    * cannot be opened or read, a required TOPPAR parameter block is absent, a
    * NONBONDED header continuation is unterminated, or a parsed record has an
    * invalid shape or numeric field.
    * @throws std::bad_alloc If host-side string or container allocation fails.
    *
-   * @post On successful construction, getPrmFileNames() equals `fileNames` in
+   * @post On successful construction, getPrmFilePaths() equals `filePaths` in
    * the original order.
    */
-  CharmmParameters(const std::vector<std::string> &fileNames);
+  CharmmParameters(const std::vector<std::filesystem::path> &filePaths);
 
 public: // Getters
   /**
@@ -884,13 +886,13 @@ public: // Getters
    *
    * Calls to readCharmmParameterFile() do not append to this list.
    *
-   * @return Borrowed const reference to the owned path strings in their
-   * original spelling and constructor order.
+   * @return Borrowed const reference to the owned file-system paths in
+   * constructor order. The paths are not canonicalized.
    *
    * @note The reference remains valid only while this object is alive and has
    * not been assigned from or moved.
    */
-  const std::vector<std::string> &getPrmFileNames(void) const;
+  const std::vector<std::filesystem::path> &getPrmFilePaths(void) const;
 
 public:
   /**
@@ -954,22 +956,23 @@ public:
    * The parser recognizes BONDS, ANGLES, DIHEDRALS, IMPROPER, NONBONDED, and
    * NBFIX records. ATOMS, CMAP, and HBOND sections are currently ignored.
    * Record text is stripped of `!` comments, normalized to uppercase, and
-   * parsed on the host. This method does not append `fileName` to the
+   * parsed on the host. This method does not append `filePath` to the
    * constructor path list returned by getPrmFileNames().
    *
    * Bond, angle, Urey-Bradley, improper, and NBFIX maps keep the first matching
    * key. Proper-dihedral records append Fourier terms. Regular and explicit 1-4
    * NONBONDED values replace earlier values for the same atom type.
    *
-   * @param[in] fileName Non-empty file-system path. The path is used only for
+   * @param[in] filePath Non-empty file-system path. The path is used only for
    * this call; parsed records, not the path string, are retained.
    *
    * @throws ApoCharmmError with code `ApoCharmmErrorCode::InvalidArgument` if
-   * `fileName` is empty.
+   * `filePath` is empty.
    * @throws ApoCharmmError with code `ApoCharmmErrorCode::Runtime` if the file
-   * cannot be opened or read, a file whose path contains `TOPPAR` has no CHARMM
-   * parameter block, a NONBONDED header continuation is unterminated, or a
-   * recognized record has an invalid token count or numeric field.
+   * cannot be opened or read, a file whose final path component contains
+   * `TOPPAR` has no CHARMM parameter block, a NONBONDED header continuation is
+   * unterminated, or a recognized record has an invalid token count or numeric
+   * field.
    * @throws std::bad_alloc If host-side parsing or map growth requires an
    * allocation that fails.
    *
@@ -978,7 +981,7 @@ public:
    * earlier in the same call observable in this object.
    * @note The operation performs no CUDA transfer or synchronization.
    */
-  void readCharmmParameterFile(const std::string &fileName);
+  void readCharmmParameterFile(const std::filesystem::path &filePath);
 
 private:
   /**
@@ -1108,5 +1111,5 @@ private:
   std::map<std::string, VdwParameters> m_Vdw14Params;
 
   /** Stores only the paths supplied to the successful constructor. */
-  std::vector<std::string> m_PrmFileNames;
+  std::vector<std::filesystem::path> m_PrmFilePaths;
 };

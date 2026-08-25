@@ -74,7 +74,6 @@ set(SOURCES_UNITTESTS_MAIN
 set(SOURCES_UNITTESTS_HEADERS
   apo_test_helpers.h
   catch.hpp
-  test_paths.h
 )
 
 # A function to check that the given hard-coded list contains all headers and
@@ -108,6 +107,11 @@ endfunction()
 set(UNITTEST_DIR ${PROJECT_SOURCE_DIR}/test/unittests)
 
 set(HEADER_DIR ${UNITTEST_DIR})
+
+set(APOCHARMM_DIR_DEFINITIONS
+  APOCHARMM_TEST_DATA_DIR="${PROJECT_SOURCE_DIR}/test/data"
+  APOCHARMM_TOPPAR_DIR="${PROJECT_SOURCE_DIR}/toppar"
+)
 
 # Fail if any unit-test source or header is not listed.
 set(SOURCES_ALL
@@ -144,7 +148,7 @@ foreach(source_file ${SOURCES_UNITTESTS_TESTS})
   )
 
   target_compile_definitions(${name} PRIVATE
-    DATA_PATH="${PROJECT_SOURCE_DIR}/test/data/"
+    ${APOCHARMM_DIR_DEFINITIONS}
   )
 
   # JEG260810: So we can use generic help function for C API testing
@@ -192,7 +196,7 @@ if(TARGET apocharmm_c)
 
     target_compile_definitions(${name} PRIVATE
       APOCHARMM_C_TESTING
-      DATA_PATH="${PROJECT_SOURCE_DIR}/test/data/"
+      ${APOCHARMM_DIR_DEFINITIONS}
     )
 
     target_include_directories(${name} PRIVATE

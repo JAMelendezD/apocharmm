@@ -19,9 +19,9 @@
 #include "HarmonicRestraintForce.h"
 #include "apo_test_helpers.h"
 #include "catch.hpp"
-#include "test_paths.h"
 
 #include <cmath>
+#include <filesystem>
 #include <limits>
 #include <memory>
 #include <string>
@@ -455,12 +455,12 @@ TEST_CASE("HarmonicRestraintForceClearResetsForcesAndEnergy") {
 }
 
 TEST_CASE("HarmonicRestraintForceCanBeSubscribedToForceManager") {
-  const std::string dataPath = getDataPath();
-
-  auto prm =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
-  auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                "toppar_water_ions.str");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx = std::make_shared<CharmmContext>(psf, prm);
   ctx->setBoxDimensions(BOX_DIMENSIONS);

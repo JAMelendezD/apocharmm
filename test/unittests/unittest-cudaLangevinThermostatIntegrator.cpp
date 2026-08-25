@@ -18,9 +18,9 @@
 #include "ForceManager.h"
 #include "apo_test_helpers.h"
 #include "catch.hpp"
-#include "test_paths.h"
 
 #include <cstdint>
+#include <filesystem>
 #include <iomanip>
 #include <limits>
 #include <sstream>
@@ -198,12 +198,12 @@ TEST_CASE("CudaLangevinThermostatIntegratorSettersAndReset") {
 }
 
 TEST_CASE("CudaLangevinThermostatIntegratorContextInitialization") {
-  const std::string dataPath = getDataPath();
-
-  auto prm =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
-  auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                "toppar_water_ions.str");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx = std::make_shared<CharmmContext>(psf, prm);
   ctx->setBoxDimensions(BOX_DIMENSIONS);
@@ -263,12 +263,12 @@ TEST_CASE("CudaLangevinThermostatIntegratorContextInitialization") {
 
 TEST_CASE(
     "CudaLangevinThermostatIntegratorFrictionReinitializesBeforePropagation") {
-  const std::string dataPath = getDataPath();
-
-  auto prm =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
-  auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                "toppar_water_ions.str");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx = std::make_shared<CharmmContext>(psf, prm);
   ctx->setBoxDimensions(BOX_DIMENSIONS);
@@ -289,12 +289,12 @@ TEST_CASE(
 }
 
 TEST_CASE("CudaLangevinThermostatIntegratorShortPropagation") {
-  const std::string dataPath = getDataPath();
-
-  auto prm =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
-  auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                "toppar_water_ions.str");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx = std::make_shared<CharmmContext>(psf, prm);
   ctx->setBoxDimensions(BOX_DIMENSIONS);
@@ -346,18 +346,20 @@ TEST_CASE("CudaLangevinThermostatIntegratorShortPropagation") {
 }
 
 TEST_CASE("CudaLangevinThermostatIntegratorDeterministicTrajectory") {
-  const std::string dataPath = getDataPath();
+  auto prm1 = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                 "toppar_water_ions.str");
+  auto prm2 = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                 "toppar_water_ions.str");
 
-  auto prm1 =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto prm2 =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
+  auto psf1 =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto psf2 =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
 
-  auto psf1 = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
-  auto psf2 = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
-
-  auto crd1 = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
-  auto crd2 = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+  auto crd1 =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
+  auto crd2 =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx1 = std::make_shared<CharmmContext>(psf1, prm1);
   ctx1->setBoxDimensions(BOX_DIMENSIONS);
@@ -431,20 +433,22 @@ TEST_CASE("CudaLangevinThermostatIntegratorDeterministicTrajectory") {
 }
 
 TEST_CASE("CudaLangevinThermostatIntegratorRestartValidation") {
+  const std::filesystem::path missingFilePath = "missing.rst";
+
   auto integrator =
       std::make_shared<CudaLangevinThermostatIntegrator>(TIME_STEP);
 
   apo_test::CheckApoCharmmError(
-      [&]() { integrator->initializeFromRestartFile("missing.rst"); },
+      [&]() { integrator->initializeFromRestartFile(missingFilePath); },
       ApoCharmmErrorCode::NotInitialized,
       "CharmmContext must be set before initializing from a restart file");
 
-  const std::string dataPath = getDataPath();
-
-  auto prm =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
-  auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                "toppar_water_ions.str");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx = std::make_shared<CharmmContext>(psf, prm);
   ctx->setBoxDimensions(BOX_DIMENSIONS);
@@ -456,55 +460,56 @@ TEST_CASE("CudaLangevinThermostatIntegratorRestartValidation") {
   integrator->setCharmmContext(ctx);
 
   apo_test::CheckApoCharmmError(
-      [&]() { integrator->initializeFromRestartFile("missing.rst"); },
-      ApoCharmmErrorCode::Runtime, "Could not open file \"missing.rst\"");
+      [&]() { integrator->initializeFromRestartFile(missingFilePath); },
+      ApoCharmmErrorCode::Runtime,
+      "Could not open file \"" + missingFilePath.string() + "\"");
 
   const int numAtoms = ctx->getNumAtoms();
   const int ndegf = ctx->getNumDegreesOfFreedom();
 
-  const std::string missingRngStateFile =
+  const std::filesystem::path missingRngStatePath =
       "cuda_langevin_thermostat_missing_rng_state.rst";
-  apo_test::RemoveIfExists(missingRngStateFile);
-  apo_test::WriteTextFile(missingRngStateFile,
+  apo_test::RemoveIfExists(missingRngStatePath);
+  apo_test::WriteTextFile(missingRngStatePath,
                           MakeRestartPrefix(true, numAtoms, ndegf, ""));
 
   apo_test::CheckApoCharmmError(
-      [&]() { integrator->initializeFromRestartFile(missingRngStateFile); },
+      [&]() { integrator->initializeFromRestartFile(missingRngStatePath); },
       ApoCharmmErrorCode::Runtime,
       "Restart field \"RNGSTATE\" is missing in restart file \"" +
-          missingRngStateFile + "\"");
+          missingRngStatePath.string() + "\"");
 
-  apo_test::RemoveIfExists(missingRngStateFile);
+  apo_test::RemoveIfExists(missingRngStatePath);
 
-  const std::string natomMismatchFile =
+  const std::filesystem::path natomMismatchPath =
       "cuda_langevin_thermostat_natom_mismatch.rst";
-  apo_test::RemoveIfExists(natomMismatchFile);
-  apo_test::WriteTextFile(natomMismatchFile,
+  apo_test::RemoveIfExists(natomMismatchPath);
+  apo_test::WriteTextFile(natomMismatchPath,
                           MakeRestartPrefix(false, numAtoms + 1, ndegf, ""));
 
   apo_test::CheckApoCharmmError(
-      [&]() { integrator->initializeFromRestartFile(natomMismatchFile); },
+      [&]() { integrator->initializeFromRestartFile(natomMismatchPath); },
       ApoCharmmErrorCode::InvalidArgument,
-      "NATOM mismatch in restart file \"" + natomMismatchFile + "\"");
+      "NATOM mismatch in restart file \"" + natomMismatchPath.string() + "\"");
 
-  apo_test::RemoveIfExists(natomMismatchFile);
+  apo_test::RemoveIfExists(natomMismatchPath);
 
   const std::vector<curandStatePhilox4_32_10_t> emptyRngStates;
   const std::string emptyRngStateString =
       apo::curand_states_to_string(0ULL, emptyRngStates);
-  const std::string rngCountMismatchFile =
+  const std::filesystem::path rngCountMismatchPath =
       "cuda_langevin_thermostat_rng_count_mismatch.rst";
 
-  apo_test::RemoveIfExists(rngCountMismatchFile);
+  apo_test::RemoveIfExists(rngCountMismatchPath);
   apo_test::WriteTextFile(
-      rngCountMismatchFile,
+      rngCountMismatchPath,
       MakeRestartPrefix(true, numAtoms, ndegf, emptyRngStateString));
 
   apo_test::CheckApoCharmmError(
-      [&]() { integrator->initializeFromRestartFile(rngCountMismatchFile); },
+      [&]() { integrator->initializeFromRestartFile(rngCountMismatchPath); },
       ApoCharmmErrorCode::InvalidArgument,
       "RNG state count must match number of atoms; expected " +
           std::to_string(numAtoms) + ", observed 0");
 
-  apo_test::RemoveIfExists(rngCountMismatchFile);
+  apo_test::RemoveIfExists(rngCountMismatchPath);
 }

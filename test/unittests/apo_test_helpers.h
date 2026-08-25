@@ -20,8 +20,8 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdio>
 #include <exception>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
@@ -31,9 +31,17 @@
 
 namespace apo_test {
 
-inline void WriteTextFile(const std::string &fileName,
+[[nodiscard]] inline std::filesystem::path GetDataDir(void) {
+  return std::filesystem::path{APOCHARMM_TEST_DATA_DIR};
+}
+
+[[nodiscard]] inline std::filesystem::path GetTopparDir(void) {
+  return std::filesystem::path{APOCHARMM_TOPPAR_DIR};
+}
+
+inline void WriteTextFile(const std::filesystem::path &filePath,
                           const std::string &contents) {
-  std::ofstream fout(fileName);
+  std::ofstream fout(filePath);
   REQUIRE(fout.good());
 
   fout << contents;
@@ -44,8 +52,8 @@ inline void WriteTextFile(const std::string &fileName,
   return;
 }
 
-inline void RemoveIfExists(const std::string &fileName) {
-  std::remove(fileName.c_str());
+inline void RemoveIfExists(const std::filesystem::path &filePath) {
+  static_cast<void>(std::filesystem::remove(filePath));
   return;
 }
 

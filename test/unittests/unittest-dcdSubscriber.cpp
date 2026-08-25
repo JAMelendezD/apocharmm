@@ -18,11 +18,11 @@
 #include "ForceManager.h"
 #include "apo_test_helpers.h"
 #include "catch.hpp"
-#include "test_paths.h"
 
 #include <array>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <ios>
 #include <limits>
@@ -119,8 +119,8 @@ std::vector<float> ReadFloatBlock(std::ifstream &input, const int numAtoms) {
   return values;
 }
 
-DcdFile ReadDcdFile(const std::string &fileName) {
-  std::ifstream input(fileName, std::ios::binary);
+DcdFile ReadDcdFile(const std::filesystem::path &filePath) {
+  std::ifstream input(filePath, std::ios::binary);
   REQUIRE(input.good());
 
   DcdFile dcd;
@@ -177,10 +177,12 @@ DcdFile ReadDcdFile(const std::string &fileName) {
 }
 
 std::shared_ptr<CharmmContext> CreateContext(void) {
-  auto prm = std::make_shared<CharmmParameters>(getDataPath() +
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
                                                 "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(getDataPath() + "nacl_pair.psf");
-  auto crd = std::make_shared<CharmmCrd>(getDataPath() + "nacl_pair.cor");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx = std::make_shared<CharmmContext>(psf, prm);
   ctx->setBoxDimensions(BOX_DIMENSIONS);
@@ -214,21 +216,21 @@ void CheckFrameMatchesContext(const DcdFrame &frame,
 
 TEST_CASE("DcdSubscriberConstructorsAndReportFrequency") {
   SECTION("DefaultReportFrequencyConstructor") {
-    const std::string fileName = "tmp_dcd_subscriber_default.dcd";
-    apo_test::RemoveIfExists(fileName);
+    const std::filesystem::path filePath = "tmp_dcd_subscriber_default.dcd";
+    apo_test::RemoveIfExists(filePath);
 
-    DcdSubscriber subscriber(fileName);
+    DcdSubscriber subscriber(filePath);
 
-    CHECK(subscriber.getFileName() == fileName);
+    CHECK(subscriber.getFilePath() == filePath);
     CHECK(subscriber.getReportFrequency() == 1000);
 
     subscriber.setReportFrequency(REPORT_FREQUENCY);
     CHECK(subscriber.getReportFrequency() == REPORT_FREQUENCY);
 
-    std::ifstream file(fileName, std::ios::binary);
+    std::ifstream file(filePath, std::ios::binary);
     CHECK(file.good());
 
-    apo_test::RemoveIfExists(fileName);
+    apo_test::RemoveIfExists(filePath);
   }
 
   SECTION("ExplicitReportFrequencyConstructor") {
@@ -237,7 +239,7 @@ TEST_CASE("DcdSubscriberConstructorsAndReportFrequency") {
 
     DcdSubscriber subscriber(fileName, REPORT_FREQUENCY);
 
-    CHECK(subscriber.getFileName() == fileName);
+    CHECK(subscriber.getFilePath() == fileName);
     CHECK(subscriber.getReportFrequency() == REPORT_FREQUENCY);
 
     apo_test::RemoveIfExists(fileName);
@@ -297,7 +299,7 @@ TEST_CASE("DcdSubscriberConstructorsAndReportFrequency") {
     apo_test::RemoveIfExists(fileName);
 
     DcdSubscriber subscriber(fileName);
-    subscriber.getFileName().clear();
+    subscriber.getFilePath().clear();
 
     apo_test::CheckApoCharmmError([&]() { subscriber.openFile(); },
                                   ApoCharmmErrorCode::NotInitialized,
@@ -313,7 +315,7 @@ TEST_CASE("DcdSubscriberUpdateValidatesRequiredState") {
     apo_test::RemoveIfExists(fileName);
 
     DcdSubscriber subscriber(fileName);
-    subscriber.getFileName().clear();
+    subscriber.getFilePath().clear();
 
     apo_test::CheckApoCharmmError(
         [&]() { subscriber.update(); }, ApoCharmmErrorCode::NotInitialized,

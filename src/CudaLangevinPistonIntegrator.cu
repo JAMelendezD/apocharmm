@@ -18,14 +18,11 @@
 
 #include <cmath>
 #include <cstddef>
+#include <filesystem>
 #include <fstream>
 #include <random>
 #include <vector_functions.h>
 
-/**
- * @brief Uses the BBK algorithm to update crystal dimensions for pressure
- * control
- */
 CudaLangevinPistonIntegrator::CudaLangevinPistonIntegrator(
     const double timeStep)
     : CudaIntegrator(timeStep) {
@@ -855,12 +852,13 @@ void CudaLangevinPistonIntegrator::initializeImpl(void) {
 }
 
 void CudaLangevinPistonIntegrator::initializeFromRestartFileImpl(
-    const std::string &rstFileName) {
-  std::ifstream fin(rstFileName);
+    const std::filesystem::path &rstFilePath) {
+  std::ifstream fin(rstFilePath);
   APOCHARMM_REQUIRE(fin.is_open(), ApoCharmmErrorCode::Runtime,
-                    "Could not open file \"" + rstFileName + "\"");
+                    "Could not open file \"" + rstFilePath.string() + "\"");
 
-  const std::string restartContext = "restart file \"" + rstFileName + "\"";
+  const std::string restartContext =
+      "restart file \"" + rstFilePath.string() + "\"";
 
   std::size_t lineNumber = 0;
   std::string line = "";
@@ -889,7 +887,7 @@ void CudaLangevinPistonIntegrator::initializeFromRestartFileImpl(
   } else {
     APOCHARMM_THROW(ApoCharmmErrorCode::Runtime,
                     "Unsupported CRYSTAL type in restart file \"" +
-                        rstFileName + "\"");
+                        rstFilePath.string() + "\"");
   }
 
   const double oldGamma = m_Pgamma;
@@ -906,7 +904,7 @@ void CudaLangevinPistonIntegrator::initializeFromRestartFileImpl(
                       ApoCharmmErrorCode::InvalidArgument,
                       "Configured Langevin piston mass has wrong length for "
                       "restart crystal type in file \"" +
-                          rstFileName + "\"");
+                          rstFilePath.string() + "\"");
   }
 
   // Find CRYSTAL PARAMETERS section
@@ -1052,13 +1050,13 @@ void CudaLangevinPistonIntegrator::initializeFromRestartFileImpl(
     RNGSTATE = line.substr(106);
   }
 
-  APOCHARMM_REQUIRE(NATOM == m_Context->getNumAtoms(),
-                    ApoCharmmErrorCode::InvalidArgument,
-                    "NATOM mismatch in restart file \"" + rstFileName + "\"");
+  APOCHARMM_REQUIRE(
+      NATOM == m_Context->getNumAtoms(), ApoCharmmErrorCode::InvalidArgument,
+      "NATOM mismatch in restart file \"" + rstFilePath.string() + "\"");
 
   if (NDEGF != m_Context->getNumDegreesOfFreedom()) {
-    std::cout << "WARNING: NDEGF mismatch in restart file \"" << rstFileName
-              << "\"\n";
+    std::cout << "WARNING: NDEGF mismatch in restart file \""
+              << rstFilePath.string() << "\"\n";
     std::cout << "RST: " << NDEGF << '\n';
     std::cout << "CTX: " << m_Context->getNumDegreesOfFreedom() << std::endl;
   }

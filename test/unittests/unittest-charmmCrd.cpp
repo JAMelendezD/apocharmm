@@ -11,8 +11,8 @@
 #include "CharmmCrd.h"
 #include "apo_test_helpers.h"
 #include "catch.hpp"
-#include "test_paths.h"
 
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <limits>
@@ -172,12 +172,11 @@ TEST_CASE("CharmmCrdParsesExtendedFormat") {
 }
 
 TEST_CASE("CharmmCrdParsesRepositoryNaclPair") {
-  const std::string fileName = getDataPath() + "nacl_pair.cor";
   const std::vector<double3> expectedDP = {{0.0, 0.0, 0.0}, {2.82, 2.82, 2.82}};
   const std::vector<float3> expectedSP = {{0.0f, 0.0f, 0.0f},
                                           {2.82f, 2.82f, 2.82f}};
 
-  CharmmCrd crd(fileName);
+  CharmmCrd crd(apo_test::GetDataDir() / "nacl_pair.cor");
 
   apo_test::CheckVectorsClose<double3>(crd.getCoordinatesDP(), expectedDP,
                                        DOUBLE_TOLERANCE);

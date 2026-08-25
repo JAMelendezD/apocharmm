@@ -12,7 +12,7 @@
 
 #include "Coordinates.h"
 
-#include <string>
+#include <filesystem>
 
 /**
  * @brief Owns Cartesian coordinates parsed from a CHARMM CRD or COR file.
@@ -49,11 +49,11 @@ public:
    * The parsed values must be finite doubles and use angstroms. The file-name
    * extension is not validated.
    *
-   * @param[in] fileName Borrowed path string. It must be nonempty. The path and
-   * file contents are copied as needed during construction and are not retained
-   * after return.
-   * @throws ApoCharmmError With code
-   * `ApoCharmmErrorCode::InvalidArgument` if `fileName` is empty.
+   * @param[in] filePath Borrowed file-system path. It must be nonempty. The
+   * path and file contents are copied as needed during construction and are not
+   * retained after return.
+   * @throws ApoCharmmError With code `ApoCharmmErrorCode::InvalidArgument` if
+   * `filePath` is empty.
    * @throws ApoCharmmError With code `ApoCharmmErrorCode::Runtime` if the file
    * cannot be opened, sized, sought, or read; the atom count is missing,
    * malformed, negative, or greater than `INT_MAX`; a required coordinate
@@ -70,7 +70,7 @@ public:
    * does not verify representability as `float` before constructing the
    * single-precision representation.
    */
-  CharmmCrd(const std::string &fileName);
+  CharmmCrd(const std::filesystem::path &filePath);
 
 private:
   /**
@@ -80,7 +80,8 @@ private:
    * selects the standard or extended fixed-width layout, resizes both vectors,
    * and writes coordinates in file-record order.
    *
-   * @param[in] fileName Borrowed nonempty path string used only for this call.
+   * @param[in] filePath Borrowed nonempty file-system path used only for this
+   * call.
    * @throws ApoCharmmError With code `ApoCharmmErrorCode::Runtime` for verified
    * file I/O, count, record-shape, and coordinate-value failures.
    * @throws std::bad_alloc If host or diagnostic storage cannot be allocated.
@@ -92,5 +93,5 @@ private:
    * equal the parsed atom count.
    * @note The helper performs no CUDA work and retains no file metadata.
    */
-  void readCharmmCrdFile(const std::string &fileName);
+  void readCharmmCrdFile(const std::filesystem::path &filePath);
 };

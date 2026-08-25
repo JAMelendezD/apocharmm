@@ -12,6 +12,7 @@
 #include "apocharmm_c/detail/RestartSubscriberHandle.h"
 #include "apocharmm_c/detail/Validation.h"
 
+#include <filesystem>
 #include <memory>
 
 extern "C" apo_status
@@ -29,7 +30,8 @@ apo_restart_subscriber_create(apo_restart_subscriber **out, const char *path) {
 
         std::unique_ptr<apo_restart_subscriber> handle(
             new apo_restart_subscriber());
-        handle->object = std::make_shared<RestartSubscriber>(std::string(path));
+        handle->object =
+            std::make_shared<RestartSubscriber>(std::filesystem::path(path));
         handle->base.object = handle->object;
 
         *out = handle.release();
@@ -56,8 +58,8 @@ extern "C" apo_status apo_restart_subscriber_create_with_report_frequency(
 
         std::unique_ptr<apo_restart_subscriber> handle(
             new apo_restart_subscriber());
-        handle->object = std::make_shared<RestartSubscriber>(std::string(path),
-                                                             report_frequency);
+        handle->object = std::make_shared<RestartSubscriber>(
+            std::filesystem::path(path), report_frequency);
         handle->base.object = handle->object;
 
         *out = handle.release();

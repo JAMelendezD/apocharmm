@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <curand_kernel.h>
+#include <filesystem>
 #include <string>
 #include <vector>
 #include <vector_types.h>
@@ -687,9 +688,11 @@ protected:
   /**
    * @brief Restores pressure, crystal, displacement, and RNG state.
    *
-   * @param[in] rstFileName Borrowed restart-file path.
+   * @param[in] rstFilePath Borrowed restart-file path. The path is not
+   * canonicalized or retained.
    */
-  void initializeFromRestartFileImpl(const std::string &rstFileName) override;
+  void initializeFromRestartFileImpl(
+      const std::filesystem::path &rstFilePath) override;
 
   /** @brief Executes one synchronized pressure-controlled step. */
   void propagateOneStepImpl(void) override;

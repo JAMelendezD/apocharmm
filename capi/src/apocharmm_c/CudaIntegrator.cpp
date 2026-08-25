@@ -14,6 +14,8 @@
 #include "apocharmm_c/detail/SubscriberHandle.h"
 #include "apocharmm_c/detail/Validation.h"
 
+#include <filesystem>
+
 extern "C" apo_status
 apo_cuda_integrator_set_time_step(apo_cuda_integrator *integrator,
                                   const double time_step) {
@@ -131,7 +133,8 @@ extern "C" apo_status apo_cuda_integrator_initialize_from_restart_file(
         APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer(
             path, function_name, "Restart file path"));
 
-        integrator->object->initializeFromRestartFile(std::string(path));
+        integrator->object->initializeFromRestartFile(
+            std::filesystem::path(path));
 
         return APO_STATUS_OK;
       },

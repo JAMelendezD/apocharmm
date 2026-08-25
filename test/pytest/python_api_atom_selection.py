@@ -15,12 +15,7 @@ import sys
 
 import apocharmm as apo
 
-from python_api_test_helpers import (
-    remove_if_exists,
-    assert_equal,
-    expect_exception,
-    expect_invalid_argument,
-)
+import apo_test_helpers as apo_test
 
 NUM_ATOMS: int = 10
 TEST_PSF_TEXT: str = """PSF
@@ -61,15 +56,17 @@ def assert_selection(
 ) -> apo.AtomSelection:
     selection = selector.select(selection_string)
 
-    assert_equal(f"{label} num atoms", selection.getNumAtoms(), NUM_ATOMS)
-    assert_equal(
+    apo_test.assert_equal(f"{label} num atoms", selection.getNumAtoms(), NUM_ATOMS)
+    apo_test.assert_equal(
         f"{label} num selected", selection.getNumSelected(), len(expected_indices)
     )
-    assert_equal(f"{label} atom indices", selection.getAtomIndices(), expected_indices)
+    apo_test.assert_equal(
+        f"{label} atom indices", selection.getAtomIndices(), expected_indices
+    )
 
     expected_index_set: set[int] = set(expected_indices)
     for i in range(NUM_ATOMS):
-        assert_equal(
+        apo_test.assert_equal(
             f"{label} contains {i}", selection.contains(i), i in expected_index_set
         )
 
@@ -153,17 +150,17 @@ def check_logical_and_prefix_selections(selector: apo.AtomSelector) -> None:
 def check_validation(psf: apo.CharmmPsf, selector: apo.AtomSelector) -> None:
     print("Checking AtomSelector and AtomSelection validation...")
 
-    expect_exception(
+    apo_test.expect_exception(
         "AtomSelector rejects non-handle construction",
         TypeError,
         lambda: apo.AtomSelector(object()),  # type: ignore[arg-type]
     )
-    expect_exception(
+    apo_test.expect_exception(
         "AtomSelector rejects NULL-handle construction",
         TypeError,
         lambda: apo.AtomSelector(ctypes.c_void_p()),
     )
-    expect_exception(
+    apo_test.expect_exception(
         "AtomSelector.select rejects non-string selection",
         TypeError,
         lambda: selector.select(1),
@@ -187,33 +184,33 @@ def check_validation(psf: apo.CharmmPsf, selector: apo.AtomSelector) -> None:
     ]
 
     for selection_string, expected_diagnostic in invalid_selections:
-        expect_invalid_argument(
+        apo_test.expect_invalid_argument(
             f"AtomSelector reports invalid selection {selection_string!r}",
             lambda selection_string=selection_string: selector.select(selection_string),
             expected_diagnostic,
         )
 
-    selection_error: apo.ApoCharmmError = expect_invalid_argument(
+    selection_error: apo.ApoCharmmError = apo_test.expect_invalid_argument(
         "AtomSelector reports unknown dotted operator",
         lambda: selector.select(".around. type CA"),
         'Unknown dotted atom selection operator ".around."',
     )
-    assert_equal(
+    apo_test.assert_equal(
         "AtomSelector.select Python operation context",
         selection_error.context,
         "AtomSelector.select(selection_string)",
     )
-    assert_equal(
+    apo_test.assert_equal(
         "AtomSelector.select rendered context occurrence count",
         selection_error.message.count(selection_error.context),
         1,
     )
-    assert_equal(
+    apo_test.assert_equal(
         "AtomSelector.select rendered native function occurrence count",
         selection_error.message.count("apo_atom_selector_select"),
         1,
     )
-    assert_equal(
+    apo_test.assert_equal(
         "AtomSelector.select rendered failed text count",
         selection_error.message.count("failed"),
         0,
@@ -223,53 +220,53 @@ def check_validation(psf: apo.CharmmPsf, selector: apo.AtomSelector) -> None:
         "validation selection", selector, "type CA", [1, 5]
     )
 
-    expect_exception(
+    apo_test.expect_exception(
         "AtomSelection.contains rejects bool atom index",
         TypeError,
         lambda: selection.contains(True),
     )
-    expect_exception(
+    apo_test.expect_exception(
         "AtomSelection.contains rejects non-int atom index",
         TypeError,
         lambda: selection.contains(1.0),
     )
-    expect_invalid_argument(
+    apo_test.expect_invalid_argument(
         "AtomSelection.contains rejects negative atom index",
         lambda: selection.contains(-1),
         f"Atom index is out of range; expected [0, {NUM_ATOMS}), observed -1",
     )
-    expect_exception(
+    apo_test.expect_exception(
         "AtomSelection.contains rejects atom index below int range",
         ValueError,
         lambda: selection.contains(-(2**31) - 1),
     )
-    expect_exception(
+    apo_test.expect_exception(
         "AtomSelection.contains rejects atom index above int range",
         ValueError,
         lambda: selection.contains(2**31),
     )
 
-    contains_error = expect_invalid_argument(
+    contains_error = apo_test.expect_invalid_argument(
         "AtomSelection.contains reports out-of-range atom index",
         lambda: selection.contains(psf.getNumAtoms()),
         f"Atom index is out of range; expected [0, {NUM_ATOMS}), observed {NUM_ATOMS}",
     )
-    assert_equal(
+    apo_test.assert_equal(
         "AtomSelection.contains Python operation context",
         contains_error.context,
         "AtomSelection.contains(atom_index)",
     )
-    assert_equal(
+    apo_test.assert_equal(
         "AtomSelection.contains rendered context occurrence count",
         contains_error.message.count(contains_error.context),
         1,
     )
-    assert_equal(
+    apo_test.assert_equal(
         "AtomSelection.contains rendered native function occurrence count",
         contains_error.message.count("apo_atom_selection_contains"),
         1,
     )
-    assert_equal(
+    apo_test.assert_equal(
         "AtomSelection.contains rendered failed text count",
         contains_error.message.count("failed"),
         0,
@@ -284,7 +281,7 @@ def main(argc: int, argv: list[str]) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     psf_path: Path = output_dir / "tmp_python_api_atom_selector.psf"
-    remove_if_exists(psf_path)
+    apo_test.remove_if_exists(psf_path)
 
     try:
         psf_path.write_text(TEST_PSF_TEXT, encoding="utf-8")
@@ -298,7 +295,7 @@ def main(argc: int, argv: list[str]) -> int:
         check_validation(psf, selector)
     finally:
         print("Cleaning up AtomSelector and AtomSelection Python API test files...")
-        remove_if_exists(psf_path)
+        apo_test.remove_if_exists(psf_path)
 
     print(
         "\033[32m"

@@ -51,8 +51,9 @@ typedef struct apo_restart_subscriber apo_restart_subscriber;
  * validating `path` or constructing the writer, then stores a newly owned
  * handle on success.
  * @param[in] path Non-`NULL`, null-terminated filesystem path borrowed for the
- * call and copied by the native subscriber. The string must be nonempty; when
- * it contains `/`, its nonempty parent path must exist.
+ * call and copied by the native subscriber. The string must be nonempty. When
+ * the resulting native path has a nonempty parent path, that parent path must
+ * exist.
  *
  * @retval APO_STATUS_OK A newly owned handle was written to `*out` and the file
  * was created or truncated.

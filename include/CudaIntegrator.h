@@ -16,6 +16,7 @@
 #include "Subscriber.h"
 
 #include <cuda_runtime.h>
+#include <filesystem>
 #include <map>
 #include <memory>
 #include <string>
@@ -205,16 +206,15 @@ public:
   /**
    * @brief Initializes concrete integrator state from a restart file.
    *
-   * @param[in] rstFileName Borrowed path string used only for this call.
+   * @param[in] rstFilePath Borrowed file-system path used only for this call.
+   * The path is not canonicalized or retained.
    *
-   * @throws ApoCharmmError With code
-   * `ApoCharmmErrorCode::NotInitialized` if no context is attached or required
-   * concrete state is missing.
-   * @throws ApoCharmmError With code
-   * `ApoCharmmErrorCode::InvalidArgument` if restart state is incompatible with
-   * the configured context or piston layout.
-   * @throws ApoCharmmError With code
-   * `ApoCharmmErrorCode::NotImplemented` if the direct base hook is reached.
+   * @throws ApoCharmmError With code `ApoCharmmErrorCode::NotInitialized` if no
+   * context is attached or required concrete state is missing.
+   * @throws ApoCharmmError With code `ApoCharmmErrorCode::InvalidArgument` if
+   * restart state is incompatible with the configured context or piston layout.
+   * @throws ApoCharmmError With code `ApoCharmmErrorCode::NotImplemented` if
+   * the direct base hook is reached.
    * @throws ApoCharmmError With code `ApoCharmmErrorCode::Runtime` if the file
    * cannot be opened, parsed, or interpreted.
    * @throws ApoCharmmError With code `ApoCharmmErrorCode::Cuda` if restored
@@ -224,7 +224,8 @@ public:
    * @warning Restart loading is not transactional. State parsed or transferred
    * before a later failure can remain observable.
    */
-  virtual void initializeFromRestartFile(const std::string &rstFileName) final;
+  virtual void
+  initializeFromRestartFile(const std::filesystem::path &rstFilePath) final;
 
   /**
    * @brief Propagates one concrete dynamics step without base-loop bookkeeping.
@@ -550,21 +551,22 @@ protected:
    * calculate forces, and synchronize the primary integrator stream.
    *
    * @pre `m_Context` is non-null.
-   * @throws ApoCharmmError With code
-   * `ApoCharmmErrorCode::NotImplemented` in the base implementation.
+   * @throws ApoCharmmError With code `ApoCharmmErrorCode::NotImplemented` in
+   * the base implementation.
    */
   virtual void initializeImpl(void);
 
   /**
    * @brief Initializes concrete state from a restart file.
    *
-   * @param[in] rstFileName Borrowed restart-file path.
+   * @param[in] rstFilePath Borrowed restart-file path.
    *
    * @pre `m_Context` is non-null.
-   * @throws ApoCharmmError With code
-   * `ApoCharmmErrorCode::NotImplemented` in the base implementation.
+   * @throws ApoCharmmError With code `ApoCharmmErrorCode::NotImplemented` in
+   * the base implementation.
    */
-  virtual void initializeFromRestartFileImpl(const std::string &rstFileName);
+  virtual void
+  initializeFromRestartFileImpl(const std::filesystem::path &rstFilePath);
 
   /**
    * @brief Advances one concrete dynamics step.
@@ -574,17 +576,17 @@ protected:
    * subscriber schedule.
    *
    * @pre `requirePropagationReady()` has succeeded.
-   * @throws ApoCharmmError With code
-   * `ApoCharmmErrorCode::NotImplemented` in the base implementation.
+   * @throws ApoCharmmError With code `ApoCharmmErrorCode::NotImplemented` in
+   * the base implementation.
    */
   virtual void propagateOneStepImpl(void);
 
   /**
    * @brief Validates shared state required for propagation.
    *
-   * @throws ApoCharmmError With code
-   * `ApoCharmmErrorCode::NotInitialized` if the context is absent, its force
-   * manager is absent, or the force manager is not initialized.
+   * @throws ApoCharmmError With code `ApoCharmmErrorCode::NotInitialized` if
+   * the context is absent, its force manager is absent, or the force manager is
+   * not initialized.
    */
   void requirePropagationReady(void) const;
 

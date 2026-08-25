@@ -15,19 +15,7 @@ import sys
 
 import apocharmm as apo
 
-from python_api_test_helpers import (
-    get_repo_root,
-    get_data_path,
-    require_file,
-    assert_file_created,
-    remove_if_exists,
-    assert_equal,
-    assert_close,
-    assert_sequence_close,
-    assert_nested_sequence_close,
-    expect_exception,
-    expect_invalid_argument,
-)
+import apo_test_helpers as apo_test
 
 BOX_DIMENSIONS: list[float] = [50.0, 50.0, 50.0]
 RANDOM_SEED: int = 314159
@@ -70,9 +58,11 @@ def assert_restart_file_has_required_section(path: Path) -> None:
 
 
 def create_context(assign_velocities: bool) -> apo.CharmmContext:
-    prm_path: str = require_file(get_data_path() / "toppar_water_ions.str")
-    psf_path: str = require_file(get_data_path() / "nacl_pair.psf")
-    crd_path: str = require_file(get_data_path() / "nacl_pair.cor")
+    prm_path: str = apo_test.require_file(
+        apo_test.get_toppar_dir() / "toppar_water_ions.str"
+    )
+    psf_path: str = apo_test.require_file(apo_test.get_data_dir() / "nacl_pair.psf")
+    crd_path: str = apo_test.require_file(apo_test.get_data_dir() / "nacl_pair.cor")
 
     prm = apo.CharmmParameters(prm_path)
     psf = apo.CharmmPsf(psf_path)
@@ -154,38 +144,38 @@ def check_restart_equivalence(
     integrator3.initializeFromRestartFile(rst_path)
     integrator3.propagate(1)
 
-    assert_nested_sequence_close(
+    apo_test.assert_nested_sequence_close(
         f"{label} ctx1 vs ctx2 coordinates/charges",
         ctx1.getCoordinatesCharges(),
         ctx2.getCoordinatesCharges(),
         TOLERANCE,
     )
-    assert_nested_sequence_close(
+    apo_test.assert_nested_sequence_close(
         f"{label} ctx1 vs ctx3 coordinates/charges",
         ctx1.getCoordinatesCharges(),
         ctx3.getCoordinatesCharges(),
         TOLERANCE,
     )
-    assert_nested_sequence_close(
+    apo_test.assert_nested_sequence_close(
         f"{label} ctx2 vs ctx3 coordinates/charges",
         ctx2.getCoordinatesCharges(),
         ctx3.getCoordinatesCharges(),
         TOLERANCE,
     )
 
-    assert_nested_sequence_close(
+    apo_test.assert_nested_sequence_close(
         f"{label} ctx1 vs ctx2 velocities/masses",
         ctx1.getVelocityMass(),
         ctx2.getVelocityMass(),
         TOLERANCE,
     )
-    assert_nested_sequence_close(
+    apo_test.assert_nested_sequence_close(
         f"{label} ctx1 vs ctx3 velocities/masses",
         ctx1.getVelocityMass(),
         ctx3.getVelocityMass(),
         TOLERANCE,
     )
-    assert_nested_sequence_close(
+    apo_test.assert_nested_sequence_close(
         f"{label} ctx2 vs ctx3 velocities/masses",
         ctx2.getVelocityMass(),
         ctx3.getVelocityMass(),
@@ -207,11 +197,11 @@ def check_construction_and_validation(output_dir: Path) -> None:
     default_path: Path = output_dir / "tmp_python_api_restart_default.rst"
     frequency_path: Path = output_dir / "tmp_python_api_restart_frequency.rst"
 
-    remove_if_exists(default_path)
-    remove_if_exists(frequency_path)
+    apo_test.remove_if_exists(default_path)
+    apo_test.remove_if_exists(frequency_path)
 
     default_rst = apo.RestartSubscriber(default_path)
-    assert_equal(
+    apo_test.assert_equal(
         "default RestartSubscriber report frequency",
         default_rst.getReportFrequency(),
         1000,
@@ -219,54 +209,54 @@ def check_construction_and_validation(output_dir: Path) -> None:
     default_rst.close()
 
     rst = apo.RestartSubscriber(frequency_path, REPORT_FREQUENCY)
-    assert_equal(
+    apo_test.assert_equal(
         "RestartSubscriber report frequency", rst.getReportFrequency(), REPORT_FREQUENCY
     )
     rst.setReportFrequency(1)
-    assert_equal(
+    apo_test.assert_equal(
         "RestartSubscriber updated report frequency", rst.getReportFrequency(), 1
     )
     rst.close()
 
-    zero_error = expect_invalid_argument(
+    zero_error = apo_test.expect_invalid_argument(
         "RestartSubscriber rejects zero report frequency",
         lambda: apo.RestartSubscriber(output_dir / "tmp_zero.rst", 0),
         "Subscriber report frequency must be positive; observed 0",
     )
-    assert_equal(
+    apo_test.assert_equal(
         "RestartSubscriber zero report frequency context",
         zero_error.context,
         "RestartSubscriber construction",
     )
 
-    negative_error = expect_invalid_argument(
+    negative_error = apo_test.expect_invalid_argument(
         "RestartSubscriber rejects negative report frequency",
         lambda: apo.RestartSubscriber(output_dir / "tmp_negative.rst", -1),
         "Subscriber report frequency must be positive; observed -1",
     )
-    assert_equal(
+    apo_test.assert_equal(
         "RestartSubscriber negative report frequency context",
         negative_error.context,
         "RestartSubscriber construction",
     )
 
-    empty_path_error = expect_invalid_argument(
+    empty_path_error = apo_test.expect_invalid_argument(
         "RestartSubscriber rejects empty output path",
         lambda: apo.RestartSubscriber(""),
         "Output file name must not be empty",
     )
-    assert_equal(
+    apo_test.assert_equal(
         "RestartSubscriber empty output path context",
         empty_path_error.context,
         "RestartSubscriber construction",
     )
 
-    expect_exception(
+    apo_test.expect_exception(
         "RestartSubscriber rejects too-large report frequency",
         ValueError,
         lambda: apo.RestartSubscriber(output_dir / "tmp_large.rst", 2**31),
     )
-    expect_exception(
+    apo_test.expect_exception(
         "RestartSubscriber rejects too-small report frequency",
         ValueError,
         lambda: apo.RestartSubscriber(output_dir / "tmp_small.rst", -(2**31) - 1),
@@ -274,32 +264,32 @@ def check_construction_and_validation(output_dir: Path) -> None:
 
     missing_directory: Path = output_dir / "missing_dir"
 
-    default_missing_error = expect_invalid_argument(
+    default_missing_error = apo_test.expect_invalid_argument(
         "RestartSubscriber default constructor rejects missing output directory",
         lambda: apo.RestartSubscriber(missing_directory / "tmp.rst"),
         f"Output directory does not exist: {missing_directory}",
     )
-    assert_equal(
+    apo_test.assert_equal(
         "RestartSubscriber default missing directory context",
         default_missing_error.context,
         "RestartSubscriber construction",
     )
 
-    frequency_missing_error = expect_invalid_argument(
+    frequency_missing_error = apo_test.expect_invalid_argument(
         "RestartSubscriber frequency constructor rejects missing output directory",
         lambda: apo.RestartSubscriber(
             missing_directory / "tmp_frequency.rst", REPORT_FREQUENCY
         ),
         f"Output directory does not exist: {missing_directory}",
     )
-    assert_equal(
+    apo_test.assert_equal(
         "RestartSubscriber frequency missing directory context",
         frequency_missing_error.context,
         "RestartSubscriber construction",
     )
 
-    remove_if_exists(default_path)
-    remove_if_exists(frequency_path)
+    apo_test.remove_if_exists(default_path)
+    apo_test.remove_if_exists(frequency_path)
 
     return
 
@@ -308,24 +298,24 @@ def check_close_invalidates_handle(output_dir: Path) -> None:
     print("Checking RestartSubscriber close invalidates handle...")
 
     rst_path: Path = output_dir / "tmp_python_api_rst_closed.rst"
-    remove_if_exists(rst_path)
+    apo_test.remove_if_exists(rst_path)
 
     rst = apo.RestartSubscriber(rst_path, REPORT_FREQUENCY)
     rst.close()
 
-    expect_exception(
+    apo_test.expect_exception(
         "RestartSubscriber.getReportFrequency rejects closed handle",
         RuntimeError,
         lambda: rst.getReportFrequency(),
     )
 
-    remove_if_exists(rst_path)
+    apo_test.remove_if_exists(rst_path)
 
     return
 
 
 def main(argc: int, argv: list[str]) -> int:
-    output_dir: Path = get_repo_root() / "test/pytest"
+    output_dir: Path = apo_test.get_repo_root() / "test/pytest"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     rst_files: tuple[Path, ...] = (
@@ -350,7 +340,7 @@ def main(argc: int, argv: list[str]) -> int:
     finally:
         print("Cleaning up RestartSubscriber Python API test files...")
         for path in rst_files:
-            remove_if_exists(path)
+            apo_test.remove_if_exists(path)
 
     print(
         "\033[32m" + "PASS: RestartSubscriber Python API tests completed." + "\033[0m"

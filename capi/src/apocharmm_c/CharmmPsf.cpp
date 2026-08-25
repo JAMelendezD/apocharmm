@@ -14,6 +14,7 @@
 
 #include "CharmmPSF.h"
 
+#include <filesystem>
 #include <memory>
 #include <string>
 
@@ -31,7 +32,8 @@ extern "C" apo_status apo_charmm_psf_create(apo_charmm_psf **out,
             apocharmm_c::require_c_string(path, function_name, "PSF path"));
 
         std::unique_ptr<apo_charmm_psf> handle(new apo_charmm_psf());
-        handle->object = std::make_shared<CharmmPSF>(std::string(path));
+        handle->object =
+            std::make_shared<CharmmPSF>(std::filesystem::path(path));
 
         *out = handle.release();
 
@@ -492,7 +494,7 @@ extern "C" apo_status apo_charmm_psf_get_file_name(char *file_name,
             apocharmm_c::require_handle_object<apo_charmm_psf>(
                 psf, function_name, "CharmmPsf"));
 
-        const std::string &fname = psf->object->getFileName();
+        const std::string fname = psf->object->getFilePath().string();
         const size_t req_len = fname.length();
 
         APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_output_buffer<char>(

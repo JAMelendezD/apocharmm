@@ -50,7 +50,7 @@ repository test data and assumes it is run from the repository root.
 ```python
 import apocharmm as apo
 
-parameters = apo.CharmmParameters("test/data/toppar_water_ions.str")
+parameters = apo.CharmmParameters("toppar/toppar_water_ions.str")
 psf = apo.CharmmPsf("test/data/nacl_pair.psf")
 coordinates = apo.CharmmCrd("test/data/nacl_pair.cor")
 
@@ -94,13 +94,10 @@ Direct C++ use supplies the same resources explicitly during subscription:
 #include <string>
 #include <vector>
 
-const std::string dataPath = "test/data/";
-
 auto parameters =
-    std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
-auto coordinates =
-    std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+    std::make_shared<CharmmParameters>("toppar/toppar_water_ions.str");
+auto psf = std::make_shared<CharmmPSF>("test/data/nacl_pair.psf");
+auto coordinates = std::make_shared<CharmmCrd>("test/data/nacl_pair.cor");
 
 auto context = std::make_shared<CharmmContext>(psf, parameters);
 context->setBoxDimensions({50.0, 50.0, 50.0});

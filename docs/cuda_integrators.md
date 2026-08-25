@@ -33,7 +33,7 @@ Langevin thermostat:
 ```{.py}
 import apocharmm as apo
 
-parameters = apo.CharmmParameters("test/data/toppar_water_ions.str")
+parameters = apo.CharmmParameters("toppar/toppar_water_ions.str")
 psf = apo.CharmmPsf("test/data/nacl_pair.psf")
 coordinates = apo.CharmmCrd("test/data/nacl_pair.cor")
 
@@ -67,14 +67,17 @@ The corresponding native workflow is:
 #include "CharmmParameters.h"
 #include "CudaLangevinThermostatIntegrator.h"
 
+#include <filesystem>
 #include <memory>
 
 int main() {
-  auto parameters = std::make_shared<CharmmParameters>(
-      "test/data/toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>("test/data/nacl_pair.psf");
-  auto coordinates =
-      std::make_shared<CharmmCrd>("test/data/nacl_pair.cor");
+  const std::filesystem::path prmPath = "toppar/toppar_water_ions.str";
+  const std::filesystem::path psfPath = "test/data/nacl_pair.psf";
+  const std::filesystem::path crdPath = "test/data/nacl_pair.cor";
+
+  auto parameters = std::make_shared<CharmmParameters>(prmPath);
+  auto psf = std::make_shared<CharmmPSF>(psfPath);
+  auto coordinates = std::make_shared<CharmmCrd>(crdPath);
 
   auto context = std::make_shared<CharmmContext>(psf, parameters);
   context->setBoxDimensions({50.0, 50.0, 50.0});

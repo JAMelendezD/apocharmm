@@ -14,8 +14,10 @@
 
 #include "CharmmParameters.h"
 
+#include <filesystem>
 #include <memory>
 #include <string>
+#include <vector>
 
 extern "C" apo_status apo_charmm_parameters_create(apo_charmm_parameters **out,
                                                    const char *path) {
@@ -32,7 +34,8 @@ extern "C" apo_status apo_charmm_parameters_create(apo_charmm_parameters **out,
 
         std::unique_ptr<apo_charmm_parameters> handle(
             new apo_charmm_parameters());
-        handle->object = std::make_shared<CharmmParameters>(std::string(path));
+        handle->object =
+            std::make_shared<CharmmParameters>(std::filesystem::path(path));
 
         *out = handle.release();
 
@@ -61,16 +64,18 @@ apo_charmm_parameters_create_from_files(apo_charmm_parameters **out,
         APOCHARMM_C_RETURN_IF_ERROR(apocharmm_c::require_pointer<const char *>(
             paths, function_name, "paths"));
 
-        std::vector<std::string> fnames;
+        std::vector<std::filesystem::path> file_paths;
+        file_paths.reserve(num_paths);
+
         for (size_t i = 0; i < num_paths; i++) {
           APOCHARMM_C_RETURN_IF_ERROR(
               apocharmm_c::require_c_string(paths[i], function_name, "path"));
-          fnames.push_back(std::string(paths[i]));
+          file_paths.emplace_back(paths[i]);
         }
 
         std::unique_ptr<apo_charmm_parameters> handle(
             new apo_charmm_parameters());
-        handle->object = std::make_shared<CharmmParameters>(fnames);
+        handle->object = std::make_shared<CharmmParameters>(file_paths);
 
         *out = handle.release();
 

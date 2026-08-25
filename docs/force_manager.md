@@ -29,11 +29,9 @@ from pathlib import Path
 
 import apocharmm as apo
 
-data = Path("test/data")
-
-parameters = apo.CharmmParameters(data / "toppar_water_ions.str")
-psf = apo.CharmmPsf(data / "waterbox.psf")
-coordinates = apo.CharmmCrd(data / "waterbox.crd")
+parameters = apo.CharmmParameters("toppar/toppar_water_ions.str")
+psf = apo.CharmmPsf("test/data/waterbox.psf")
+coordinates = apo.CharmmCrd("test/data/waterbox.crd")
 
 force_manager = apo.ForceManager(psf, parameters)
 force_manager.setBoxDimensions((50.0, 50.0, 50.0))
@@ -63,7 +61,7 @@ The equivalent direct native setup is:
 
 int main() {
   auto parameters =
-      std::make_shared<CharmmParameters>("test/data/toppar_water_ions.str");
+      std::make_shared<CharmmParameters>("toppar/toppar_water_ions.str");
   auto psf = std::make_shared<CharmmPSF>("test/data/waterbox.psf");
   auto coordinates =
       std::make_shared<CharmmCrd>("test/data/waterbox.crd");

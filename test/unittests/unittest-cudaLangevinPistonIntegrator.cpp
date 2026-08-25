@@ -17,10 +17,10 @@
 #include "ForceManager.h"
 #include "apo_test_helpers.h"
 #include "catch.hpp"
-#include "test_paths.h"
 
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
 #include <limits>
 #include <memory>
 #include <string>
@@ -562,12 +562,12 @@ TEST_CASE("CudaLangevinPistonIntegratorResetAverages") {
 }
 
 TEST_CASE("CudaLangevinPistonIntegratorRequireCrystalTypeBeforeContext") {
-  const std::string dataPath = getDataPath();
-
-  auto prm =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
-  auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                "toppar_water_ions.str");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx = std::make_shared<CharmmContext>(psf, prm);
   ctx->setBoxDimensions(BOX_DIMENSIONS);
@@ -587,12 +587,12 @@ TEST_CASE("CudaLangevinPistonIntegratorRequireCrystalTypeBeforeContext") {
 }
 
 TEST_CASE("CudaLangevinPistonIntegratorContextInitialization") {
-  const std::string dataPath = getDataPath();
-
-  auto prm =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
-  auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                "toppar_water_ions.str");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx = std::make_shared<CharmmContext>(psf, prm);
   ctx->setBoxDimensions(BOX_DIMENSIONS);
@@ -621,12 +621,12 @@ TEST_CASE("CudaLangevinPistonIntegratorContextInitialization") {
 }
 
 TEST_CASE("CudaLangevinPistonIntegratorAutoPistonMass") {
-  const std::string dataPath = getDataPath();
-
-  auto prm =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
-  auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                "toppar_water_ions.str");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx = std::make_shared<CharmmContext>(psf, prm);
   ctx->setBoxDimensions(BOX_DIMENSIONS);
@@ -650,12 +650,12 @@ TEST_CASE("CudaLangevinPistonIntegratorAutoPistonMass") {
 }
 
 TEST_CASE("CudaLangevinPistonIntegratorShortPropagation") {
-  const std::string dataPath = getDataPath();
-
-  auto prm =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
-  auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                "toppar_water_ions.str");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx = std::make_shared<CharmmContext>(psf, prm);
   ctx->setBoxDimensions(BOX_DIMENSIONS);
@@ -716,18 +716,20 @@ TEST_CASE("CudaLangevinPistonIntegratorShortPropagation") {
 }
 
 TEST_CASE("CudaLangevinPistonIntegratorDeterministicTrajectory") {
-  const std::string dataPath = getDataPath();
+  auto prm1 = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                 "toppar_water_ions.str");
+  auto prm2 = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                 "toppar_water_ions.str");
 
-  auto prm1 =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto prm2 =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
+  auto psf1 =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto psf2 =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
 
-  auto psf1 = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
-  auto psf2 = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
-
-  auto crd1 = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
-  auto crd2 = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+  auto crd1 =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
+  auto crd2 =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx1 = std::make_shared<CharmmContext>(psf1, prm1);
   ctx1->setBoxDimensions(BOX_DIMENSIONS);
@@ -805,19 +807,21 @@ TEST_CASE("CudaLangevinPistonIntegratorDeterministicTrajectory") {
 }
 
 TEST_CASE("CudaLangevinPistonIntegratorRestartValidation") {
+  const std::filesystem::path missingFilePath = "missing.rst";
+
   auto integrator = std::make_shared<CudaLangevinPistonIntegrator>(TIME_STEP);
 
   apo_test::CheckApoCharmmError(
-      [&]() { integrator->initializeFromRestartFile("missing.rst"); },
+      [&]() { integrator->initializeFromRestartFile(missingFilePath); },
       ApoCharmmErrorCode::NotInitialized,
       "CharmmContext must be set before initializing from a restart file");
 
-  const std::string dataPath = getDataPath();
-
-  auto prm =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
-  auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                "toppar_water_ions.str");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx = std::make_shared<CharmmContext>(psf, prm);
   ctx->setBoxDimensions(BOX_DIMENSIONS);
@@ -830,26 +834,27 @@ TEST_CASE("CudaLangevinPistonIntegratorRestartValidation") {
   integrator->setCharmmContext(ctx);
 
   apo_test::CheckApoCharmmError(
-      [&]() { integrator->initializeFromRestartFile("missing.rst"); },
-      ApoCharmmErrorCode::Runtime, "Could not open file \"missing.rst\"");
+      [&]() { integrator->initializeFromRestartFile(missingFilePath); },
+      ApoCharmmErrorCode::Runtime,
+      "Could not open file \"" + missingFilePath.string() + "\"");
 
-  const std::string truncatedFileName =
+  const std::filesystem::path truncatedFilePath =
       "cudaLangevinPistonIntegrator-truncated.rst";
   std::string truncatedHeader(34, ' ');
   truncatedHeader.replace(18, 4, "CUBI");
 
-  apo_test::RemoveIfExists(truncatedFileName);
-  apo_test::WriteTextFile(truncatedFileName,
+  apo_test::RemoveIfExists(truncatedFilePath);
+  apo_test::WriteTextFile(truncatedFilePath,
                           truncatedHeader + "\n !CRYSTAL PARAMETERS\n");
 
   apo_test::CheckApoCharmmError(
-      [&]() { integrator->initializeFromRestartFile(truncatedFileName); },
+      [&]() { integrator->initializeFromRestartFile(truncatedFilePath); },
       ApoCharmmErrorCode::Runtime,
       "Unexpected end of file while reading first XTLABC record in restart "
       "file \"" +
-          truncatedFileName + "\"");
+          truncatedFilePath.string() + "\"");
 
-  apo_test::RemoveIfExists(truncatedFileName);
+  apo_test::RemoveIfExists(truncatedFilePath);
 
   CHECK(integrator->getCrystalType() == CRYSTAL::CUBIC);
   apo_test::CheckVectorsClose<double>(

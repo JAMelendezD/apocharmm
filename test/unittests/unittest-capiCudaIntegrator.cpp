@@ -20,8 +20,8 @@
 #include "apocharmm_c/detail/CharmmContextHandle.h"
 #include "apocharmm_c/detail/CudaIntegratorHandle.h"
 #include "catch.hpp"
-#include "test_paths.h"
 
+#include <filesystem>
 #include <limits>
 #include <memory>
 #include <string>
@@ -43,12 +43,12 @@ protected:
 };
 
 std::shared_ptr<CharmmContext> MakeInitializedContext(void) {
-  const std::string dataPath = getDataPath();
-
-  auto prm =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
-  auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                "toppar_water_ions.str");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto context = std::make_shared<CharmmContext>(psf, prm);
   context->setBoxDimensions({50.0, 50.0, 50.0});

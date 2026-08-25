@@ -20,7 +20,7 @@ The Python API accepts one path or an ordered `list` or `tuple` of paths:
 ```python
 import apocharmm as apo
 
-parameters = apo.CharmmParameters("test/data/toppar_water_ions.str")
+parameters = apo.CharmmParameters("toppar/toppar_water_ions.str")
 psf = apo.CharmmPsf("test/data/waterbox.psf")
 context = apo.CharmmContext(psf, parameters)
 context.setBoxDimensions([50.0, 50.0, 50.0])
@@ -41,7 +41,7 @@ Direct C++ use follows the same ownership relationship:
 #include <memory>
 
 const auto parameters = std::make_shared<CharmmParameters>(
-    "test/data/toppar_water_ions.str");
+    "toppar/toppar_water_ions.str");
 const auto psf =
     std::make_shared<CharmmPSF>("test/data/waterbox.psf");
 ForceManager forceManager(psf, parameters);
@@ -96,7 +96,7 @@ The public C++ method
 [CharmmParameters::readCharmmParameterFile](@ref CharmmParameters::readCharmmParameterFile)
 merges an additional file into an existing object. It is not exposed by the
 current C ABI or Python wrapper. It also does not append the path to
-[CharmmParameters::getPrmFileNames](@ref CharmmParameters::getPrmFileNames);
+[CharmmParameters::getPrmFilePaths](@ref CharmmParameters::getPrmFilePaths);
 that getter reports only paths supplied to a successful file-reading
 constructor.
 

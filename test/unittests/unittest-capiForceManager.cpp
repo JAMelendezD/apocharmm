@@ -10,6 +10,7 @@
 #include "CharmmPSF.h"
 #include "CharmmParameters.h"
 #include "ForceManager.h"
+#include "apo_test_helpers.h"
 #include "apocharmm_c/Error.h"
 #include "apocharmm_c/ForceManager.h"
 #include "apocharmm_c/Status.h"
@@ -17,9 +18,9 @@
 #include "apocharmm_c/detail/CharmmPsfHandle.h"
 #include "apocharmm_c/detail/ForceManagerHandle.h"
 #include "catch.hpp"
-#include "test_paths.h"
 
 #include <cstddef>
+#include <filesystem>
 #include <limits>
 #include <memory>
 #include <string>
@@ -47,8 +48,9 @@ struct ForceManagerInputs {
   apo_charmm_parameters parametersHandle;
 
   ForceManagerInputs()
-      : psf(std::make_shared<CharmmPSF>(getDataPath() + "nacl_pair.psf")),
-        parameters(std::make_shared<CharmmParameters>(getDataPath() +
+      : psf(std::make_shared<CharmmPSF>(apo_test::GetDataDir() /
+                                        "nacl_pair.psf")),
+        parameters(std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
                                                       "toppar_water_ions.str")),
         psfHandle(), parametersHandle() {
     psfHandle.object = psf;

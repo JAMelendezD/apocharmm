@@ -12,7 +12,7 @@
 
 #include "Subscriber.h"
 
-#include <string>
+#include <filesystem>
 
 /**
  * @brief Writes periodic coordinate snapshots in CHARMM DCD format.
@@ -45,38 +45,40 @@ public:
   /**
    * @brief Constructs a DCD writer with the default reporting interval.
    *
-   * @param[in] fileName Output path copied by the subscriber. The value must be
-   * nonempty; when it contains `/`, its nonempty parent path must exist.
+   * @param[in] filePath File-system path copied by the subscriber. The value
+   * must be nonempty; when it has a nonempty paren path, that parent path must
+   * exist.
    *
-   * @throws ApoCharmmError With code
-   * `ApoCharmmErrorCode::InvalidArgument` if `fileName` is empty or its checked
-   * parent path does not exist.
+   * @throws ApoCharmmError With code `ApoCharmmErrorCode::InvalidArgument` if
+   * `filePath` is empty or its checked parent path does not exist.
    * @throws ApoCharmmError With code `ApoCharmmErrorCode::Runtime` if the
    * binary output file cannot be opened for writing.
    *
    * @post The file has been created or truncated, no DCD header has been
    * written, and `getReportFrequency() == 1000`.
    */
-  DcdSubscriber(const std::string &fileName);
+  DcdSubscriber(const std::filesystem::path &filePath);
 
   /**
    * @brief Constructs a DCD writer with an explicit reporting interval.
    *
-   * @param[in] fileName Output path copied by the subscriber. The value must be
-   * nonempty; when it contains `/`, its nonempty parent path must exist.
+   * @param[in] filePath File-system path copied by the subscriber. The value
+   * must be nonempty; when it has a nonempty parent path, that parent path must
+   * exist.
    * @param[in] reportFrequency Positive, dimensionless number of propagated
    * steps between scheduled DCD frames.
    *
-   * @throws ApoCharmmError With code
-   * `ApoCharmmErrorCode::InvalidArgument` if `reportFrequency` is not positive,
-   * `fileName` is empty, or its checked parent path does not exist.
+   * @throws ApoCharmmError With code `ApoCharmmErrorCode::InvalidArgument` if
+   * `reportFrequency` is not positive, `filePath` is empty, or its checked
+   * parent path does not exist.
    * @throws ApoCharmmError With code `ApoCharmmErrorCode::Runtime` if the
    * binary output file cannot be opened for writing.
    *
    * @post The file has been created or truncated, no DCD header has been
    * written, and `getReportFrequency() == reportFrequency`.
    */
-  DcdSubscriber(const std::string &fileName, const int reportFrequency);
+  DcdSubscriber(const std::filesystem::path &filePath,
+                const int reportFrequency);
 
   /**
    * @brief Destroys the writer and closes its output stream.
@@ -95,7 +97,7 @@ public:
    * count only after the final stream-state check succeeds.
    *
    * @throws ApoCharmmError With code
-   * `ApoCharmmErrorCode::NotInitialized` if the logical file name is empty, no
+   * `ApoCharmmErrorCode::NotInitialized` if the logical file path is empty, no
    * context or integrator is attached, the stream is closed, the context does
    * not contain exactly three positive box lengths, or the atom count is not
    * positive.
@@ -132,7 +134,7 @@ public:
    * @post On success, prior file contents are truncated and the next update
    * writes a fresh header.
    * @warning A failed reopen can leave the previous stream closed while the
-   * stored logical file name remains unchanged.
+   * stored logical file path remains unchanged.
    */
   void openFile(void) override;
 

@@ -14,6 +14,7 @@
 
 #include "CharmmCrd.h"
 
+#include <filesystem>
 #include <memory>
 #include <string>
 
@@ -31,7 +32,8 @@ extern "C" apo_status apo_charmm_crd_create(apo_charmm_crd **out,
             apocharmm_c::require_c_string(path, function_name, "path"));
 
         std::unique_ptr<apo_charmm_crd> handle(new apo_charmm_crd());
-        handle->object = std::make_shared<CharmmCrd>(std::string(path));
+        handle->object =
+            std::make_shared<CharmmCrd>(std::filesystem::path(path));
 
         *out = handle.release();
 

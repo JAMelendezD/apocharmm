@@ -16,10 +16,10 @@
 #include "PBC.h"
 #include "apo_test_helpers.h"
 #include "catch.hpp"
-#include "test_paths.h"
 
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
 #include <iomanip>
 #include <iostream>
 #include <map>
@@ -54,9 +54,10 @@ private:
 } // namespace
 
 TEST_CASE("CharmmContextForceManagerConstructorMirrorsBackendState") {
-  auto prm = std::make_shared<CharmmParameters>(getDataPath() +
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
                                                 "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(getDataPath() + "nacl_pair.psf");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
 
   auto fm = std::make_shared<ForceManager>(psf, prm);
   fm->setBoxDimensions(BOX_DIMENSIONS);
@@ -82,9 +83,10 @@ TEST_CASE("CharmmContextForceManagerConstructorMirrorsBackendState") {
 }
 
 TEST_CASE("CharmmContextStagedStateConfiguresForceManagerOnAttach") {
-  auto prm = std::make_shared<CharmmParameters>(getDataPath() +
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
                                                 "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(getDataPath() + "nacl_pair.psf");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
 
   auto ctx = std::make_shared<CharmmContext>();
   ctx->setPsf(psf);
@@ -115,10 +117,12 @@ TEST_CASE("CharmmContextStagedStateConfiguresForceManagerOnAttach") {
 }
 
 TEST_CASE("CharmmContextStagedStateCanLoadCoordinatesAfterBackendInitialize") {
-  auto prm = std::make_shared<CharmmParameters>(getDataPath() +
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
                                                 "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(getDataPath() + "nacl_pair.psf");
-  auto crd = std::make_shared<CharmmCrd>(getDataPath() + "nacl_pair.cor");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx = std::make_shared<CharmmContext>();
   ctx->setPsf(psf);
@@ -179,10 +183,12 @@ TEST_CASE("CharmmContextRejectsInvalidStagedBoxDimensions") {
 }
 
 TEST_CASE("ForceManagerContextBackPointerDoesNotOwnCharmmContext") {
-  auto prm = std::make_shared<CharmmParameters>(getDataPath() +
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
                                                 "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(getDataPath() + "nacl_pair.psf");
-  auto crd = std::make_shared<CharmmCrd>(getDataPath() + "nacl_pair.cor");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto fm = std::make_shared<ForceManager>(psf, prm);
   fm->setBoxDimensions(BOX_DIMENSIONS);
@@ -200,9 +206,10 @@ TEST_CASE("ForceManagerContextBackPointerDoesNotOwnCharmmContext") {
 }
 
 TEST_CASE("CharmmContextCanAttachForceManagerBeforeStagingState") {
-  auto prm = std::make_shared<CharmmParameters>(getDataPath() +
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
                                                 "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(getDataPath() + "nacl_pair.psf");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
 
   auto ctx = std::make_shared<CharmmContext>();
   auto fm = std::make_shared<ForceManager>();
@@ -234,10 +241,12 @@ TEST_CASE("CharmmContextCanAttachForceManagerBeforeStagingState") {
 }
 
 TEST_CASE("CharmmContextConstructsFromPsfAndParameters") {
-  auto prm = std::make_shared<CharmmParameters>(getDataPath() +
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
                                                 "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(getDataPath() + "nacl_pair.psf");
-  auto crd = std::make_shared<CharmmCrd>(getDataPath() + "nacl_pair.cor");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx = std::make_shared<CharmmContext>(psf, prm);
 
@@ -271,9 +280,10 @@ TEST_CASE("CharmmContextConstructsFromPsfAndParameters") {
 }
 
 TEST_CASE("CharmmContextForwardsForceManagerConfiguration") {
-  auto prm = std::make_shared<CharmmParameters>(getDataPath() +
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
                                                 "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(getDataPath() + "nacl_pair.psf");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
 
   auto ctx = std::make_shared<CharmmContext>(psf, prm);
   auto fm = ctx->getForceManager();
@@ -306,10 +316,12 @@ TEST_CASE("CharmmContextForwardsForceManagerConfiguration") {
 }
 
 TEST_CASE("CharmmContextPrintsCharmmStyleEnergyTable") {
-  auto prm = std::make_shared<CharmmParameters>(getDataPath() +
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
                                                 "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(getDataPath() + "nacl_pair.psf");
-  auto crd = std::make_shared<CharmmCrd>(getDataPath() + "nacl_pair.cor");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx = std::make_shared<CharmmContext>(psf, prm);
   ctx->setBoxDimensions(BOX_DIMENSIONS);
@@ -418,10 +430,12 @@ TEST_CASE("CharmmContextPrintsCharmmStyleEnergyTable") {
 }
 
 TEST_CASE("CharmmContextEnergyTableTracksPrintedEvaluations") {
-  auto prm = std::make_shared<CharmmParameters>(getDataPath() +
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
                                                 "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(getDataPath() + "nacl_pair.psf");
-  auto crd = std::make_shared<CharmmCrd>(getDataPath() + "nacl_pair.cor");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx = std::make_shared<CharmmContext>(psf, prm);
   ctx->setBoxDimensions(BOX_DIMENSIONS);

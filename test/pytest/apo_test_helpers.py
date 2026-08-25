@@ -38,12 +38,20 @@ def get_repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def get_data_path() -> Path:
-    data_path: str | None = os.environ.get("APOCHARMM_TEST_DATA_PATH")
+def get_data_dir() -> Path:
+    data_path: str | None = os.environ.get("APOCHARMM_TEST_DATA_DIR")
     if data_path is not None:
         return Path(data_path)
 
     return get_repo_root() / "test/data"
+
+
+def get_toppar_dir() -> Path:
+    toppar_path: str | None = os.environ.get("APOCHARMM_TOPPAR_DIR")
+    if toppar_path is not None:
+        return Path(toppar_path)
+
+    return get_repo_root() / "toppar"
 
 
 def write_text_file(path: Path, contents: str) -> None:

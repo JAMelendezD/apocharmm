@@ -12,6 +12,7 @@
 
 #include "CudaContainer.h"
 
+#include <filesystem>
 #include <set>
 #include <string>
 #include <vector>
@@ -209,10 +210,11 @@ public:
    * `[1, getNumAtoms()]`. After parsing, the constructor derives water,
    * connected-component, residue, and exclusion data.
    *
-   * @param[in] fileName Borrowed non-empty path to a PSF file. The path text is
-   * copied into the object and is not normalized or retained by reference.
-   * @throws ApoCharmmError With
-   * `ApoCharmmErrorCode::InvalidArgument` if `fileName` is empty.
+   * @param[in] filePath Borrowed non-empty path to a PSF file. The path is
+   * copied into the object, retained without canonicalization, and not retained
+   * by reference.
+   * @throws ApoCharmmError With `ApoCharmmErrorCode::InvalidArgument` if
+   * `filePath` is empty.
    * @throws ApoCharmmError With `ApoCharmmErrorCode::Runtime` if the file
    * cannot be opened or read, a required section or record is missing, a record
    * has an invalid field count, a numeric field is malformed or non-finite, a
@@ -231,7 +233,7 @@ public:
    * @note Construction does not select a CUDA device or stream and does not
    * issue a CharmmPSF-level device-wide synchronization.
    */
-  CharmmPSF(const std::string &fileName);
+  CharmmPSF(const std::filesystem::path &filePath);
 
   /**
    * @brief Constructs an independent deep copy of another PSF object.
@@ -587,11 +589,10 @@ public:
   /**
    * @brief Returns the path supplied to the file constructor.
    *
-   * @return Borrowed const reference to object-owned host string storage. The
-   * text is retained exactly as supplied after crossing the native C++ string
-   * boundary and is not canonicalized.
+   * @return Borrowed const reference to the object-owned file-system path. The
+   * path is retained without canonicalization.
    */
-  const std::string &getFileName(void) const;
+  const std::filesystem::path &getFilePath(void) const;
 
   /**
    * @brief Returns unchecked mutable access to segment identifiers.
@@ -806,14 +807,14 @@ public:
   CudaContainer<int2> &getGroups(void);
 
   /**
-   * @brief Returns unchecked mutable access to the stored file name.
+   * @brief Returns unchecked mutable access to the stored file path.
    *
-   * @return Borrowed mutable reference to object-owned host string storage. No
+   * @return Borrowed mutable reference to object-owned file-system path. No
    * ownership is transferred.
-   * @warning Changing this string does not read another file, reparse topology,
+   * @warning Changing this path does not read another file, reparse topology,
    * or change any other stored data. See @ref charmm_psf_mutation.
    */
-  std::string &getFileName(void);
+  std::filesystem::path &getFilePath(void);
 
   /**
    * @brief Computes the sum of all stored atom charges.
@@ -951,9 +952,9 @@ private:
    * processing ATOM records. Water, group, and exclusion derivation occurs
    * later in the file constructor.
    *
-   * @param[in] fileName Borrowed non-empty path copied into `m_FileName`.
-   * @throws ApoCharmmError With
-   * `ApoCharmmErrorCode::InvalidArgument` if `fileName` is empty.
+   * @param[in] filePath Borrowed non-empty path copied into `m_FilePath`.
+   * @throws ApoCharmmError With `ApoCharmmErrorCode::InvalidArgument` if
+   * `filePath` is empty.
    * @throws ApoCharmmError With `ApoCharmmErrorCode::Runtime` for file I/O,
    * missing sections, premature end of file, unsupported counts, malformed
    * records, non-finite numeric fields, or out-of-range atom numbers.
@@ -966,7 +967,7 @@ private:
    * @post On success, parser-owned counts, per-atom metadata, primary topology,
    * residue intervals, and the stored file name describe the input file.
    */
-  void readCharmmPSF(const std::string &fileName);
+  void readCharmmPSF(const std::filesystem::path &filePath);
 
 private:
   /** Stores the atom count, using `-1` as the uninitialized sentinel. */
@@ -1024,6 +1025,6 @@ private:
   CudaContainer<int2> m_Residues;
   CudaContainer<int2> m_Groups;
 
-  /** Owns the path text supplied to successful file construction. */
-  std::string m_FileName;
+  /** Owns the path supplied to successful file construction. */
+  std::filesystem::path m_FilePath;
 };

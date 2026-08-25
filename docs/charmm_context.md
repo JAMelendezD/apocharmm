@@ -27,7 +27,7 @@ import apocharmm as apo
 
 data = Path("test/data")
 
-parameters = apo.CharmmParameters(data / "toppar_water_ions.str")
+parameters = apo.CharmmParameters("toppar/toppar_water_ions.str")
 psf = apo.CharmmPsf(data / "waterbox.psf")
 coordinates = apo.CharmmCrd(data / "waterbox.crd")
 
@@ -52,8 +52,8 @@ The equivalent direct native workflow is:
 #include <memory>
 
 int main() {
-  auto parameters =
-      std::make_shared<CharmmParameters>("test/data/toppar_water_ions.str");
+  auto parameters = 
+      std::make_shared<CharmmParameters>("toppar/toppar_water_ions.str");
   auto psf = std::make_shared<CharmmPSF>("test/data/waterbox.psf");
   auto coordinates =
       std::make_shared<CharmmCrd>("test/data/waterbox.crd");

@@ -19,9 +19,9 @@
 #include "PBC.h"
 #include "apo_test_helpers.h"
 #include "catch.hpp"
-#include "test_paths.h"
 
 #include <cmath>
+#include <filesystem>
 #include <limits>
 #include <memory>
 #include <string>
@@ -93,10 +93,10 @@ private:
 };
 
 ForceManager CreateForceManager(void) {
-  const std::string dataPath = getDataPath();
-  auto prm =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                "toppar_water_ions.str");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
 
   return ForceManager(psf, prm);
 }
@@ -130,10 +130,10 @@ TEST_CASE("ForceManagerDefaultConstructor") {
 }
 
 TEST_CASE("ForceManagerRejectsNullTopologyAndParameters") {
-  const std::string dataPath = getDataPath();
-  auto prm =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                "toppar_water_ions.str");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
   std::shared_ptr<CharmmPSF> nullPsf;
   std::shared_ptr<CharmmParameters> nullPrm;
 
@@ -156,10 +156,10 @@ TEST_CASE("ForceManagerRejectsNullTopologyAndParameters") {
 }
 
 TEST_CASE("ForceManagerConstructsFromTopologyAndParameters") {
-  const std::string dataPath = getDataPath();
-  auto prm =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                "toppar_water_ions.str");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
 
   ForceManager fm(psf, prm);
 
@@ -285,10 +285,10 @@ TEST_CASE("ForceManagerRejectsInvalidBoxDimensions") {
 }
 
 TEST_CASE("ForceManagerRejectsInvalidInitializationInputs") {
-  const std::string dataPath = getDataPath();
-  auto prm =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                "toppar_water_ions.str");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
 
   SECTION("MissingCharmmPsf") {
     ForceManager fm;
@@ -578,11 +578,12 @@ TEST_CASE("ForceManagerUnsubscribeByTag") {
 }
 
 TEST_CASE("ForceManagerCheckedCudaLaunchesAndGraphCleanup") {
-  const std::string dataPath = getDataPath();
-  auto prm =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
-  auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                "toppar_water_ions.str");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx = std::make_shared<CharmmContext>(psf, prm);
   ctx->setBoxDimensions({50.0, 50.0, 50.0});

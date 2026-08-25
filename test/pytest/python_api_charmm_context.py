@@ -16,21 +16,7 @@ import sys
 
 import apocharmm as apo
 
-from python_api_test_helpers import (
-    get_data_path,
-    get_repo_root,
-    require_file,
-    write_text_file,
-    remove_if_exists,
-    assert_equal,
-    assert_close,
-    assert_sequence_close,
-    assert_nested_sequence_close,
-    assert_finite_nested_sequence,
-    assert_finite_temperature,
-    expect_exception,
-    expect_apo_error,
-)
+import apo_test_helpers as apo_test
 
 TOLERANCE: float = 1.0e-7
 BOX_DIMENSIONS: tuple[float, float, float] = (40.0, 41.0, 42.0)
@@ -161,54 +147,54 @@ def check_construction_and_default_state(
         psf_charges: list[float] = psf.getCharges()
         psf_inverse_masses: list[float] = inverse_masses(psf.getMasses())
 
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext.getNumAtoms default",
             context.getNumAtoms(),
             num_atoms,
         )
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext.getNumDegreesOfFreedom default",
             context.getNumDegreesOfFreedom(),
             3,
         )
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext.getPeriodicBoundaryCondition default",
             context.getPeriodicBoundaryCondition(),
             apo.PeriodicBoundaryCondition.P1,
         )
-        assert_sequence_close(
+        apo_test.assert_sequence_close(
             "CharmmContext.getBoxDimensions default",
             context.getBoxDimensions(),
             (-9999.9999, -9999.9999, -9999.9999),
             TOLERANCE,
         )
 
-        assert_close(
+        apo_test.assert_close(
             "CharmmContext.getKappa default",
             context.getKappa(),
             0.34,
             TOLERANCE,
         )
-        assert_close(
+        apo_test.assert_close(
             "CharmmContext.getCutoff default", context.getCutoff(), 14.0, TOLERANCE
         )
-        assert_close(
+        apo_test.assert_close(
             "CharmmContext.getCtonnb default", context.getCtonnb(), 12.0, TOLERANCE
         )
-        assert_close(
+        apo_test.assert_close(
             "CharmmContext.getCtofnb default", context.getCtofnb(), 10.0, TOLERANCE
         )
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext.getFFTGrid default",
             context.getFFTGrid(),
             (-1, -1, -1),
         )
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext.getPmeSplineOrder default",
             context.getPmeSplineOrder(),
             4,
         )
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext.getVdwType default",
             context.getVdwType(),
             apo.VdwType.VFSW,
@@ -221,13 +207,13 @@ def check_construction_and_default_state(
             ((0.0, 0.0, 0.0),) * num_atoms, psf_inverse_masses
         )
 
-        assert_nested_sequence_close(
+        apo_test.assert_nested_sequence_close(
             "CharmmContext coordinates/charges default",
             context.getCoordinatesCharges(),
             expected_xyzq,
             TOLERANCE,
         )
-        assert_nested_sequence_close(
+        apo_test.assert_nested_sequence_close(
             "CharmmContext velocities/inverse masses default",
             context.getVelocityMass(),
             expected_xyzm,
@@ -241,17 +227,17 @@ def check_construction_and_default_state(
             )
 
         force_manager = context.getForceManager()
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext.getForceManager returns cached wrapper",
             context.getForceManager() is force_manager,
             True,
         )
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext ForceManager atom count",
             force_manager.getNumAtoms(),
             num_atoms,
         )
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext ForceManager initially uninitialized",
             force_manager.isInitialized(),
             False,
@@ -269,29 +255,29 @@ def check_construction_and_default_state(
     try:
         backend_context = apo.CharmmContext(backend)
 
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext ForceManager constructor preserves wrapper identity",
             backend_context.getForceManager() is backend,
             True,
         )
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext ForceManager constructor atom count",
             backend_context.getNumAtoms(),
             psf.getNumAtoms(),
         )
-        assert_close(
+        apo_test.assert_close(
             "CharmmContext ForceManager constructor kappa",
             backend_context.getKappa(),
             0.41,
             TOLERANCE,
         )
-        assert_close(
+        apo_test.assert_close(
             "CharmmContext ForceManager constructor cutoff",
             backend_context.getCutoff(),
             8.75,
             TOLERANCE,
         )
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext ForceManager constructor leaves degrees of freedom unset",
             backend_context.getNumDegreesOfFreedom(),
             -1,
@@ -322,19 +308,19 @@ def check_object_setters(
     try:
         context.setPrm(replacement_parameters)
         context.setPsf(replacement_psf)
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext.setPsf preserves atom count",
             context.getNumAtoms(),
             replacement_psf.getNumAtoms(),
         )
 
         context.setForceManager(replacement_force_manager)
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext.setForceManager updates cached wrapper",
             context.getForceManager() is replacement_force_manager,
             True,
         )
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext.setForceManager preserves atom count",
             context.getNumAtoms(),
             replacement_force_manager.getNumAtoms(),
@@ -361,7 +347,7 @@ def check_array_state_round_trips(
 
     try:
         context.setCoordinatesCharges(COORDINATES_CHARGES)
-        assert_nested_sequence_close(
+        apo_test.assert_nested_sequence_close(
             "CharmmContext.setCoordinatesCharges",
             context.getCoordinatesCharges(),
             COORDINATES_CHARGES,
@@ -373,7 +359,7 @@ def check_array_state_round_trips(
             COORDINATES,
             [row[3] for row in COORDINATES_CHARGES],
         )
-        assert_nested_sequence_close(
+        apo_test.assert_nested_sequence_close(
             "CharmmContext.setCoordinates preserves charges",
             context.getCoordinatesCharges(),
             expected_xyzq,
@@ -382,7 +368,7 @@ def check_array_state_round_trips(
 
         context.setCharges(CHARGES)
         expected_xyzq = combine_xyz_and_scalar(COORDINATES, CHARGES)
-        assert_nested_sequence_close(
+        apo_test.assert_nested_sequence_close(
             "CharmmContext.setCharges preserves coordinates",
             context.getCoordinatesCharges(),
             expected_xyzq,
@@ -391,7 +377,7 @@ def check_array_state_round_trips(
 
         context.setCoordinates(crd)
         expected_xyzq = combine_xyz_and_scalar(crd.getCoordinates(), CHARGES)
-        assert_nested_sequence_close(
+        apo_test.assert_nested_sequence_close(
             "CharmmContext.setCoordinates CharmmCrd overload",
             context.getCoordinatesCharges(),
             expected_xyzq,
@@ -399,7 +385,7 @@ def check_array_state_round_trips(
         )
 
         context.setVelocitiesInverseMasses(VELOCITIES_INVERSE_MASSES)
-        assert_nested_sequence_close(
+        apo_test.assert_nested_sequence_close(
             "CharmmContext.setVelocitiesInverseMasses",
             context.getVelocityMass(),
             VELOCITIES_INVERSE_MASSES,
@@ -411,7 +397,7 @@ def check_array_state_round_trips(
             VELOCITIES,
             [row[3] for row in VELOCITIES_INVERSE_MASSES],
         )
-        assert_nested_sequence_close(
+        apo_test.assert_nested_sequence_close(
             "CharmmContext.setVelocities preserves inverse masses",
             context.getVelocityMass(),
             expected_xyzm,
@@ -420,7 +406,7 @@ def check_array_state_round_trips(
 
         context.setMasses(MASSES)
         expected_xyzm = combine_xyz_and_scalar(VELOCITIES, inverse_masses(MASSES))
-        assert_nested_sequence_close(
+        apo_test.assert_nested_sequence_close(
             "CharmmContext.setMasses stores inverse masses",
             context.getVelocityMass(),
             expected_xyzm,
@@ -446,35 +432,35 @@ def check_velocity_file_loading(
     context = apo.CharmmContext(psf, parameters)
 
     try:
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext velocity file rejects empty path",
             lambda: context.setVelocitiesFromCHARMMVelocityFile(""),
             apo.APO_STATUS_INVALID_ARGUMENT,
             "CHARMM velocity file is NULL or empty",
             "CharmmContext.setVelocitiesFromCHARMMVelocityFile(file_name)",
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext velocity file reports open failure",
             lambda: context.setVelocitiesFromCHARMMVelocityFile(missing_path),
             apo.APO_STATUS_RUNTIME_ERROR,
             f'Could not open CHARMM velocity file "{missing_path}"',
             "CharmmContext.setVelocitiesFromCHARMMVelocityFile(file_name)",
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext velocity file rejects atom-count mismatch",
             lambda: context.setVelocitiesFromCHARMMVelocityFile(mismatch_path),
             apo.APO_STATUS_INVALID_ARGUMENT,
             "CHARMM velocity atom count mismatch; expected 2, observed 1",
             "CharmmContext.setVelocitiesFromCHARMMVelocityFile(file_name)",
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext velocity file reports malformed atom count",
             lambda: context.setVelocitiesFromCHARMMVelocityFile(bad_count_path),
             apo.APO_STATUS_RUNTIME_ERROR,
             "Could not parse atom count from CHARMM velocity file",
             "CharmmContext.setVelocitiesFromCHARMMVelocityFile(file_name)",
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext velocity file reports malformed record",
             lambda: context.setVelocitiesFromCHARMMVelocityFile(bad_record_path),
             apo.APO_STATUS_RUNTIME_ERROR,
@@ -489,7 +475,7 @@ def check_velocity_file_loading(
             ((1.25, -2.50, 3.75), (-4.50, 5.25, -6.00)),
             inverse_masses(MASSES),
         )
-        assert_nested_sequence_close(
+        apo_test.assert_nested_sequence_close(
             "CharmmContext CHARMM velocity file values",
             context.getVelocityMass(),
             expected_xyzm,
@@ -526,7 +512,7 @@ def check_configuration_and_initialized_state(
             apo.PeriodicBoundaryCondition.P21,
         ):
             context.setPeriodicBoundaryCondition(pbc)
-            assert_equal(
+            apo_test.assert_equal(
                 f"CharmmContext periodic boundary condition {pbc}",
                 context.getPeriodicBoundaryCondition(),
                 pbc,
@@ -534,7 +520,7 @@ def check_configuration_and_initialized_state(
 
         context.setPeriodicBoundaryCondition(apo.PeriodicBoundaryCondition.P1)
         context.useHolonomicConstraints(False)
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext degrees of freedom without holonomic constraints",
             context.getNumDegreesOfFreedom(),
             3,
@@ -549,62 +535,64 @@ def check_configuration_and_initialized_state(
             apo.VdwType.DBEXP,
         ):
             context.setVdwType(vdw_type)
-            assert_equal(
+            apo_test.assert_equal(
                 f"CharmmContext van der Waals type {vdw_type}",
                 context.getVdwType(),
                 vdw_type,
             )
 
         context.setRandomSeed(0)
-        assert_equal("CharmmContext zero random seed", context.getRandomSeed(), 0)
+        apo_test.assert_equal(
+            "CharmmContext zero random seed", context.getRandomSeed(), 0
+        )
         context.setRandomSeed(2**64 - 1)
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext maximum random seed",
             context.getRandomSeed(),
             2**64 - 1,
         )
         context.setRandomSeed(RANDOM_SEED)
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext configured random seed",
             context.getRandomSeed(),
             RANDOM_SEED,
         )
 
-        assert_close(
+        apo_test.assert_close(
             "CharmmContext configured kappa",
             context.getKappa(),
             0.45,
             TOLERANCE,
         )
-        assert_close(
+        apo_test.assert_close(
             "CharmmContext configured cutoff",
             context.getCutoff(),
             9.0,
             TOLERANCE,
         )
-        assert_close(
+        apo_test.assert_close(
             "CharmmContext configured ctonnb",
             context.getCtonnb(),
             7.5,
             TOLERANCE,
         )
-        assert_close(
+        apo_test.assert_close(
             "CharmmContext configured ctofnb",
             context.getCtofnb(),
             8.5,
             TOLERANCE,
         )
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext configured FFT grid",
             context.getFFTGrid(),
             FFT_GRID,
         )
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext configured PME spline order",
             context.getPmeSplineOrder(),
             6,
         )
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext configured van der Waals type",
             context.getVdwType(),
             apo.VdwType.DBEXP,
@@ -612,13 +600,13 @@ def check_configuration_and_initialized_state(
 
         context.setBoxDimensions(BOX_DIMENSIONS)
 
-        assert_sequence_close(
+        apo_test.assert_sequence_close(
             "CharmmContext configured box dimensions",
             context.getBoxDimensions(),
             BOX_DIMENSIONS,
             TOLERANCE,
         )
-        assert_close(
+        apo_test.assert_close(
             "CharmmContext configured volume",
             context.getVolume(),
             BOX_DIMENSIONS[0] * BOX_DIMENSIONS[1] * BOX_DIMENSIONS[2],
@@ -626,32 +614,32 @@ def check_configuration_and_initialized_state(
         )
 
         force_manager = context.getForceManager()
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext backend initialized after complete state",
             force_manager.isInitialized(),
             True,
         )
-        assert_sequence_close(
+        apo_test.assert_sequence_close(
             "CharmmContext backend box dimensions",
             force_manager.getBoxDimensions(),
             BOX_DIMENSIONS,
             TOLERANCE,
         )
-        assert_close(
+        apo_test.assert_close(
             "CharmmContext backend kappa", force_manager.getKappa(), 0.45, TOLERANCE
         )
-        assert_close(
+        apo_test.assert_close(
             "CharmmContext backend cutoff", force_manager.getCutoff(), 9.0, TOLERANCE
         )
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext backend FFT grid", force_manager.getFFTGrid(), FFT_GRID
         )
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext backend PME spline order",
             force_manager.getPmeSplineOrder(),
             6,
         )
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext backend van der Waals type",
             force_manager.getVdwType(),
             apo.VdwType.DBEXP,
@@ -661,7 +649,7 @@ def check_configuration_and_initialized_state(
         expected_xyzq: list[list[float]] = combine_xyz_and_scalar(
             crd.getCoordinates(), psf.getCharges()
         )
-        assert_nested_sequence_close(
+        apo_test.assert_nested_sequence_close(
             "CharmmContext initialized coordinate loading",
             context.getCoordinatesCharges(),
             expected_xyzq,
@@ -694,14 +682,16 @@ def check_random_velocity_assignment_and_temperature(
         first_values: list[list[float]] = first.getVelocityMass()
         second_values: list[list[float]] = second.getVelocityMass()
 
-        assert_finite_nested_sequence("CharmmContext assigned velocities", first_values)
-        assert_nested_sequence_close(
+        apo_test.assert_finite_nested_sequence(
+            "CharmmContext assigned velocities", first_values
+        )
+        apo_test.assert_nested_sequence_close(
             "CharmmContext deterministic velocity assignment",
             first_values,
             second_values,
             TOLERANCE,
         )
-        assert_sequence_close(
+        apo_test.assert_sequence_close(
             "CharmmContext assigned inverse masses",
             [row[3] for row in first_values],
             inverse_masses(psf.getMasses()),
@@ -710,9 +700,13 @@ def check_random_velocity_assignment_and_temperature(
 
         first_temperature: float = first.computeTemperature()
         second_temperature: float = second.computeTemperature()
-        assert_finite_temperature("CharmmContext first computed", first_temperature)
-        assert_finite_temperature("CharmmContext second computed", second_temperature)
-        assert_close(
+        apo_test.assert_finite_temperature(
+            "CharmmContext first computed", first_temperature
+        )
+        apo_test.assert_finite_temperature(
+            "CharmmContext second computed", second_temperature
+        )
+        apo_test.assert_close(
             "CharmmContext deterministic computed temperature",
             first_temperature,
             second_temperature,
@@ -720,7 +714,7 @@ def check_random_velocity_assignment_and_temperature(
         )
 
         first.setVelocities(((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)))
-        assert_close(
+        apo_test.assert_close(
             "CharmmContext zero-velocity temperature",
             first.computeTemperature(),
             0.0,
@@ -736,13 +730,13 @@ def check_random_velocity_assignment_and_temperature(
 
     try:
         backend_context = apo.CharmmContext(backend)
-        assert_equal(
+        apo_test.assert_equal(
             "CharmmContext ForceManager-constructor degrees of freedom sentinel",
             backend_context.getNumDegreesOfFreedom(),
             -1,
         )
 
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.computeTemperature rejects unset degrees of freedom",
             backend_context.computeTemperature,
             apo.APO_STATUS_NOT_INITIALIZED,
@@ -752,7 +746,7 @@ def check_random_velocity_assignment_and_temperature(
 
         backend_context.useHolonomicConstraints(False)
         backend_context.setVelocities(((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)))
-        assert_close(
+        apo_test.assert_close(
             "CharmmContext initialized degrees-of-freedom temperature",
             backend_context.computeTemperature(),
             0.0,
@@ -776,22 +770,24 @@ def check_holonomic_constraints(
     context = apo.CharmmContext(water_psf, parameters)
 
     try:
-        assert_equal("water CharmmContext atom count", context.getNumAtoms(), 3)
-        assert_equal(
+        apo_test.assert_equal(
+            "water CharmmContext atom count", context.getNumAtoms(), 3
+        )
+        apo_test.assert_equal(
             "water CharmmContext constrained P1 degrees of freedom",
             context.getNumDegreesOfFreedom(),
             3,
         )
 
         context.useHolonomicConstraints(False)
-        assert_equal(
+        apo_test.assert_equal(
             "water CharmmContext unconstrained P1 degrees of freedom",
             context.getNumDegreesOfFreedom(),
             6,
         )
 
         context.useHolonomicConstraints(True)
-        assert_equal(
+        apo_test.assert_equal(
             "water CharmmContext re-enabled constraints",
             context.getNumDegreesOfFreedom(),
             3,
@@ -799,7 +795,7 @@ def check_holonomic_constraints(
 
         context.setPeriodicBoundaryCondition(apo.PeriodicBoundaryCondition.NONE)
         context.useHolonomicConstraints(False)
-        assert_equal(
+        apo_test.assert_equal(
             "water CharmmContext unconstrained nonperiodic degrees of freedom",
             context.getNumDegreesOfFreedom(),
             9,
@@ -807,7 +803,7 @@ def check_holonomic_constraints(
 
         context.setPeriodicBoundaryCondition(apo.PeriodicBoundaryCondition.P21)
         context.useHolonomicConstraints(True)
-        assert_equal(
+        apo_test.assert_equal(
             "water CharmmContext constrained P21 degrees of freedom",
             context.getNumDegreesOfFreedom(),
             5,
@@ -832,44 +828,44 @@ def check_validation(
     water_psf = apo.CharmmPsf(water_psf_path)
 
     try:
-        expect_exception(
+        apo_test.expect_exception(
             "CharmmContext rejects unsupported constructor input",
             TypeError,
             lambda: apo.CharmmContext(object()),  # type: ignore[arg-type]
         )
-        expect_exception(
+        apo_test.expect_exception(
             "CharmmContext rejects CharmmPsf without parameters",
             TypeError,
             lambda: apo.CharmmContext(psf),
         )
-        expect_exception(
+        apo_test.expect_exception(
             "CharmmContext rejects invalid parameters object",
             TypeError,
             lambda: apo.CharmmContext(psf, object()),  # type: ignore[arg-type]
         )
-        expect_exception(
+        apo_test.expect_exception(
             "CharmmContext rejects parameters with ForceManager constructor",
             TypeError,
             lambda: apo.CharmmContext(force_manager, parameters),
         )
 
-        expect_exception(
+        apo_test.expect_exception(
             "CharmmContext.setPrm rejects non-CharmmParameters",
             TypeError,
             lambda: context.setPrm(object()),  # type: ignore[arg-type]
         )
-        expect_exception(
+        apo_test.expect_exception(
             "CharmmContext.setPsf rejects non-CharmmPsf",
             TypeError,
             lambda: context.setPsf(object()),  # type: ignore[arg-type]
         )
-        expect_exception(
+        apo_test.expect_exception(
             "CharmmContext.setForceManager rejects non-ForceManager",
             TypeError,
             lambda: context.setForceManager(object()),  # type: ignore[arg-type]
         )
 
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setPsf rejects atom-count mismatch",
             lambda: context.setPsf(water_psf),
             apo.APO_STATUS_INVALID_ARGUMENT,
@@ -877,19 +873,19 @@ def check_validation(
             "CharmmContext.setPsf(psf)",
         )
 
-        expect_exception(
+        apo_test.expect_exception(
             "CharmmContext.setCoordinatesCharges rejects wrong row width",
             ValueError,
             lambda: context.setCoordinatesCharges(((1.0, 2.0, 3.0),)),
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setCoordinatesCharges rejects wrong atom count",
             lambda: context.setCoordinatesCharges(((1.0, 2.0, 3.0, 0.0),)),
             apo.APO_STATUS_INVALID_ARGUMENT,
             "Coordinate and charge count mismatch; expected 2, observed 1",
             "CharmmContext.setCoordinatesCharges(coordinates_charges)",
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setCoordinatesCharges rejects empty input",
             lambda: context.setCoordinatesCharges(()),
             apo.APO_STATUS_INVALID_ARGUMENT,
@@ -897,19 +893,19 @@ def check_validation(
             "CharmmContext.setCoordinatesCharges(coordinates_charges)",
         )
 
-        expect_exception(
+        apo_test.expect_exception(
             "CharmmContext.setCoordinates rejects wrong row width",
             ValueError,
             lambda: context.setCoordinates(((1.0, 2.0),)),
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setCoordinates rejects wrong atom count",
             lambda: context.setCoordinates(((1.0, 2.0, 3.0),)),
             apo.APO_STATUS_INVALID_ARGUMENT,
             "Coordinate count mismatch; expected 2, observed 1",
             "CharmmContext.setCoordinates(coordinates)",
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setCoordinates rejects empty input",
             lambda: context.setCoordinates(()),
             apo.APO_STATUS_INVALID_ARGUMENT,
@@ -917,14 +913,14 @@ def check_validation(
             "CharmmContext.setCoordinates(coordinates)",
         )
 
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setCharges rejects wrong atom count",
             lambda: context.setCharges((0.0,)),
             apo.APO_STATUS_INVALID_ARGUMENT,
             "Charge count mismatch; expected 2, observed 1",
             "CharmmContext.setCharges(charges)",
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setCharges rejects empty input",
             lambda: context.setCharges(()),
             apo.APO_STATUS_INVALID_ARGUMENT,
@@ -932,19 +928,19 @@ def check_validation(
             "CharmmContext.setCharges(charges)",
         )
 
-        expect_exception(
+        apo_test.expect_exception(
             "CharmmContext.setVelocitiesInverseMasses rejects wrong row width",
             ValueError,
             lambda: context.setVelocitiesInverseMasses(((1.0, 2.0, 3.0),)),
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setVelocitiesInverseMasses rejects wrong atom count",
             lambda: context.setVelocitiesInverseMasses(((1.0, 2.0, 3.0, 1.0),)),
             apo.APO_STATUS_INVALID_ARGUMENT,
             "Velocity and inverse-mass count mismatch; expected 2, observed 1",
             "CharmmContext.setVelocitiesInverseMasses(velocities_inverse_masses)",
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setVelocitiesInverseMasses rejects empty input",
             lambda: context.setVelocitiesInverseMasses(()),
             apo.APO_STATUS_INVALID_ARGUMENT,
@@ -952,19 +948,19 @@ def check_validation(
             "CharmmContext.setVelocitiesInverseMasses(velocities_inverse_masses)",
         )
 
-        expect_exception(
+        apo_test.expect_exception(
             "CharmmContext.setVelocities rejects wrong row width",
             ValueError,
             lambda: context.setVelocities(((1.0, 2.0),)),
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setVelocities rejects wrong atom count",
             lambda: context.setVelocities(((1.0, 2.0, 3.0),)),
             apo.APO_STATUS_INVALID_ARGUMENT,
             "Velocity count mismatch; expected 2, observed 1",
             "CharmmContext.setVelocities(velocities)",
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setVelocities rejects empty input",
             lambda: context.setVelocities(()),
             apo.APO_STATUS_INVALID_ARGUMENT,
@@ -972,14 +968,14 @@ def check_validation(
             "CharmmContext.setVelocities(velocities)",
         )
 
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setMasses rejects wrong atom count",
             lambda: context.setMasses((1.0,)),
             apo.APO_STATUS_INVALID_ARGUMENT,
             "Mass count mismatch; expected 2, observed 1",
             "CharmmContext.setMasses(masses)",
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setMasses rejects empty input",
             lambda: context.setMasses(()),
             apo.APO_STATUS_INVALID_ARGUMENT,
@@ -987,21 +983,21 @@ def check_validation(
             "CharmmContext.setMasses(masses)",
         )
 
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setTemperature rejects NaN",
             lambda: context.setTemperature(math.nan),
             apo.APO_STATUS_INVALID_ARGUMENT,
             "Temperature must be finite and non-negative",
             "CharmmContext.setTemperature(temperature)",
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setTemperature rejects negative values",
             lambda: context.setTemperature(-1.0),
             apo.APO_STATUS_INVALID_ARGUMENT,
             "Temperature must be finite and non-negative",
             "CharmmContext.setTemperature(temperature)",
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.assignVelocitiesAtTemperature rejects NaN",
             lambda: context.assignVelocitiesAtTemperature(math.nan),
             apo.APO_STATUS_INVALID_ARGUMENT,
@@ -1009,17 +1005,17 @@ def check_validation(
             "CharmmContext.assignVelocitiesAtTemperature(temperature)",
         )
 
-        expect_exception(
+        apo_test.expect_exception(
             "CharmmContext.setPeriodicBoundaryCondition rejects invalid value",
             ValueError,
             lambda: context.setPeriodicBoundaryCondition(99),
         )
-        expect_exception(
+        apo_test.expect_exception(
             "CharmmContext.setVdwType rejects invalid value",
             ValueError,
             lambda: context.setVdwType(99),
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setVdwType rejects VdwType.NONE",
             lambda: context.setVdwType(apo.VdwType.NONE),
             apo.APO_STATUS_INVALID_ARGUMENT,
@@ -1027,28 +1023,28 @@ def check_validation(
             "CharmmContext.setVdwType(vdw_type)",
         )
 
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setBoxDimensions rejects short input",
             lambda: context.setBoxDimensions((20.0, 20.0)),
             apo.APO_STATUS_INVALID_ARGUMENT,
             "box_dimensions must contain exactly 3 elements",
             "CharmmContext.setBoxDimensions(box_dimensions)",
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setBoxDimensions rejects long input",
             lambda: context.setBoxDimensions((20.0, 20.0, 20.0, 20.0)),
             apo.APO_STATUS_INVALID_ARGUMENT,
             "box_dimensions must contain exactly 3 elements",
             "CharmmContext.setBoxDimensions(box_dimensions)",
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setBoxDimensions rejects zero dimensions",
             lambda: context.setBoxDimensions((20.0, 0.0, 20.0)),
             apo.APO_STATUS_INVALID_ARGUMENT,
             "Box dimensions must contain exactly 3 positive values",
             "CharmmContext.setBoxDimensions(box_dimensions)",
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setBoxDimensions rejects negative dimensions",
             lambda: context.setBoxDimensions((20.0, -1.0, 20.0)),
             apo.APO_STATUS_INVALID_ARGUMENT,
@@ -1056,7 +1052,7 @@ def check_validation(
             "CharmmContext.setBoxDimensions(box_dimensions)",
         )
 
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.getVolume rejects unset box dimensions",
             context.getVolume,
             apo.APO_STATUS_NOT_INITIALIZED,
@@ -1064,35 +1060,35 @@ def check_validation(
             "CharmmContext.getVolume()",
         )
 
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setKappa rejects NaN",
             lambda: context.setKappa(math.nan),
             apo.APO_STATUS_INVALID_ARGUMENT,
             "Kappa must be finite; observed nan",
             "CharmmContext.setKappa(kappa)",
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setKappa rejects negative values",
             lambda: context.setKappa(-1.0),
             apo.APO_STATUS_INVALID_ARGUMENT,
             "Kappa must be non-negative; observed -1.000000",
             "CharmmContext.setKappa(kappa)",
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setCutoff rejects zero",
             lambda: context.setCutoff(0.0),
             apo.APO_STATUS_INVALID_ARGUMENT,
             "Cutoff must be positive; observed 0.000000",
             "CharmmContext.setCutoff(cutoff)",
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setCtonnb rejects zero",
             lambda: context.setCtonnb(0.0),
             apo.APO_STATUS_INVALID_ARGUMENT,
             "Ctonnb must be positive; observed 0.000000",
             "CharmmContext.setCtonnb(ctonnb)",
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setCtofnb rejects zero",
             lambda: context.setCtofnb(0.0),
             apo.APO_STATUS_INVALID_ARGUMENT,
@@ -1100,21 +1096,21 @@ def check_validation(
             "CharmmContext.setCtofnb(ctofnb)",
         )
 
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setFFTGrid rejects short input",
             lambda: context.setFFTGrid((32, 34)),
             apo.APO_STATUS_INVALID_ARGUMENT,
             "grid must contain exactly 3 elements",
             "CharmmContext.setFFTGrid(grid)",
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setFFTGrid rejects nonpositive X dimension",
             lambda: context.setFFTGrid((0, 32, 32)),
             apo.APO_STATUS_INVALID_ARGUMENT,
             "NFFTX must be positive; observed 0",
             "CharmmContext.setFFTGrid(grid)",
         )
-        expect_apo_error(
+        apo_test.expect_apo_error(
             "CharmmContext.setPmeSplineOrder rejects zero",
             lambda: context.setPmeSplineOrder(0),
             apo.APO_STATUS_INVALID_ARGUMENT,
@@ -1122,12 +1118,12 @@ def check_validation(
             "CharmmContext.setPmeSplineOrder(order)",
         )
 
-        expect_exception(
+        apo_test.expect_exception(
             "CharmmContext.setRandomSeed rejects negative values",
             ValueError,
             lambda: context.setRandomSeed(-1),
         )
-        expect_exception(
+        apo_test.expect_exception(
             "CharmmContext.setRandomSeed rejects values above uint64_t",
             ValueError,
             lambda: context.setRandomSeed(2**64),
@@ -1135,7 +1131,7 @@ def check_validation(
 
         replacement_parameters = apo.CharmmParameters(parameter_path)
         replacement_parameters.close()
-        expect_exception(
+        apo_test.expect_exception(
             "CharmmContext.setPrm rejects a closed CharmmParameters handle",
             RuntimeError,
             lambda: context.setPrm(replacement_parameters),
@@ -1149,14 +1145,15 @@ def check_validation(
 
 
 def main(argc: int, argv: list[str]) -> int:
-    data_path: Path = get_data_path()
-    repo_root: Path = get_repo_root()
+    repo_root: Path = apo_test.get_repo_root()
     output_dir: Path = repo_root / "test/pytest"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    parameter_path: str = require_file(data_path / "toppar_water_ions.str")
-    psf_path: str = require_file(data_path / "nacl_pair.psf")
-    crd_path: str = require_file(data_path / "nacl_pair.cor")
+    parameter_path: str = apo_test.require_file(
+        apo_test.get_toppar_dir() / "toppar_water_ions.str"
+    )
+    psf_path: str = apo_test.require_file(apo_test.get_data_dir() / "nacl_pair.psf")
+    crd_path: str = apo_test.require_file(apo_test.get_data_dir() / "nacl_pair.cor")
 
     water_psf_path: Path = output_dir / "tmp_python_api_charmm_context_water.psf"
     velocity_path: Path = output_dir / "tmp_python_api_charmm_context.vel"
@@ -1183,21 +1180,21 @@ def main(argc: int, argv: list[str]) -> int:
     )
 
     for path in temporary_paths:
-        remove_if_exists(path)
+        apo_test.remove_if_exists(path)
 
     parameters: apo.CharmmParameters | None = None
     psf: apo.CharmmPsf | None = None
     crd: apo.CharmmCrd | None = None
 
     try:
-        write_text_file(water_psf_path, WATER_PSF_TEXT)
-        write_text_file(velocity_path, VELOCITY_FILE_TEXT)
-        write_text_file(
+        apo_test.write_text_file(water_psf_path, WATER_PSF_TEXT)
+        apo_test.write_text_file(velocity_path, VELOCITY_FILE_TEXT)
+        apo_test.write_text_file(
             velocity_mismatch_path,
             VELOCITY_COUNT_MISMATCH_TEXT,
         )
-        write_text_file(velocity_bad_count_path, VELOCITY_BAD_COUNT_TEXT)
-        write_text_file(velocity_bad_record_path, VELOCITY_BAD_RECORD_TEXT)
+        apo_test.write_text_file(velocity_bad_count_path, VELOCITY_BAD_COUNT_TEXT)
+        apo_test.write_text_file(velocity_bad_record_path, VELOCITY_BAD_RECORD_TEXT)
 
         parameters = apo.CharmmParameters(parameter_path)
         psf = apo.CharmmPsf(psf_path)
@@ -1230,7 +1227,7 @@ def main(argc: int, argv: list[str]) -> int:
             parameters.close()
 
         for path in temporary_paths:
-            remove_if_exists(path)
+            apo_test.remove_if_exists(path)
 
     print("\033[32m" + "PASS: CharmmContext Python API tests completed." + "\033[0m")
 

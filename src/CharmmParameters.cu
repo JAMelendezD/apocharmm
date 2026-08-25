@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <filesystem>
 #include <fstream>
 #include <set>
 #include <string>
@@ -53,22 +54,23 @@ std::string CleanPrmLine(const std::string &rawLine) {
 CharmmParameters::CharmmParameters(void)
     : m_BondParams(), m_UreybParams(), m_AngleParams(), m_DihedralParams(),
       m_ImproperParams(), m_NbfixParams(), m_VdwParams(), m_Vdw14Params(),
-      m_PrmFileNames() {}
+      m_PrmFilePaths() {}
 
-CharmmParameters::CharmmParameters(const std::string &fileName)
+CharmmParameters::CharmmParameters(const std::filesystem::path &filePath)
     : CharmmParameters() {
-  m_PrmFileNames.push_back(fileName);
-  this->readCharmmParameterFile(fileName);
+  m_PrmFilePaths.push_back(filePath);
+  this->readCharmmParameterFile(filePath);
 }
 
-CharmmParameters::CharmmParameters(const std::vector<std::string> &fileNames)
+CharmmParameters::CharmmParameters(
+    const std::vector<std::filesystem::path> &filePaths)
     : CharmmParameters() {
-  APOCHARMM_REQUIRE(!fileNames.empty(), ApoCharmmErrorCode::InvalidArgument,
+  APOCHARMM_REQUIRE(!filePaths.empty(), ApoCharmmErrorCode::InvalidArgument,
                     "At least one CHARMM parameter file is required");
 
-  for (const std::string &fileName : fileNames) {
-    m_PrmFileNames.push_back(fileName);
-    this->readCharmmParameterFile(fileName);
+  for (const std::filesystem::path &filePath : filePaths) {
+    m_PrmFilePaths.push_back(filePath);
+    this->readCharmmParameterFile(filePath);
   }
 }
 
@@ -107,8 +109,9 @@ CharmmParameters::getVdw14Params(void) const {
   return m_Vdw14Params;
 }
 
-const std::vector<std::string> &CharmmParameters::getPrmFileNames(void) const {
-  return m_PrmFileNames;
+const std::vector<std::filesystem::path> &
+CharmmParameters::getPrmFilePaths(void) const {
+  return m_PrmFilePaths;
 }
 
 BondedParamsAndLists CharmmParameters::getBondedParamsAndLists(
@@ -544,7 +547,8 @@ CharmmParameters::getVdwParamsAndTypes(std::shared_ptr<CharmmPSF> &psf) const {
                            psfVdw14Types);
 }
 
-void CharmmParameters::readCharmmParameterFile(const std::string &fileName) {
+void CharmmParameters::readCharmmParameterFile(
+    const std::filesystem::path &filePath) {
   enum class Section {
     NONE,
     ATOMS,
@@ -558,10 +562,12 @@ void CharmmParameters::readCharmmParameterFile(const std::string &fileName) {
     HBOND
   };
 
-  APOCHARMM_REQUIRE(!fileName.empty(), ApoCharmmErrorCode::InvalidArgument,
+  APOCHARMM_REQUIRE(!filePath.empty(), ApoCharmmErrorCode::InvalidArgument,
                     "CHARMM parameter file path must not be empty");
 
-  std::ifstream prmFile(fileName);
+  const std::string fileName = filePath.string();
+
+  std::ifstream prmFile(filePath);
   APOCHARMM_REQUIRE(prmFile.is_open(), ApoCharmmErrorCode::Runtime,
                     "Failed to open CHARMM parameter file \"" + fileName +
                         "\"");
@@ -569,7 +575,7 @@ void CharmmParameters::readCharmmParameterFile(const std::string &fileName) {
   std::size_t lineNumber = 0;
   std::string line = "";
 
-  const std::string upperFileName = apo::to_upper(fileName);
+  const std::string upperFileName = apo::to_upper(filePath.filename().string());
   if (upperFileName.find("TOPPAR") != std::string::npos) {
     bool parameterBlockFound = false;
 

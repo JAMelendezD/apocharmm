@@ -15,6 +15,7 @@
 #include "CharmmContext.h"
 #include "CudaContainer.h"
 
+#include <filesystem>
 #include <string>
 #include <vector_types.h>
 
@@ -331,9 +332,11 @@ protected:
   /**
    * @brief Restores Nose-Hoover state from a CHARMM-style restart file.
    *
-   * @param[in] rstFileName Borrowed restart-file path.
+   * @param[in] rstFilePath Borrowed restart-file path. The path is not
+   * canonicalized or retained.
    */
-  void initializeFromRestartFileImpl(const std::string &rstFileName) override;
+  void initializeFromRestartFileImpl(
+      const std::filesystem::path &rstFilePath) override;
 
   /** @brief Executes one synchronized Nose-Hoover propagation step. */
   void propagateOneStepImpl(void) override;

@@ -14,13 +14,7 @@ import sys
 
 import apocharmm as apo
 
-from python_api_test_helpers import (
-    write_text_file,
-    require_file,
-    remove_if_exists,
-    expect_exception,
-    expect_apo_error,
-)
+import apo_test_helpers as apo_test
 
 PARAMETER_TEXT: str = """* generated CharmmParameters Python API test file
 *
@@ -54,13 +48,13 @@ BOX_DIMENSIONS: list[float] = [50.0, 50.0, 50.0]
 def check_single_file_construction(parameter_path: Path, repo_root: Path) -> None:
     print("Checking CharmmParameters single-file construction...")
 
-    write_text_file(parameter_path, PARAMETER_TEXT)
+    apo_test.write_text_file(parameter_path, PARAMETER_TEXT)
 
     parameters = apo.CharmmParameters(str(parameter_path))
 
     # The Python wrapper does not expose CharmmParameters getters yet. Use the
     # object in ForceManager construction to verify that the handle is usable.
-    psf_path: str = require_file(repo_root / "test/data/nacl_pair.psf")
+    psf_path: str = apo_test.require_file(repo_root / "test/data/nacl_pair.psf")
     psf = apo.CharmmPsf(psf_path)
 
     fm = apo.ForceManager(psf, parameters)
@@ -72,7 +66,7 @@ def check_single_file_construction(parameter_path: Path, repo_root: Path) -> Non
 def check_pathlike_construction(parameter_path: Path) -> None:
     print("Checking CharmmParameters Path-like construction...")
 
-    write_text_file(parameter_path, PARAMETER_TEXT)
+    apo_test.write_text_file(parameter_path, PARAMETER_TEXT)
 
     apo.CharmmParameters(parameter_path)
 
@@ -84,8 +78,8 @@ def check_file_list_construction(
 ) -> None:
     print("Checking CharmmParameters list/tuple construction...")
 
-    write_text_file(parameter_path, PARAMETER_TEXT)
-    write_text_file(supplemental_parameter_path, SUPPLEMENTAL_PARAMETER_TEXT)
+    apo_test.write_text_file(parameter_path, PARAMETER_TEXT)
+    apo_test.write_text_file(supplemental_parameter_path, SUPPLEMENTAL_PARAMETER_TEXT)
 
     parameters_from_list = apo.CharmmParameters(
         [str(parameter_path), str(supplemental_parameter_path)]
@@ -94,7 +88,7 @@ def check_file_list_construction(
         (parameter_path, supplemental_parameter_path)
     )
 
-    psf_path: str = require_file(repo_root / "test/data/nacl_pair.psf")
+    psf_path: str = apo_test.require_file(repo_root / "test/data/nacl_pair.psf")
     psf = apo.CharmmPsf(psf_path)
 
     fm_from_list = apo.ForceManager(psf, parameters_from_list)
@@ -111,8 +105,8 @@ def check_validation(
 ) -> None:
     print("Checking CharmmParameters validation...")
 
-    remove_if_exists(missing_parameter_path)
-    expect_apo_error(
+    apo_test.remove_if_exists(missing_parameter_path)
+    apo_test.expect_apo_error(
         "CharmmParameters rejects a missing parameter file",
         lambda: apo.CharmmParameters(str(missing_parameter_path)),
         apo.APO_STATUS_RUNTIME_ERROR,
@@ -120,8 +114,8 @@ def check_validation(
         "CharmmParameters construction",
     )
 
-    write_text_file(malformed_parameter_path, MALFORMED_PARAMETER_TEXT)
-    expect_apo_error(
+    apo_test.write_text_file(malformed_parameter_path, MALFORMED_PARAMETER_TEXT)
+    apo_test.expect_apo_error(
         "CharmmParameters rejects a malformed parameter file",
         lambda: apo.CharmmParameters(str(malformed_parameter_path)),
         apo.APO_STATUS_RUNTIME_ERROR,
@@ -133,7 +127,7 @@ def check_validation(
         "CharmmParameters construction",
     )
 
-    expect_apo_error(
+    apo_test.expect_apo_error(
         "CharmmParameters rejects an empty parameter-file list",
         lambda: apo.CharmmParameters([]),
         apo.APO_STATUS_INVALID_ARGUMENT,
@@ -144,7 +138,7 @@ def check_validation(
         "CharmmParameters construction",
     )
 
-    expect_apo_error(
+    apo_test.expect_apo_error(
         "CharmmParameters rejects an empty parameter-file path",
         lambda: apo.CharmmParameters(""),
         apo.APO_STATUS_INVALID_ARGUMENT,
@@ -152,7 +146,7 @@ def check_validation(
         "CharmmParameters construction",
     )
 
-    expect_exception(
+    apo_test.expect_exception(
         "CharmmParameters rejects a non-path argument",
         TypeError,
         lambda: apo.CharmmParameters(object()),
@@ -189,7 +183,7 @@ def main(argc: int, argv: list[str]) -> int:
     )
 
     for path in generated_files:
-        remove_if_exists(path)
+        apo_test.remove_if_exists(path)
 
     try:
         check_single_file_construction(parameter_path, repo_root)
@@ -201,7 +195,7 @@ def main(argc: int, argv: list[str]) -> int:
     finally:
         print("Cleaning up CharmmParameters Python API test files...")
         for path in generated_files:
-            remove_if_exists(path)
+            apo_test.remove_if_exists(path)
 
     print("\033[32m" + "PASS: CharmmParameters Python API tests completed." + "\033[0m")
 

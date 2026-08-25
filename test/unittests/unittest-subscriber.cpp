@@ -13,6 +13,7 @@
 #include "apo_test_helpers.h"
 #include "catch.hpp"
 
+#include <filesystem>
 #include <fstream>
 #include <string>
 
@@ -31,7 +32,7 @@ TEST_CASE("SubscriberConstructionAndReportFrequency") {
   SECTION("DefaultConstruction") {
     TestSubscriber subscriber;
 
-    CHECK(subscriber.getFileName().empty() == true);
+    CHECK(subscriber.getFilePath().empty() == true);
     CHECK(subscriber.getReportFrequency() == 1000);
   }
 
@@ -63,18 +64,18 @@ TEST_CASE("SubscriberConstructionAndReportFrequency") {
   }
 
   SECTION("ConstructorValidatesReportFrequencyBeforeOpeningFile") {
-    const std::string fileName = "tmpSubscriberInvalidFrequency.txt";
-    apo_test::RemoveIfExists(fileName);
+    const std::filesystem::path filePath = "tmpSubscriberInvalidFrequency.txt";
+    apo_test::RemoveIfExists(filePath);
 
     apo_test::CheckApoCharmmError(
-        [&]() { (void)TestSubscriber(fileName, 0); },
+        [&]() { (void)TestSubscriber(filePath, 0); },
         ApoCharmmErrorCode::InvalidArgument,
         "Subscriber report frequency must be positive; observed 0");
 
-    std::ifstream input(fileName);
+    std::ifstream input(filePath);
     CHECK(input.good() == false);
 
-    apo_test::RemoveIfExists(fileName);
+    apo_test::RemoveIfExists(filePath);
   }
 }
 
@@ -82,14 +83,18 @@ TEST_CASE("SubscriberValidatesOutputFile") {
   SECTION("RejectsEmptyFileName") {
     TestSubscriber subscriber;
 
-    apo_test::CheckApoCharmmError([&]() { subscriber.setFileName(""); },
-                                  ApoCharmmErrorCode::InvalidArgument,
-                                  "Output file name must not be empty");
+    apo_test::CheckApoCharmmError(
+        [&]() { subscriber.setFilePath(std::filesystem::path{}); },
+        ApoCharmmErrorCode::InvalidArgument,
+        "Output file name must not be empty");
   }
 
   SECTION("RejectsMissingOutputDirectory") {
+    const std::filesystem::path filePath =
+        std::filesystem::path{"missing_subscriber_dir"} / "output.txt";
+
     apo_test::CheckApoCharmmError(
-        []() { (void)TestSubscriber("missing_subscriber_dir/output.txt"); },
+        [&]() { (void)TestSubscriber(filePath); },
         ApoCharmmErrorCode::InvalidArgument,
         "Output directory does not exist: missing_subscriber_dir");
   }
@@ -128,16 +133,16 @@ TEST_CASE("SubscriberCommentSections") {
   }
 
   SECTION("WritesNewlineTerminatedComments") {
-    const std::string fileName = "tmpSubscriberComments.txt";
-    apo_test::RemoveIfExists(fileName);
+    const std::filesystem::path filePath = "tmpSubscriberComments.txt";
+    apo_test::RemoveIfExists(filePath);
 
     {
-      TestSubscriber subscriber(fileName);
+      TestSubscriber subscriber(filePath);
       subscriber.addCommentSection("first");
       subscriber.addCommentSection("second\n");
     }
 
-    std::ifstream input(fileName);
+    std::ifstream input(filePath);
     REQUIRE(input.good());
 
     std::string firstLine;
@@ -147,7 +152,7 @@ TEST_CASE("SubscriberCommentSections") {
     CHECK(firstLine == "first");
     CHECK(secondLine == "second");
 
-    apo_test::RemoveIfExists(fileName);
+    apo_test::RemoveIfExists(filePath);
   }
 }
 

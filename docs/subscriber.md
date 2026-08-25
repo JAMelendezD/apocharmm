@@ -25,7 +25,7 @@ closes the DCD handle.
 ```python
 import apocharmm as apo
 
-prm = apo.CharmmParameters("test/data/toppar_water_ions.str")
+prm = apo.CharmmParameters("toppar/toppar_water_ions.str")
 psf = apo.CharmmPsf("test/data/nacl_pair.psf")
 crd = apo.CharmmCrd("test/data/nacl_pair.cor")
 
@@ -58,16 +58,18 @@ subscription obtains a shared self-reference from the integrator.
 #include "CudaNoseHooverIntegrator.h"
 #include "DcdSubscriber.h"
 
+#include <filesystem>
 #include <memory>
 #include <vector>
 
 int main() {
-  const auto prm = std::make_shared<CharmmParameters>(
-      "test/data/toppar_water_ions.str");
-  const auto psf =
-      std::make_shared<CharmmPSF>("test/data/nacl_pair.psf");
-  const auto crd =
-      std::make_shared<CharmmCrd>("test/data/nacl_pair.cor");
+  const std::filesystem::path prmPath = "toppar/toppar_water_ions.str";
+  const std::filesystem::path psfPath = "test/data/nacl_pair.psf";
+  const std::filesystem::path crdPath = "test/data/nacl_pair.cor";
+
+  const auto prm = std::make_shared<CharmmParameters>(prmPath);
+  const auto psf = std::make_shared<CharmmPSF>(psfPath);
+  const auto crd = std::make_shared<CharmmCrd>(crdPath);
 
   const auto ctx = std::make_shared<CharmmContext>(psf, prm);
   ctx->setBoxDimensions(std::vector<double>{50.0, 50.0, 50.0});
@@ -94,10 +96,10 @@ int main() {
 ## Construction and Required State
 
 A concrete file-writing subscriber validates its positive report frequency,
-copies its path, checks the nonempty parent prefix with `stat()`, and creates or
-truncates the output during construction. [DcdSubscriber](@ref DcdSubscriber)
-opens binary output, while [RestartSubscriber](@ref RestartSubscriber) uses text
-output.
+copies its `std::filesystem::path`, checks the nonempty parent component with
+`std::filesystem::exists()`, and creates or truncates the output during
+construction. [DcdSubscriber](@ref DcdSubscriber) opens binary output, while
+[RestartSubscriber](@ref RestartSubscriber) uses text output.
 
 Establish state in this order:
 
@@ -241,8 +243,8 @@ failure remain observable.
 - DCD coordinate output and restart output perform device-to-host transfers that
   call `cudaDeviceSynchronize()` on the current device. They do not use a
   subscriber-specific CUDA stream.
-- `Subscriber::setFileName()` changes only the stored logical name. It does not
-  reopen the stream. Mutable `getFileName()` access bypasses all validation.
+- `Subscriber::setFilePath()` changes only the stored logical path. It does not
+  reopen the stream. Mutable `getFilePath()` access bypasses all validation.
 - DCD files are native-endian and frame writes can be partial. DCD `NSTEP` is
   derived from frame count times the subscriber's current frequency, not the
   integrator's absolute step.

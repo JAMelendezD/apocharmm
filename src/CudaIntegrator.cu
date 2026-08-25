@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <filesystem>
 #include <iostream>
 #include <iterator>
 #include <limits>
@@ -147,19 +148,20 @@ void CudaIntegrator::initializeImpl(void) {
       "CudaIntegrator::initialize is not implemented by the base class");
 }
 
-void CudaIntegrator::initializeFromRestartFile(const std::string &rstFileName) {
+void CudaIntegrator::initializeFromRestartFile(
+    const std::filesystem::path &rstFilePath) {
   APOCHARMM_REQUIRE(
       m_Context != nullptr, ApoCharmmErrorCode::NotInitialized,
       "CharmmContext must be set before initializing from a restart file");
 
-  this->initializeFromRestartFileImpl(rstFileName);
+  this->initializeFromRestartFileImpl(rstFilePath);
 
   return;
 }
 
 void CudaIntegrator::initializeFromRestartFileImpl(
-    const std::string &rstFileName) {
-  static_cast<void>(rstFileName);
+    const std::filesystem::path &rstFilePath) {
+  static_cast<void>(rstFilePath);
   APOCHARMM_THROW(ApoCharmmErrorCode::NotImplemented,
                   "CudaIntegrator::initializeFromRestartFile is not "
                   "implemented by the base class");
@@ -325,7 +327,7 @@ void CudaIntegrator::unsubscribe(std::shared_ptr<Subscriber> sub) {
 
   APOCHARMM_REQUIRE(
       subIterator != m_Subscribers.end(), ApoCharmmErrorCode::InvalidArgument,
-      "Subscriber not found (file \"" + sub->getFileName() + "\")");
+      "Subscriber not found (file \"" + sub->getFilePath().string() + "\")");
 
   const std::size_t index = static_cast<std::size_t>(
       std::distance(m_Subscribers.begin(), subIterator));

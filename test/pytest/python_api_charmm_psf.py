@@ -15,15 +15,7 @@ import sys
 
 import apocharmm as apo
 
-from python_api_test_helpers import (
-    write_text_file,
-    require_file,
-    remove_if_exists,
-    assert_close,
-    assert_equal,
-    assert_sequence_close,
-    expect_apo_error,
-)
+import apo_test_helpers as apo_test
 
 TOLERANCE: float = 1.0e-10
 LINEAR_CHAIN_PSF: str = """PSF
@@ -65,67 +57,67 @@ EXPECTED_MASSES: list[float] = [12.011, 1.008, 12.011, 1.008]
 def check_generated_linear_chain_psf(psf_path: Path) -> None:
     print("Checking generated CharmmPsf file...")
 
-    write_text_file(psf_path, LINEAR_CHAIN_PSF)
+    apo_test.write_text_file(psf_path, LINEAR_CHAIN_PSF)
     psf = apo.CharmmPsf(str(psf_path))
 
-    assert_equal("CharmmPsf.getNumAtoms", psf.getNumAtoms(), 4)
-    assert_equal("CharmmPsf.getNumBonds", psf.getNumBonds(), 3)
-    assert_equal("CharmmPsf.getNumAngles", psf.getNumAngles(), 2)
-    assert_equal("CharmmPsf.getNumDihedrals", psf.getNumDihedrals(), 1)
-    assert_equal("CharmmPsf.getNumImpropers", psf.getNumImpropers(), 0)
-    assert_equal("CharmmPsf.getNumCrossTerms", psf.getNumCrossTerms(), 0)
+    apo_test.assert_equal("CharmmPsf.getNumAtoms", psf.getNumAtoms(), 4)
+    apo_test.assert_equal("CharmmPsf.getNumBonds", psf.getNumBonds(), 3)
+    apo_test.assert_equal("CharmmPsf.getNumAngles", psf.getNumAngles(), 2)
+    apo_test.assert_equal("CharmmPsf.getNumDihedrals", psf.getNumDihedrals(), 1)
+    apo_test.assert_equal("CharmmPsf.getNumImpropers", psf.getNumImpropers(), 0)
+    apo_test.assert_equal("CharmmPsf.getNumCrossTerms", psf.getNumCrossTerms(), 0)
 
-    assert_equal(
+    apo_test.assert_equal(
         "CharmmPsf.getSegmentIdentifiers",
         psf.getSegmentIdentifiers(),
         EXPECTED_SEGMENT_IDENTIFIERS,
     )
-    assert_equal(
+    apo_test.assert_equal(
         "CharmmPsf.getResidueIdentifiers",
         psf.getResidueIdentifiers(),
         EXPECTED_RESIDUE_IDENTIFIERS,
     )
-    assert_equal(
+    apo_test.assert_equal(
         "CharmmPsf.getResidueNames",
         psf.getResidueNames(),
         EXPECTED_RESIDUE_NAMES,
     )
-    assert_equal(
+    apo_test.assert_equal(
         "CharmmPsf.getAtomNames",
         psf.getAtomNames(),
         EXPECTED_ATOM_NAMES,
     )
-    assert_equal(
+    apo_test.assert_equal(
         "CharmmPsf.getAtomTypes",
         psf.getAtomTypes(),
         EXPECTED_ATOM_TYPES,
     )
 
-    assert_sequence_close(
+    apo_test.assert_sequence_close(
         "CharmmPsf.getCharges",
         psf.getCharges(),
         EXPECTED_CHARGES,
         TOLERANCE,
     )
-    assert_sequence_close(
+    apo_test.assert_sequence_close(
         "CharmmPsf.getMasses",
         psf.getMasses(),
         EXPECTED_MASSES,
         TOLERANCE,
     )
-    assert_close(
+    apo_test.assert_close(
         "CharmmPsf.getNetCharge",
         psf.getNetCharge(),
         sum(EXPECTED_CHARGES),
         TOLERANCE,
     )
-    assert_close(
+    apo_test.assert_close(
         "CharmmPsf.getTotalMass",
         psf.getTotalMass(),
         sum(EXPECTED_MASSES),
         TOLERANCE,
     )
-    assert_equal(
+    apo_test.assert_equal(
         "CharmmPsf.getFileName basename",
         Path(psf.getFileName()).name,
         psf_path.name,
@@ -137,53 +129,55 @@ def check_generated_linear_chain_psf(psf_path: Path) -> None:
 def check_repository_nacl_pair_psf(repo_root: Path) -> None:
     print("Checking repository nacl_pair.psf...")
 
-    psf_path: str = require_file(repo_root / "test/data/nacl_pair.psf")
+    psf_path: str = apo_test.require_file(repo_root / "test/data/nacl_pair.psf")
     psf = apo.CharmmPsf(psf_path)
 
-    assert_equal("nacl_pair getNumAtoms", psf.getNumAtoms(), 2)
-    assert_equal("nacl_pair getNumBonds", psf.getNumBonds(), 0)
-    assert_equal("nacl_pair getNumAngles", psf.getNumAngles(), 0)
-    assert_equal("nacl_pair getNumDihedrals", psf.getNumDihedrals(), 0)
-    assert_equal("nacl_pair getNumImpropers", psf.getNumImpropers(), 0)
-    assert_equal("nacl_pair getNumCrossTerms", psf.getNumCrossTerms(), 0)
+    apo_test.assert_equal("nacl_pair getNumAtoms", psf.getNumAtoms(), 2)
+    apo_test.assert_equal("nacl_pair getNumBonds", psf.getNumBonds(), 0)
+    apo_test.assert_equal("nacl_pair getNumAngles", psf.getNumAngles(), 0)
+    apo_test.assert_equal("nacl_pair getNumDihedrals", psf.getNumDihedrals(), 0)
+    apo_test.assert_equal("nacl_pair getNumImpropers", psf.getNumImpropers(), 0)
+    apo_test.assert_equal("nacl_pair getNumCrossTerms", psf.getNumCrossTerms(), 0)
 
-    assert_equal(
+    apo_test.assert_equal(
         "nacl_pair getSegmentIdentifiers",
         psf.getSegmentIdentifiers(),
         ["NACL", "NACL"],
     )
-    assert_equal(
+    apo_test.assert_equal(
         "nacl_pair getResidueIdentifiers",
         psf.getResidueIdentifiers(),
         [1, 2],
     )
-    assert_equal("nacl_pair getResidueNames", psf.getResidueNames(), ["SOD", "CLA"])
-    assert_equal("nacl_pair getAtomNames", psf.getAtomNames(), ["SOD", "CLA"])
-    assert_equal("nacl_pair getAtomTypes", psf.getAtomTypes(), ["SOD", "CLA"])
+    apo_test.assert_equal(
+        "nacl_pair getResidueNames", psf.getResidueNames(), ["SOD", "CLA"]
+    )
+    apo_test.assert_equal("nacl_pair getAtomNames", psf.getAtomNames(), ["SOD", "CLA"])
+    apo_test.assert_equal("nacl_pair getAtomTypes", psf.getAtomTypes(), ["SOD", "CLA"])
 
     expected_charges: list[float] = [1.0, -1.0]
     expected_masses: list[float] = [22.9898, 35.45]
 
-    assert_sequence_close(
+    apo_test.assert_sequence_close(
         "nacl_pair getCharges",
         psf.getCharges(),
         expected_charges,
         TOLERANCE,
     )
-    assert_sequence_close(
+    apo_test.assert_sequence_close(
         "nacl_pair getMasses",
         psf.getMasses(),
         expected_masses,
         TOLERANCE,
     )
-    assert_close("nacl_pair getNetCharge", psf.getNetCharge(), 0.0, TOLERANCE)
-    assert_close(
+    apo_test.assert_close("nacl_pair getNetCharge", psf.getNetCharge(), 0.0, TOLERANCE)
+    apo_test.assert_close(
         "nacl_pair getTotalMass",
         psf.getTotalMass(),
         sum(expected_masses),
         TOLERANCE,
     )
-    assert_equal(
+    apo_test.assert_equal(
         "nacl_pair getFileName basename",
         Path(psf.getFileName()).name,
         "nacl_pair.psf",
@@ -195,9 +189,9 @@ def check_repository_nacl_pair_psf(repo_root: Path) -> None:
 def check_malformed_psf_file(psf_path: Path) -> None:
     print("Checking malformed CharmmPsf file error path...")
 
-    write_text_file(psf_path, MALFORMED_PSF)
+    apo_test.write_text_file(psf_path, MALFORMED_PSF)
 
-    expect_apo_error(
+    apo_test.expect_apo_error(
         "CharmmPsf rejects a malformed PSF file",
         lambda: apo.CharmmPsf(str(psf_path)),
         apo.APO_STATUS_RUNTIME_ERROR,
@@ -211,9 +205,9 @@ def check_malformed_psf_file(psf_path: Path) -> None:
 def check_missing_psf_file(psf_path: Path) -> None:
     print("Checking missing CharmmPsf file error path...")
 
-    remove_if_exists(psf_path)
+    apo_test.remove_if_exists(psf_path)
 
-    expect_apo_error(
+    apo_test.expect_apo_error(
         "CharmmPsf rejects a missing PSF file",
         lambda: apo.CharmmPsf(str(psf_path)),
         apo.APO_STATUS_RUNTIME_ERROR,
@@ -221,7 +215,7 @@ def check_missing_psf_file(psf_path: Path) -> None:
         "CharmmPsf construction",
     )
 
-    expect_apo_error(
+    apo_test.expect_apo_error(
         "CharmmPsf rejects an empty PSF path",
         lambda: apo.CharmmPsf(""),
         apo.APO_STATUS_INVALID_ARGUMENT,
@@ -248,7 +242,7 @@ def main(argc: int, argv: list[str]) -> int:
     )
 
     for path in generated_files:
-        remove_if_exists(path)
+        apo_test.remove_if_exists(path)
 
     try:
         check_generated_linear_chain_psf(generated_psf_path)
@@ -258,7 +252,7 @@ def main(argc: int, argv: list[str]) -> int:
     finally:
         print("Cleaning up CharmmPsf Python API test files...")
         for path in generated_files:
-            remove_if_exists(path)
+            apo_test.remove_if_exists(path)
 
     print("\033[32m" + "PASS: CharmmPsf Python API tests completed." + "\033[0m")
 

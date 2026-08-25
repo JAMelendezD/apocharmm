@@ -14,6 +14,7 @@
 #include "apo_test_helpers.h"
 #include "catch.hpp"
 
+#include <filesystem>
 #include <type_traits>
 
 static_assert(std::is_nothrow_destructible_v<CharmmParameters>);
@@ -209,9 +210,9 @@ TEST_CASE("CharmmParametersParsesSingleFile") {
 
   CharmmParameters parameters(parameterFile);
 
-  SECTION("OriginalFileName") {
-    CHECK(parameters.getPrmFileNames() ==
-          std::vector<std::string>{parameterFile});
+  SECTION("OriginalFilePath") {
+    CHECK(parameters.getPrmFilePaths() ==
+          std::vector<std::filesystem::path>{parameterFile});
   }
 
   SECTION("BondParameters") {
@@ -320,8 +321,8 @@ TEST_CASE("CharmmParametersParsesMultipleFiles") {
 
   CharmmParameters parameters({parameterFile, supplementalFile});
 
-  CHECK(parameters.getPrmFileNames() ==
-        std::vector<std::string>{parameterFile, supplementalFile});
+  CHECK(parameters.getPrmFilePaths() ==
+        std::vector<std::filesystem::path>{parameterFile, supplementalFile});
 
   const std::map<BondKey, BondValues> bonds = parameters.getBondParams();
   REQUIRE(bonds.count(BondKey("A", "B")) == 1);
@@ -452,7 +453,7 @@ TEST_CASE("CharmmParametersInputValidationUsesApoCharmmError") {
   SECTION("EmptyFileList") {
     apo_test::CheckApoCharmmError(
         [](void) {
-          CharmmParameters parameters{std::vector<std::string>{}};
+          CharmmParameters parameters{std::vector<std::filesystem::path>{}};
           static_cast<void>(parameters);
         },
         ApoCharmmErrorCode::InvalidArgument,

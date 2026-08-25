@@ -12,7 +12,7 @@
 
 #include "Subscriber.h"
 
-#include <string>
+#include <filesystem>
 
 /**
  * @brief Replaces a CHARMM-style restart file with the latest simulation state.
@@ -47,7 +47,7 @@ public:
   /**
    * @brief Constructs an unattached restart writer without an output file.
    *
-   * @post The report frequency is `1000`, the logical file name is empty, and
+   * @post The report frequency is `1000`, the logical file path is empty, and
    * the stream is closed.
    */
   RestartSubscriber(void);
@@ -58,19 +58,19 @@ public:
    * Construction creates or truncates the text output immediately. A complete
    * restart is not written until @ref update is invoked.
    *
-   * @param[in] fileName Output path copied by the subscriber. The value must be
-   * nonempty; when it contains `/`, its nonempty parent path must exist.
+   * @param[in] filePath Output file-system path copied by the subscriber. The
+   * value must be nonempty; when it has a nonempty parent path, that parent
+   * path must exist.
    *
-   * @throws ApoCharmmError With code
-   * `ApoCharmmErrorCode::InvalidArgument` if `fileName` is empty or its checked
-   * parent path does not exist.
+   * @throws ApoCharmmError With code `ApoCharmmErrorCode::InvalidArgument` if
+   * `filePath` is empty or its checked parent path does not exist.
    * @throws ApoCharmmError With code `ApoCharmmErrorCode::Runtime` if the text
    * output file cannot be opened for writing.
    *
    * @post The file has been created or truncated and
    * `getReportFrequency() == 1000`.
    */
-  RestartSubscriber(const std::string &fileName);
+  RestartSubscriber(const std::filesystem::path &filePath);
 
   /**
    * @brief Constructs a restart writer with an explicit reporting interval.
@@ -78,21 +78,23 @@ public:
    * Construction validates the frequency, then creates or truncates the text
    * output. A complete restart is not written until @ref update is invoked.
    *
-   * @param[in] fileName Output path copied by the subscriber. The value must be
-   * nonempty; when it contains `/`, its nonempty parent path must exist.
+   * @param[in] filePath Output file-system path copied by the subscriber. The
+   * value must be nonempty; when it has a nonempty parent path, that parent
+   * path must exist.
    * @param[in] reportFrequency Positive, dimensionless number of propagated
    * steps between restart replacements.
    *
-   * @throws ApoCharmmError With code
-   * `ApoCharmmErrorCode::InvalidArgument` if `reportFrequency` is not positive,
-   * `fileName` is empty, or its checked parent path does not exist.
+   * @throws ApoCharmmError With code `ApoCharmmErrorCode::InvalidArgument` if
+   * `reportFrequency` is not positive, `filePath` is empty, or its checked
+   * parent path does not exist.
    * @throws ApoCharmmError With code `ApoCharmmErrorCode::Runtime` if the text
    * output file cannot be opened for writing.
    *
    * @post The file has been created or truncated and
    * `getReportFrequency() == reportFrequency`.
    */
-  RestartSubscriber(const std::string &fileName, const int reportFrequency);
+  RestartSubscriber(const std::filesystem::path &filePath,
+                    const int reportFrequency);
 
   /**
    * @brief Destroys the writer and closes its stream.
@@ -109,7 +111,7 @@ public:
    * the stream before checking the final stream state.
    *
    * @throws ApoCharmmError With code
-   * `ApoCharmmErrorCode::NotInitialized` if the logical file name is empty, no
+   * `ApoCharmmErrorCode::NotInitialized` if the logical file path is empty, no
    * context or integrator is attached, the integrator has no context, or the
    * context does not contain exactly three positive box lengths.
    * @throws ApoCharmmError With code

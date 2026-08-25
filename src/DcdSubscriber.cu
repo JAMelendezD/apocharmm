@@ -16,29 +16,31 @@
 
 #include <array>
 #include <cstddef>
+#include <filesystem>
 #include <fstream>
 #include <limits>
 #include <vector>
 
-DcdSubscriber::DcdSubscriber(const std::string &fileName) : Subscriber() {
+DcdSubscriber::DcdSubscriber(const std::filesystem::path &filePath)
+    : Subscriber() {
   m_NumFramesWritten = 0;
   m_IsHeaderWritten = false;
-  this->setFileName(fileName);
+  this->setFilePath(filePath);
   this->openFile();
 }
 
-DcdSubscriber::DcdSubscriber(const std::string &fileName,
+DcdSubscriber::DcdSubscriber(const std::filesystem::path &filePath,
                              const int reportFrequency)
     : Subscriber() {
   m_NumFramesWritten = 0;
   m_IsHeaderWritten = false;
   this->setReportFrequency(reportFrequency);
-  this->setFileName(fileName);
+  this->setFilePath(filePath);
   this->openFile();
 }
 
 void DcdSubscriber::update(void) {
-  APOCHARMM_REQUIRE(!m_FileName.empty(), ApoCharmmErrorCode::NotInitialized,
+  APOCHARMM_REQUIRE(!m_FilePath.empty(), ApoCharmmErrorCode::NotInitialized,
                     "DcdSubscriber requires an output file before update");
 
   APOCHARMM_REQUIRE(m_CharmmContext != nullptr,
@@ -50,7 +52,7 @@ void DcdSubscriber::update(void) {
 
   APOCHARMM_REQUIRE(m_FileStream.is_open(), ApoCharmmErrorCode::NotInitialized,
                     "DcdSubscriber output file is not open for writing: " +
-                        m_FileName);
+                        m_FilePath.string());
 
   const std::vector<double> boxDimensions = m_CharmmContext->getBoxDimensions();
 
@@ -105,7 +107,7 @@ void DcdSubscriber::update(void) {
   m_FileStream.flush();
 
   APOCHARMM_REQUIRE(m_FileStream.good(), ApoCharmmErrorCode::Runtime,
-                    "Failed to write DCD frame: " + m_FileName);
+                    "Failed to write DCD frame: " + m_FilePath.string());
 
   m_NumFramesWritten = numFramesWritten;
 
@@ -113,20 +115,21 @@ void DcdSubscriber::update(void) {
 }
 
 void DcdSubscriber::openFile(void) {
-  APOCHARMM_REQUIRE(!m_FileName.empty(), ApoCharmmErrorCode::NotInitialized,
+  APOCHARMM_REQUIRE(!m_FilePath.empty(), ApoCharmmErrorCode::NotInitialized,
                     "DcdSubscriber output file name is not set");
 
-  this->checkPath(m_FileName);
+  this->checkPath(m_FilePath);
 
   if (m_FileStream.is_open())
     m_FileStream.close();
 
   m_FileStream.clear();
-  m_FileStream.open(m_FileName, std::ios::out | std::ios::binary);
+  m_FileStream.open(m_FilePath, std::ios::out | std::ios::binary);
 
   APOCHARMM_REQUIRE(m_FileStream.is_open() && m_FileStream.good(),
                     ApoCharmmErrorCode::Runtime,
-                    "Failed to open DCD file for writing: " + m_FileName);
+                    "Failed to open DCD file for writing: " +
+                        m_FilePath.string());
 
   m_NumFramesWritten = 0;
   m_IsHeaderWritten = false;
@@ -227,7 +230,7 @@ void DcdSubscriber::writeHeader(void) {
   m_FileStream.flush();
 
   APOCHARMM_REQUIRE(m_FileStream.good(), ApoCharmmErrorCode::Runtime,
-                    "Failed to write DCD header: " + m_FileName);
+                    "Failed to write DCD header: " + m_FilePath.string());
 
   m_IsHeaderWritten = true;
 

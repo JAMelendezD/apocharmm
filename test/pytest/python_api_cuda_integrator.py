@@ -13,7 +13,7 @@ import sys
 
 import apocharmm as apo
 
-from python_api_test_helpers import expect_exception
+import apo_test_helpers as apo_test
 
 TIME_STEP: float = 0.002
 
@@ -23,22 +23,22 @@ def check_base_cuda_integrator_has_no_valid_handle() -> None:
 
     integrator = apo.CudaIntegrator()
 
-    expect_exception(
+    apo_test.expect_exception(
         "base CudaIntegrator.integrator_handle rejects an empty handle",
         RuntimeError,
         lambda: integrator.integrator_handle,
     )
-    expect_exception(
+    apo_test.expect_exception(
         "base CudaIntegrator.setTimeStep rejects an empty handle",
         RuntimeError,
         lambda: integrator.setTimeStep(TIME_STEP),
     )
-    expect_exception(
+    apo_test.expect_exception(
         "base CudaIntegrator.propagate rejects an empty handle",
         RuntimeError,
         lambda: integrator.propagate(1),
     )
-    expect_exception(
+    apo_test.expect_exception(
         "base CudaIntegrator.initializeFromRestartFile rejects an empty handle",
         RuntimeError,
         lambda: integrator.initializeFromRestartFile("restart.rst"),
@@ -46,7 +46,7 @@ def check_base_cuda_integrator_has_no_valid_handle() -> None:
 
     integrator.close()
 
-    expect_exception(
+    apo_test.expect_exception(
         "closed base CudaIntegrator still rejects an empty handle",
         RuntimeError,
         lambda: integrator.setTimeStep(TIME_STEP),
@@ -60,22 +60,22 @@ def check_python_side_validation() -> None:
 
     integrator = apo.CudaIntegrator()
 
-    expect_exception(
+    apo_test.expect_exception(
         "CudaIntegrator.setCharmmContext rejects non-CharmmContext",
         TypeError,
         lambda: integrator.setCharmmContext(object()),
     )
-    expect_exception(
+    apo_test.expect_exception(
         "CudaIntegrator.subscribe rejects non-Subscriber",
         TypeError,
         lambda: integrator.subscribe(object()),
     )
-    expect_exception(
+    apo_test.expect_exception(
         "CudaIntegrator.propagate rejects step count below C int range",
         ValueError,
         lambda: integrator.propagate(-(2**31) - 1),
     )
-    expect_exception(
+    apo_test.expect_exception(
         "CudaIntegrator.propagate rejects step count outside C int range",
         ValueError,
         lambda: integrator.propagate(2**31),

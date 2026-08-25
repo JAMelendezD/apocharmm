@@ -17,7 +17,8 @@
 #include "ForceManager.h"
 #include "apo_test_helpers.h"
 #include "catch.hpp"
-#include "test_paths.h"
+
+#include <filesystem>
 
 namespace {
 
@@ -156,12 +157,12 @@ TEST_CASE("CudaNoseHooverIntegratorSettersAndReset") {
 }
 
 TEST_CASE("CudaNoseHooverIntegratorContextInitialization") {
-  const std::string dataPath = getDataPath();
-
-  auto prm =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
-  auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                "toppar_water_ions.str");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx = std::make_shared<CharmmContext>(psf, prm);
   ctx->setBoxDimensions(BOX_DIMENSIONS);
@@ -194,12 +195,12 @@ TEST_CASE("CudaNoseHooverIntegratorContextInitialization") {
 }
 
 TEST_CASE("CudaNoseHooverIntegratorAutoPistonMass") {
-  const std::string dataPath = getDataPath();
-
-  auto prm =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
-  auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                "toppar_water_ions.str");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx = std::make_shared<CharmmContext>(psf, prm);
   ctx->setBoxDimensions(BOX_DIMENSIONS);
@@ -219,12 +220,12 @@ TEST_CASE("CudaNoseHooverIntegratorAutoPistonMass") {
 }
 
 TEST_CASE("CudaNoseHooverIntegratorShortPropagation") {
-  const std::string dataPath = getDataPath();
-
-  auto prm =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
-  auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                "toppar_water_ions.str");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx = std::make_shared<CharmmContext>(psf, prm);
   ctx->setBoxDimensions(BOX_DIMENSIONS);
@@ -277,12 +278,12 @@ TEST_CASE("CudaNoseHooverIntegratorShortPropagation") {
 }
 
 TEST_CASE("CudaNoseHooverIntegratorDeterministicTrajectory") {
-  const std::string dataPath = getDataPath();
-
-  auto prm1 =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto psf1 = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
-  auto crd1 = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+  auto prm1 = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                 "toppar_water_ions.str");
+  auto psf1 =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd1 =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx1 = std::make_shared<CharmmContext>(psf1, prm1);
   ctx1->setBoxDimensions(BOX_DIMENSIONS);
@@ -291,10 +292,12 @@ TEST_CASE("CudaNoseHooverIntegratorDeterministicTrajectory") {
   ctx1->setRandomSeed(RANDOM_SEED);
   ctx1->assignVelocitiesAtTemperature(TEMPERATURE);
 
-  auto prm2 =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto psf2 = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
-  auto crd2 = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+  auto prm2 = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                 "toppar_water_ions.str");
+  auto psf2 =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd2 =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx2 = std::make_shared<CharmmContext>(psf2, prm2);
   ctx2->setBoxDimensions(BOX_DIMENSIONS);
@@ -369,12 +372,14 @@ TEST_CASE("CudaNoseHooverIntegratorDeterministicTrajectory") {
 }
 
 TEST_CASE("CudaNoseHooverIntegratorRestartValidation") {
+  const std::filesystem::path missingFilePath = "missing.rst";
+
   CudaNoseHooverIntegrator integrator(TIME_STEP);
 
   bool caughtMissingContext = false;
 
   try {
-    integrator.initializeFromRestartFile("missing.rst");
+    integrator.initializeFromRestartFile(missingFilePath);
   } catch (const ApoCharmmError &error) {
     caughtMissingContext = true;
 
@@ -385,12 +390,12 @@ TEST_CASE("CudaNoseHooverIntegratorRestartValidation") {
 
   CHECK(caughtMissingContext == true);
 
-  const std::string dataPath = getDataPath();
-
-  auto prm =
-      std::make_shared<CharmmParameters>(dataPath + "toppar_water_ions.str");
-  auto psf = std::make_shared<CharmmPSF>(dataPath + "nacl_pair.psf");
-  auto crd = std::make_shared<CharmmCrd>(dataPath + "nacl_pair.cor");
+  auto prm = std::make_shared<CharmmParameters>(apo_test::GetTopparDir() /
+                                                "toppar_water_ions.str");
+  auto psf =
+      std::make_shared<CharmmPSF>(apo_test::GetDataDir() / "nacl_pair.psf");
+  auto crd =
+      std::make_shared<CharmmCrd>(apo_test::GetDataDir() / "nacl_pair.cor");
 
   auto ctx = std::make_shared<CharmmContext>(psf, prm);
   ctx->setBoxDimensions(BOX_DIMENSIONS);
@@ -404,32 +409,33 @@ TEST_CASE("CudaNoseHooverIntegratorRestartValidation") {
   bool caughtMissingFile = false;
 
   try {
-    integrator.initializeFromRestartFile("missing.rst");
+    integrator.initializeFromRestartFile(missingFilePath);
   } catch (const ApoCharmmError &error) {
     caughtMissingFile = true;
 
     CHECK(error.getCode() == ApoCharmmErrorCode::Runtime);
-    CHECK(error.getMessage() == "Could not open file \"missing.rst\"");
+    CHECK(error.getMessage() ==
+          "Could not open file \"" + missingFilePath.string() + "\"");
   }
 
   CHECK(caughtMissingFile == true);
 
-  const std::string truncatedFileName =
+  const std::filesystem::path truncatedFilePath =
       "cudaNoseHooverIntegrator-truncated.rst";
   std::string truncatedHeader(34, ' ');
   truncatedHeader.replace(0, 4, "REST");
   truncatedHeader.replace(18, 4, "CUBI");
 
-  apo_test::RemoveIfExists(truncatedFileName);
-  apo_test::WriteTextFile(truncatedFileName,
+  apo_test::RemoveIfExists(truncatedFilePath);
+  apo_test::WriteTextFile(truncatedFilePath,
                           truncatedHeader + "\n !CRYSTAL PARAMETERS\n");
 
   apo_test::CheckApoCharmmError(
-      [&]() { integrator.initializeFromRestartFile(truncatedFileName); },
+      [&]() { integrator.initializeFromRestartFile(truncatedFilePath); },
       ApoCharmmErrorCode::Runtime,
       "Unexpected end of file while reading first XTLABC record in restart "
       "file \"" +
-          truncatedFileName + "\"");
+          truncatedFilePath.string() + "\"");
 
-  apo_test::RemoveIfExists(truncatedFileName);
+  apo_test::RemoveIfExists(truncatedFilePath);
 }
