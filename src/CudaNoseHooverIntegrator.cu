@@ -731,6 +731,7 @@ __global__ static void UpdateCoordsDeltaAfterHolonomicConstraintKernel(
   return;
 }
 
+template <int blockSize>
 __global__ static void ComputeKineticEnergyPartialSumsKernel(
     double *__restrict__ kineticEnergyPartialSums,
     const double4 *__restrict__ velMass,
@@ -742,7 +743,7 @@ __global__ static void ComputeKineticEnergyPartialSumsKernel(
   const int stride = gridDim.x * blockDim.x;
   const double invTimeStep = 1.0 / timeStep;
 
-  double ke0 = 0.0, ke1 = 0.0;
+  double ke[2] = {0.0, 0.0};
   for (int i = index; i < numAtoms; i += stride) {
     const double4 u1 =
         make_double4(coordsDeltaPrevious[i].x * invTimeStep,
@@ -760,22 +761,25 @@ __global__ static void ComputeKineticEnergyPartialSumsKernel(
     const double newHalfStepKineticEnergy =
         0.5 * ((u2.x * u2.x) + (u2.y * u2.y) + (u2.z * u2.z)) / v.w;
 
-    ke0 += oneThird * (oldHalfStepKineticEnergy + onStepKineticEnergy +
-                       newHalfStepKineticEnergy);
-    ke1 += onStepKineticEnergy;
+    ke[0] += oneThird * (oldHalfStepKineticEnergy + onStepKineticEnergy +
+                         newHalfStepKineticEnergy);
+    ke[1] += onStepKineticEnergy;
   }
 
-  ke0 = BlockReduceSum<double>(ke0);
-  ke1 = BlockReduceSum<double>(ke1);
+  __shared__ BlockReduceSumStorage<double, blockSize, 2> cache;
+
+  BlockReduceSum<double, blockSize, 2>(ke, cache);
 
   if (threadIdx.x == 0) {
-    kineticEnergyPartialSums[blockIdx.x * 2 + 0] = ke0;
-    kineticEnergyPartialSums[blockIdx.x * 2 + 1] = ke1;
+#pragma unroll
+    for (int i = 0; i < 2; i++)
+      kineticEnergyPartialSums[blockIdx.x * 2 + i] = ke[i];
   }
 
   return;
 }
 
+template <int blockSize>
 __global__ static void UpdateKineticEnergyAndNoseHooverPistonKernel(
     double *__restrict__ kineticEnergy,
     double *__restrict__ noseHooverPistonForce,
@@ -786,17 +790,25 @@ __global__ static void UpdateKineticEnergyAndNoseHooverPistonKernel(
     const double *__restrict__ kineticEnergyPartialSums,
     const int numPartialSums, const double referenceKineticEnergy,
     const bool usingOldTemperature, const double timeStep) {
-  double ke0 = 0.0, ke1 = 0.0;
-  for (int i = threadIdx.x; i < numPartialSums; i += blockDim.x * 2) {
-    ke0 += kineticEnergyPartialSums[i * 2 + 0];
-    ke1 += kineticEnergyPartialSums[i * 2 + 1];
+  double ke[2] = {0.0, 0.0};
+  for (int i = threadIdx.x; i < numPartialSums; i += 2 * blockDim.x) {
+    ke[0] += kineticEnergyPartialSums[i * 2 + 0];
+    ke[1] += kineticEnergyPartialSums[i * 2 + 1];
+
+    const int j = i + blockSize;
+    if (j < numPartialSums) {
+      ke[0] += kineticEnergyPartialSums[i * 2 + 0];
+      ke[1] += kineticEnergyPartialSums[i * 2 + 1];
+    }
   }
-  ke0 = BlockReduceSum<double>(ke0);
-  ke1 = BlockReduceSum<double>(ke1);
+
+  __shared__ BlockReduceSumStorage<double, blockSize, 2> cache;
+
+  BlockReduceSum<double, blockSize, 2>(ke, cache);
 
   if (threadIdx.x == 0) {
-    kineticEnergy[0] = ke0;
-    kineticEnergy[1] = ke1;
+    kineticEnergy[0] = ke[0];
+    kineticEnergy[1] = ke[1];
 
     const int i = (usingOldTemperature) ? 1 : 0;
 
@@ -980,15 +992,16 @@ void CudaNoseHooverIntegrator::propagateOneStepImpl(void) {
                            numAtoms, *m_IntegratorStream);
 
   for (int iter = 0; iter < m_MaxPredictorCorrectorIterations; iter++) {
-    cudaCheckLaunch(ComputeKineticEnergyPartialSumsKernel<<<
-                        numBlocks, numThreads, 0, *m_IntegratorStream>>>(
-        m_KineticEnergyPartialSums.getDeviceArray().data(), velMass,
-        m_CoordsDelta.getDeviceArray().data(),
-        m_CoordsDeltaPrevious.getDeviceArray().data(), numAtoms, m_TimeStep));
+    cudaCheckLaunch(ComputeKineticEnergyPartialSumsKernel<numThreads>
+                    <<<numBlocks, numThreads, 0, *m_IntegratorStream>>>(
+                        m_KineticEnergyPartialSums.getDeviceArray().data(),
+                        velMass, m_CoordsDelta.getDeviceArray().data(),
+                        m_CoordsDeltaPrevious.getDeviceArray().data(), numAtoms,
+                        m_TimeStep));
 
     cudaCheckLaunch(
-        UpdateKineticEnergyAndNoseHooverPistonKernel<<<1, numThreads, 0,
-                                                       *m_IntegratorStream>>>(
+        UpdateKineticEnergyAndNoseHooverPistonKernel<numThreads>
+        <<<1, numThreads, 0, *m_IntegratorStream>>>(
             m_KineticEnergy.getDeviceArray().data(),
             m_NoseHooverPistonForce.getDeviceArray().data(),
             m_NoseHooverPistonForcePrevious.getDeviceArray().data(),
@@ -1027,15 +1040,15 @@ void CudaNoseHooverIntegrator::propagateOneStepImpl(void) {
           m_CoordsDeltaPrevious.getDeviceArray().data(), numAtoms, m_TimeStep));
 
   cudaCheckLaunch(
-      ComputeKineticEnergyPartialSumsKernel<<<numBlocks, numThreads, 0,
-                                              *m_IntegratorStream>>>(
+      ComputeKineticEnergyPartialSumsKernel<numThreads>
+      <<<numBlocks, numThreads, 0, *m_IntegratorStream>>>(
           m_KineticEnergyPartialSums.getDeviceArray().data(), velMass,
           m_CoordsDelta.getDeviceArray().data(),
           m_CoordsDeltaPrevious.getDeviceArray().data(), numAtoms, m_TimeStep));
 
   cudaCheckLaunch(
-      UpdateKineticEnergyAndNoseHooverPistonKernel<<<1, numThreads, 0,
-                                                     *m_IntegratorStream>>>(
+      UpdateKineticEnergyAndNoseHooverPistonKernel<numThreads>
+      <<<1, numThreads, 0, *m_IntegratorStream>>>(
           m_KineticEnergy.getDeviceArray().data(),
           m_NoseHooverPistonForce.getDeviceArray().data(),
           m_NoseHooverPistonForcePrevious.getDeviceArray().data(),

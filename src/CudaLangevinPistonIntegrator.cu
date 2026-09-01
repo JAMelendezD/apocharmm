@@ -55,6 +55,7 @@ CudaLangevinPistonIntegrator::CudaLangevinPistonIntegrator(
   m_DeltaPressureTensor.resize(9);
   m_DeltaKineticPressureTensor.resize(9);
   m_StaticDeltaPressureTensor.resize(9);
+  // m_PressureReductionPartialSums is allocated in initializeImpl().
 
   // Set pressure variables to default values
   m_CrystalType = CRYSTAL::NONE;
@@ -784,6 +785,7 @@ void CudaLangevinPistonIntegrator::initializeImpl(void) {
 
   m_CoordsDeltaPredicted.resize(numAtoms);
   m_KineticEnergyPartialSums.resize(numBlocks * 2);
+  m_PressureReductionPartialSums.resize(numBlocks * 9);
 
   m_HolonomicConstraintForces.resize(numAtoms);
 
@@ -1274,8 +1276,90 @@ __global__ static void ComputeHolonomicConstraintForcesKernel(
   return;
 }
 
-__global__ static void ComputeHolonomicConstraintVirialKernel(
-    double *__restrict__ holonomicConstraintVirial,
+/**
+ * @brief Reduces component-major block partial sums into one tensor.
+ *
+ * Thread `t` visits partial-sum indices congruent to `t` modulo `BlockSize`
+ * in increasing index order. Each iteration loads up to two thread-strided
+ * records. The component values are then reduced together across one block.
+ * Thread zero overwrites every output component.
+ *
+ * The first-pass layout is component-major:
+ * `tensorPartialSums[component * numPartialSums + partialIndex]`.
+ *
+ * @tparam blockSize Compile-time number of threads in the CUDA block. It must
+ * satisfy the requirements of `BlockReduceSumStorage`.
+ * @tparam numComponents Positive compile-time tensor component count.
+ * @param[out] tensor Non-NULL device array containing at least
+ * `NumComponents` elements. Every element is overwritten.
+ * @param[in] tensorPartialSums Non-NULL component-major device array
+ * containing `NumComponents * numPartialSums` elements.
+ * @param[in] numPartialSums Positive first-pass block count.
+ *
+ * @pre The kernel is launched with exactly one one-dimensional block
+ * satisfying `blockDim.x == BlockSize`.
+ * @pre Every block thread reaches the block-wide reduction.
+ */
+template <int blockSize, int numComponents>
+__global__ static void
+FinalizeTensorPartialSumsKernel(double *__restrict__ tensor,
+                                const double *__restrict__ tensorPartialSums,
+                                const int numPartialSums) {
+  static_assert(numComponents > 0, "numComponents must be greater than zero");
+
+  double values[numComponents] = {};
+
+  for (int i = threadIdx.x; i < numPartialSums; i += 2 * blockSize) {
+#pragma unroll
+    for (int j = 0; j < numComponents; j++)
+      values[j] += tensorPartialSums[j * numPartialSums + i];
+
+    const int j = i + blockSize;
+    if (j < numPartialSums) {
+#pragma unroll
+      for (int k = 0; k < numComponents; k++)
+        values[k] += tensorPartialSums[k * numPartialSums + j];
+    }
+  }
+
+  __shared__ BlockReduceSumStorage<double, blockSize, numComponents> cache;
+
+  BlockReduceSum<double, blockSize, numComponents>(values, cache);
+
+  if (threadIdx.x == 0) {
+#pragma unroll
+    for (int i = 0; i < numComponents; i++)
+      tensor[i] = values[i];
+  }
+
+  return;
+}
+
+/**
+ * @brief Computes one holonomic-constraint virial partial tensor per block.
+ *
+ * Each thread accumulates its atom-strided contribution to the row-major
+ * nine-component tensor. The nine values are reduced together across the
+ * block. Thread zero writes one component-major partial tensor without
+ * atomics.
+ *
+ * @tparam blockSize Compile-time number of threads in each CUDA block. It must
+ * satisfy the requirements of `BlockReduceSumStorage`.
+ * @param[out] holonomicConstraintVirialPartialSums Non-NULL device array
+ * containing at least `9 * gridDim.x` elements.
+ * @param[in] coordsRef Non-NULL device array of `numAtoms` reference
+ * coordinates.
+ * @param[in] holonomicConstraintForces Non-NULL device array of `numAtoms`
+ * constraint-force records.
+ * @param[in] numAtoms Positive atom count.
+ *
+ * @pre The kernel is launched with one-dimensional blocks satisfying
+ * `blockDim.x == BlockSize`.
+ * @pre Every block thread reaches the block-wide reduction.
+ */
+template <int blockSize>
+__global__ static void ComputeHolonomicConstraintVirialPartialSumsKernel(
+    double *__restrict__ holonomicConstraintVirialPartialSums,
     const double4 *__restrict__ coordsRef,
     const double4 *__restrict__ holonomicConstraintForces, const int numAtoms) {
   const int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -1294,12 +1378,14 @@ __global__ static void ComputeHolonomicConstraintVirialKernel(
     vir[8] += coordsRef[i].z * holonomicConstraintForces[i].z;
   }
 
-  for (int i = 0; i < 9; i++)
-    vir[i] = BlockReduceSum<double>(vir[i]);
+  __shared__ BlockReduceSumStorage<double, blockSize, 9> cache;
+
+  BlockReduceSum<double, blockSize, 9>(vir, cache);
 
   if (threadIdx.x == 0) {
+#pragma unroll
     for (int i = 0; i < 9; i++)
-      atomicAdd(holonomicConstraintVirial + i, vir[i]);
+      holonomicConstraintVirialPartialSums[i * gridDim.x + blockIdx.x] = vir[i];
   }
 
   return;
@@ -1328,13 +1414,38 @@ __global__ static void UpdateVirialWithHolonomicConstraintVirialKernel(
   return;
 }
 
-/** @brief Computes the kinetic energy contribution to the pressure tensor
- * using previous and next half step velocities. One might think the on-step
- * velocity would be a better thing to use, but it would be unsound (Brooks
- * 1987)
+/**
+ * @brief Computes one average kinetic-pressure partial tensor per block.
+ *
+ * The kernel uses the previous and next half-step displacements rather than
+ * the on-step velocity. Each thread accumulates a row-major nine-component
+ * tensor over its atom-strided input. The components are reduced together
+ * across the block, and thread zero writes one component-major partial tensor.
+ *
+ * @tparam blockSize Compile-time number of threads in each CUDA block. It must
+ * satisfy the requirements of `BlockReduceSumStorage`.
+ * @param[out] kineticPressurePartialSums Non-NULL device array containing at
+ * least `9 * gridDim.x` elements.
+ * @param[in] velMass Non-NULL device array of `numAtoms`
+ * `[vx, vy, vz, inverse_mass]` records.
+ * @param[in] coordsDelta Non-NULL device array of `numAtoms` next-half-step
+ * displacement records.
+ * @param[in] coordsDeltaPrevious Non-NULL device array of `numAtoms`
+ * previous-half-step displacement records.
+ * @param[in] numAtoms Positive atom count.
+ * @param[in] timeStep Positive time step in native integration units.
+ *
+ * @pre The kernel is launched with one-dimensional blocks satisfying
+ * `blockDim.x == BlockSize`.
+ * @pre Every block thread reaches the block-wide reduction.
+ *
+ * @note Computes the kinetic energy contribution to the pressure tensor using
+ * previous and next half step velocities. One might think the on-step velocity
+ * would be a better thing to use, but it would be unsound (Brooks 1987).
  */
-__global__ static void ComputeAverageKineticPressureKernel(
-    double *__restrict__ kineticPressureTensor,
+template <int blockSize>
+__global__ static void ComputeAverageKineticPressurePartialSumsKernel(
+    double *__restrict__ kineticPressureTensorPartialSums,
     const double4 *__restrict__ velMass,
     const double4 *__restrict__ coordsDelta,
     const double4 *__restrict__ coordsDeltaPrevious, const int numAtoms,
@@ -1366,12 +1477,14 @@ __global__ static void ComputeAverageKineticPressureKernel(
                       coordsDeltaPrevious[i].z * coordsDeltaPrevious[i].z);
   }
 
-  for (int i = 0; i < 9; i++)
-    prs[i] = BlockReduceSum<double>(prs[i]);
+  __shared__ BlockReduceSumStorage<double, blockSize, 9> cache;
+
+  BlockReduceSum<double, blockSize, 9>(prs, cache);
 
   if (threadIdx.x == 0) {
+#pragma unroll
     for (int i = 0; i < 9; i++)
-      atomicAdd(kineticPressureTensor + i, prs[i]);
+      kineticPressureTensorPartialSums[i * gridDim.x + blockIdx.x] = prs[i];
   }
 
   return;
@@ -1411,13 +1524,35 @@ __global__ static void UpdatePressureKernel(
 }
 
 /**
- *@brief Compute the next-half-step kinetic energy component of the pressure
- * using updated coordsDelta. This is the only component of the pressure that
- * is updated during the pred-corr (the previous-half-step does not change and
- * the virial part is considered constant)
+ * @brief Computes one delta kinetic-pressure partial tensor per block.
+ *
+ * This is the next-half-step kinetic contribution updated during the
+ * predictor-corrector loop. The previous-half-step contribution and virial
+ * contribution are treated as invariant during that loop.
+ *
+ * Each thread accumulates a row-major nine-component tensor over its
+ * atom-strided input. The components are reduced together across the block,
+ * and thread zero writes one component-major partial tensor without atomics.
+ *
+ * @tparam blockSize Compile-time number of threads in each CUDA block. It must
+ * satisfy the requirements of `BlockReduceSumStorage`.
+ * @param[out] deltaKineticPressurePartialSums Non-NULL device array containing
+ * at least `9 * gridDim.x` elements.
+ * @param[in] velMass Non-NULL device array of `numAtoms`
+ * `[vx, vy, vz, inverse_mass]` records.
+ * @param[in] coordsDelta Non-NULL device array of `numAtoms` next-half-step
+ * displacement records.
+ * @param[in] numAtoms Positive atom count.
+ * @param[in] volumeFactor Pressure conversion and volume factor.
+ * @param[in] timeStep Positive time step in native integration units.
+ *
+ * @pre The kernel is launched with one-dimensional blocks satisfying
+ * `blockDim.x == BlockSize`.
+ * @pre Every block thread reaches the block-wide reduction.
  */
-__global__ static void ComputeDeltaKineticPressureKernel(
-    double *__restrict__ deltaKineticPressureTensor,
+template <int blockSize>
+__global__ static void ComputeDeltaKineticPressurePartialSumsKernel(
+    double *__restrict__ deltaKineticPressureTensorPartialSums,
     const double4 *__restrict__ velMass,
     const double4 *__restrict__ coordsDelta, const int numAtoms,
     const double volumeFactor, const double timeStep) {
@@ -1439,12 +1574,16 @@ __global__ static void ComputeDeltaKineticPressureKernel(
     prs[8] += fact * coordsDelta[i].z * coordsDelta[i].z;
   }
 
-  for (int i = 0; i < 9; i++)
-    prs[i] = BlockReduceSum<double>(prs[i]);
+  __shared__ BlockReduceSumStorage<double, blockSize, 9> cache;
+
+  BlockReduceSum<double, blockSize, 9>(prs, cache);
 
   if (threadIdx.x == 0) {
-    for (int i = 0; i < 9; i++)
-      atomicAdd(deltaKineticPressureTensor + i, prs[i]);
+#pragma unroll
+    for (int i = 0; i < 9; i++) {
+      deltaKineticPressureTensorPartialSums[i * gridDim.x + blockIdx.x] =
+          prs[i];
+    }
   }
 
   return;
@@ -1619,6 +1758,29 @@ __global__ static void UpdateLangevinPistonKernel(
   return;
 }
 
+/**
+ * @brief Computes two kinetic-energy partial sums per CUDA block.
+ *
+ * Element zero is the three-point kinetic-energy estimator and element one is
+ * the on-step estimator. Both values are reduced together across the block.
+ *
+ * @tparam blockSize Compile-time number of threads in each CUDA block. It must
+ * satisfy the requirements of `BlockReduceSumStorage`.
+ * @param[out] kineticEnergyPartialSums Non-NULL block-major device array with
+ * at least `2 * gridDim.x` elements.
+ * @param[in] velMass Non-NULL device array of `numAtoms`
+ * `[vx, vy, vz, inverse_mass]` records.
+ * @param[in] coordsDelta Non-NULL next-half-step displacement array.
+ * @param[in] coordsDeltaPrevious Non-NULL previous-half-step displacement
+ * array.
+ * @param[in] numAtoms Positive atom count.
+ * @param[in] timeStep Positive time step in native integration units.
+ *
+ * @pre The kernel is launched with one-dimensional blocks satisfying
+ * `blockDim.x == BlockSize`.
+ * @pre Every block thread reaches the block-wide reduction.
+ */
+template <int blockSize>
 __global__ static void ComputeKineticEnergyPartialSumsKernel(
     double *__restrict__ kineticEnergyPartialSums,
     const double4 *__restrict__ velMass,
@@ -1630,7 +1792,7 @@ __global__ static void ComputeKineticEnergyPartialSumsKernel(
   const int stride = gridDim.x * blockDim.x;
   const double invTimeStep = 1.0 / timeStep;
 
-  double ke0 = 0.0, ke1 = 0.0;
+  double ke[2] = {0.0, 0.0};
   for (int i = index; i < numAtoms; i += stride) {
     const double4 u1 =
         make_double4(coordsDeltaPrevious[i].x * invTimeStep,
@@ -1642,28 +1804,59 @@ __global__ static void ComputeKineticEnergyPartialSumsKernel(
                                     coordsDelta[i].z * invTimeStep, 0.0);
 
     const double oldHalfStepKineticEnergy =
-        0.5 * ((u1.x * u1.x) + (u1.y * u1.y) + (u1.z * u1.z)) / v.w;
+        0.5 * (u1.x * u1.x + u1.y * u1.y + u1.z * u1.z) / v.w;
     const double onStepKineticEnergy =
-        0.5 * ((v.x * v.x) + (v.y * v.y) + (v.z * v.z)) / v.w;
+        0.5 * (v.x * v.x + v.y * v.y + v.z * v.z) / v.w;
     const double newHalfStepKineticEnergy =
-        0.5 * ((u2.x * u2.x) + (u2.y * u2.y) + (u2.z * u2.z)) / v.w;
+        0.5 * (u2.x * u2.x + u2.y * u2.y + u2.z * u2.z) / v.w;
 
-    ke0 += oneThird * (oldHalfStepKineticEnergy + onStepKineticEnergy +
-                       newHalfStepKineticEnergy);
-    ke1 += onStepKineticEnergy;
+    ke[0] += oneThird * (oldHalfStepKineticEnergy + onStepKineticEnergy +
+                         newHalfStepKineticEnergy);
+    ke[1] += onStepKineticEnergy;
   }
 
-  ke0 = BlockReduceSum<double>(ke0);
-  ke1 = BlockReduceSum<double>(ke1);
+  __shared__ BlockReduceSumStorage<double, blockSize, 2> cache;
+
+  BlockReduceSum<double, blockSize, 2>(ke, cache);
 
   if (threadIdx.x == 0) {
-    kineticEnergyPartialSums[blockIdx.x * 2 + 0] = ke0;
-    kineticEnergyPartialSums[blockIdx.x * 2 + 1] = ke1;
+#pragma unroll
+    for (int i = 0; i < 2; i++)
+      kineticEnergyPartialSums[blockIdx.x * 2 + i] = ke[i];
   }
 
   return;
 }
 
+/**
+ * @brief Finalizes both kinetic-energy estimators and updates Nose-Hoover
+ * state.
+ *
+ * Thread `t` visits partial-sum records congruent to `t` modulo `BlockSize` in
+ * increasing record order. Each loop iteration loads up to two
+ * thread-strided records. Both estimators are reduced together across the
+ * block before thread zero updates the output and extended state.
+ *
+ * @tparam blockSize Compile-time number of threads in the CUDA block. It must
+ * satisfy the requirements of `BlockReduceSumStorage`.
+ * @param[out] kineticEnergy Non-NULL two-element output array.
+ * @param[out] noseHooverPistonForce Non-NULL current velocity-increment scalar.
+ * @param[in,out] noseHooverPistonForcePrevious Non-NULL previous increment.
+ * @param[out] noseHooverPistonVelocity Non-NULL current piston velocity.
+ * @param[in] noseHooverPistonVelocityPrevious Non-NULL previous velocity.
+ * @param[in] noseHooverPistonMass Non-NULL coupling-mass scalar.
+ * @param[in] kineticEnergyPartialSums Non-NULL block-major array containing
+ * two values per first-pass block.
+ * @param[in] numPartialSums Positive first-pass block count.
+ * @param[in] referenceKineticEnergy Reference kinetic energy.
+ * @param[in] usingOldTemperature Whether estimator element one is selected.
+ * @param[in] timeStep Positive time step in native integration units.
+ *
+ * @pre The kernel is launched with exactly one one-dimensional block
+ * satisfying `blockDim.x == BlockSize`.
+ * @pre Every block thread reaches the block-wide reduction.
+ */
+template <int blockSize>
 __global__ static void UpdateKineticEnergyAndNoseHooverPistonKernel(
     double *__restrict__ kineticEnergy,
     double *__restrict__ noseHooverPistonForce,
@@ -1674,17 +1867,25 @@ __global__ static void UpdateKineticEnergyAndNoseHooverPistonKernel(
     const double *__restrict__ kineticEnergyPartialSums,
     const int numPartialSums, const double referenceKineticEnergy,
     const bool usingOldTemperature, const double timeStep) {
-  double ke0 = 0.0, ke1 = 0.0;
-  for (int i = threadIdx.x; i < numPartialSums; i += blockDim.x * 2) {
-    ke0 += kineticEnergyPartialSums[i * 2 + 0];
-    ke1 += kineticEnergyPartialSums[i * 2 + 1];
+  double ke[2] = {0.0, 0.0};
+  for (int i = threadIdx.x; i < numPartialSums; i += 2 * blockDim.x) {
+    ke[0] += kineticEnergyPartialSums[i * 2 + 0];
+    ke[1] += kineticEnergyPartialSums[i * 2 + 1];
+
+    const int j = i + blockSize;
+    if (j < numPartialSums) {
+      ke[0] += kineticEnergyPartialSums[j * 2 + 0];
+      ke[1] += kineticEnergyPartialSums[j * 2 + 1];
+    }
   }
-  ke0 = BlockReduceSum<double>(ke0);
-  ke1 = BlockReduceSum<double>(ke1);
+
+  __shared__ BlockReduceSumStorage<double, blockSize, 2> cache;
+
+  BlockReduceSum<double, blockSize, 2>(ke, cache);
 
   if (threadIdx.x == 0) {
-    kineticEnergy[0] = ke0;
-    kineticEnergy[1] = ke1;
+    kineticEnergy[0] = ke[0];
+    kineticEnergy[1] = ke[1];
 
     const int i = (usingOldTemperature) ? 1 : 0;
 
@@ -1970,23 +2171,18 @@ void CudaLangevinPistonIntegrator::propagateOneStepImpl(void) {
         m_CoordsRef.getDeviceArray().data(),
         m_CoordsDelta.getDeviceArray().data(), velMass, numAtoms, m_TimeStep));
 
-    cudaCheck(cudaMemsetAsync(
-        static_cast<void *>(
-            m_HolonomicConstraintVirial.getDeviceArray().data()),
-        0, 9 * sizeof(double), *m_IntegratorStream));
-
     cudaCheckLaunch(
-        ComputeHolonomicConstraintVirialKernel<<<1, 1024, 0,
-                                                 *m_IntegratorStream>>>(
-            m_HolonomicConstraintVirial.getDeviceArray().data(),
+        ComputeHolonomicConstraintVirialPartialSumsKernel<numThreads>
+        <<<numBlocks, numThreads, 0, *m_IntegratorStream>>>(
+            m_PressureReductionPartialSums.getDeviceArray().data(),
             m_CoordsRef.getDeviceArray().data(),
             m_HolonomicConstraintForces.getDeviceArray().data(), numAtoms));
-    // cudaCheckLaunch(
-    //     ComputeHolonomicConstraintVirialKernel<<<numBlocks, numThreads, 0,
-    //                                              *m_IntegratorStream>>>(
-    //         m_HolonomicConstraintVirial.getDeviceArray().data(),
-    //         m_CoordsRef.getDeviceArray().data(),
-    //         m_HolonomicConstraintForces.getDeviceArray().data(), numAtoms));
+
+    cudaCheckLaunch(
+        FinalizeTensorPartialSumsKernel<numThreads, 9>
+        <<<1, numThreads, 0, *m_IntegratorStream>>>(
+            m_HolonomicConstraintVirial.getDeviceArray().data(),
+            m_PressureReductionPartialSums.getDeviceArray().data(), numBlocks));
 
     cudaCheckLaunch(UpdateCoordsDeltaAfterHolonomicConstraintKernel<<<
                         numBlocks, numThreads, 0, *m_IntegratorStream>>>(
@@ -1998,22 +2194,18 @@ void CudaLangevinPistonIntegrator::propagateOneStepImpl(void) {
         virialTensor, m_HolonomicConstraintVirial.getDeviceArray().data()));
   }
 
-  cudaCheck(cudaMemsetAsync(
-      static_cast<void *>(m_KineticPressureTensor.getDeviceArray().data()), 0,
-      9 * sizeof(double), *m_IntegratorStream));
-
   cudaCheckLaunch(
-      ComputeAverageKineticPressureKernel<<<1, 1024, 0, *m_IntegratorStream>>>(
-          m_KineticPressureTensor.getDeviceArray().data(), velMass,
+      ComputeAverageKineticPressurePartialSumsKernel<numThreads>
+      <<<numBlocks, numThreads, 0, *m_IntegratorStream>>>(
+          m_PressureReductionPartialSums.getDeviceArray().data(), velMass,
           m_CoordsDelta.getDeviceArray().data(),
           m_CoordsDeltaPrevious.getDeviceArray().data(), numAtoms, m_TimeStep));
-  // cudaCheckLaunch(
-  //     ComputeAverageKineticPressureKernel<<<numBlocks, numThreads, 0,
-  //                                           *m_IntegratorStream>>>(
-  //         m_KineticPressureTensor.getDeviceArray().data(), velMass,
-  //         m_CoordsDelta.getDeviceArray().data(),
-  //         m_CoordsDeltaPrevious.getDeviceArray().data(), numAtoms,
-  //         m_TimeStep));
+
+  cudaCheckLaunch(
+      FinalizeTensorPartialSumsKernel<numThreads, 9>
+      <<<1, numThreads, 0, *m_IntegratorStream>>>(
+          m_KineticPressureTensor.getDeviceArray().data(),
+          m_PressureReductionPartialSums.getDeviceArray().data(), numBlocks));
 
   cudaCheckLaunch(UpdatePressureKernel<<<1, 32, 0, *m_IntegratorStream>>>(
       m_PressureTensor.getDeviceArray().data(),
@@ -2026,21 +2218,17 @@ void CudaLangevinPistonIntegrator::propagateOneStepImpl(void) {
       charmm::constants::surfaceTensionFactor / boxDimensions[2],
       m_ConstantSurfaceTensionFlag));
 
-  cudaCheck(cudaMemsetAsync(
-      static_cast<void *>(m_DeltaKineticPressureTensor.getDeviceArray().data()),
-      0, 9 * sizeof(double), *m_IntegratorStream));
+  cudaCheckLaunch(ComputeDeltaKineticPressurePartialSumsKernel<numThreads>
+                  <<<numBlocks, numThreads, 0, *m_IntegratorStream>>>(
+                      m_PressureReductionPartialSums.getDeviceArray().data(),
+                      velMass, m_CoordsDelta.getDeviceArray().data(), numAtoms,
+                      0.5 * charmm::constants::patmos / volume, m_TimeStep));
 
   cudaCheckLaunch(
-      ComputeDeltaKineticPressureKernel<<<1, 512, 0, *m_IntegratorStream>>>(
-          m_DeltaKineticPressureTensor.getDeviceArray().data(), velMass,
-          m_CoordsDelta.getDeviceArray().data(), numAtoms,
-          0.5 * charmm::constants::patmos / volume, m_TimeStep));
-  // cudaCheckLaunch(ComputeDeltaKineticPressureKernel<<<numBlocks, numThreads,
-  // 0,
-  //                                                     *m_IntegratorStream>>>(
-  //     m_DeltaKineticPressureTensor.getDeviceArray().data(), velMass,
-  //     m_CoordsDelta.getDeviceArray().data(), numAtoms,
-  //     0.5 * charmm::constants::patmos / volume, m_TimeStep));
+      FinalizeTensorPartialSumsKernel<numThreads, 9>
+      <<<1, numThreads, 0, *m_IntegratorStream>>>(
+          m_DeltaKineticPressureTensor.getDeviceArray().data(),
+          m_PressureReductionPartialSums.getDeviceArray().data(), numBlocks));
 
   cudaCheckLaunch(
       ComputeStaticDeltaPressureKernel<<<1, 32, 0, *m_IntegratorStream>>>(
@@ -2083,15 +2271,16 @@ void CudaLangevinPistonIntegrator::propagateOneStepImpl(void) {
 
     m_RngSequencePos++; // curand_normal_double iterates 1 step
 
-    cudaCheckLaunch(ComputeKineticEnergyPartialSumsKernel<<<
-                        numBlocks, numThreads, 0, *m_IntegratorStream>>>(
-        m_KineticEnergyPartialSums.getDeviceArray().data(), velMass,
-        m_CoordsDelta.getDeviceArray().data(),
-        m_CoordsDeltaPrevious.getDeviceArray().data(), numAtoms, m_TimeStep));
+    cudaCheckLaunch(ComputeKineticEnergyPartialSumsKernel<numThreads>
+                    <<<numBlocks, numThreads, 0, *m_IntegratorStream>>>(
+                        m_KineticEnergyPartialSums.getDeviceArray().data(),
+                        velMass, m_CoordsDelta.getDeviceArray().data(),
+                        m_CoordsDeltaPrevious.getDeviceArray().data(), numAtoms,
+                        m_TimeStep));
 
     cudaCheckLaunch(
-        UpdateKineticEnergyAndNoseHooverPistonKernel<<<1, numThreads, 0,
-                                                       *m_IntegratorStream>>>(
+        UpdateKineticEnergyAndNoseHooverPistonKernel<numThreads>
+        <<<1, numThreads, 0, *m_IntegratorStream>>>(
             m_KineticEnergy.getDeviceArray().data(),
             m_NoseHooverPistonForce.getDeviceArray().data(),
             m_NoseHooverPistonForcePrevious.getDeviceArray().data(),
@@ -2112,22 +2301,18 @@ void CudaLangevinPistonIntegrator::propagateOneStepImpl(void) {
         m_OnStepCrystalFactor.getDeviceArray().data(),
         m_HalfStepCrystalFactor.getDeviceArray().data(), m_TimeStep));
 
-    cudaCheck(cudaMemsetAsync(
-        static_cast<void *>(
-            m_DeltaKineticPressureTensor.getDeviceArray().data()),
-        0, 9 * sizeof(double), *m_IntegratorStream));
-
     cudaCheckLaunch(
-        ComputeDeltaKineticPressureKernel<<<1, 512, 0, *m_IntegratorStream>>>(
-            m_DeltaKineticPressureTensor.getDeviceArray().data(), velMass,
+        ComputeDeltaKineticPressurePartialSumsKernel<numThreads>
+        <<<numBlocks, numThreads, 0, *m_IntegratorStream>>>(
+            m_PressureReductionPartialSums.getDeviceArray().data(), velMass,
             m_CoordsDeltaPredicted.getDeviceArray().data(), numAtoms,
             0.5 * charmm::constants::patmos / volume, m_TimeStep));
-    // cudaCheckLaunch(
-    //     ComputeDeltaKineticPressureKernel<<<numBlocks, numThreads, 0,
-    //                                         *m_IntegratorStream>>>(
-    //         m_DeltaKineticPressureTensor.getDeviceArray().data(), velMass,
-    //         m_CoordsDeltaPredicted.getDeviceArray().data(), numAtoms,
-    //         0.5 * charmm::constants::patmos / volume, m_TimeStep));
+
+    cudaCheckLaunch(
+        FinalizeTensorPartialSumsKernel<numThreads, 9>
+        <<<1, numThreads, 0, *m_IntegratorStream>>>(
+            m_DeltaKineticPressureTensor.getDeviceArray().data(),
+            m_PressureReductionPartialSums.getDeviceArray().data(), numBlocks));
 
     cudaCheckLaunch(
         UpdateDeltaPressureKernel<<<1, 32, 0, *m_IntegratorStream>>>(
@@ -2180,15 +2365,15 @@ void CudaLangevinPistonIntegrator::propagateOneStepImpl(void) {
           m_CoordsDeltaPrevious.getDeviceArray().data(), numAtoms, m_TimeStep));
 
   cudaCheckLaunch(
-      ComputeKineticEnergyPartialSumsKernel<<<numBlocks, numThreads, 0,
-                                              *m_IntegratorStream>>>(
+      ComputeKineticEnergyPartialSumsKernel<numThreads>
+      <<<numBlocks, numThreads, 0, *m_IntegratorStream>>>(
           m_KineticEnergyPartialSums.getDeviceArray().data(), velMass,
           m_CoordsDelta.getDeviceArray().data(),
           m_CoordsDeltaPrevious.getDeviceArray().data(), numAtoms, m_TimeStep));
 
   cudaCheckLaunch(
-      UpdateKineticEnergyAndNoseHooverPistonKernel<<<1, numThreads, 0,
-                                                     *m_IntegratorStream>>>(
+      UpdateKineticEnergyAndNoseHooverPistonKernel<numThreads>
+      <<<1, numThreads, 0, *m_IntegratorStream>>>(
           m_KineticEnergy.getDeviceArray().data(),
           m_NoseHooverPistonForce.getDeviceArray().data(),
           m_NoseHooverPistonForcePrevious.getDeviceArray().data(),
@@ -2204,22 +2389,18 @@ void CudaLangevinPistonIntegrator::propagateOneStepImpl(void) {
           m_KineticEnergy.getDeviceArray().data(), numDegreesOfFreedom,
           charmm::constants::kBoltz, m_AverageWindowSize));
 
-  cudaCheck(cudaMemsetAsync(
-      static_cast<void *>(m_KineticPressureTensor.getDeviceArray().data()), 0,
-      9 * sizeof(double), *m_IntegratorStream));
-
   cudaCheckLaunch(
-      ComputeAverageKineticPressureKernel<<<1, 1024, 0, *m_IntegratorStream>>>(
-          m_KineticPressureTensor.getDeviceArray().data(), velMass,
+      ComputeAverageKineticPressurePartialSumsKernel<numThreads>
+      <<<numBlocks, numThreads, 0, *m_IntegratorStream>>>(
+          m_PressureReductionPartialSums.getDeviceArray().data(), velMass,
           m_CoordsDelta.getDeviceArray().data(),
           m_CoordsDeltaPrevious.getDeviceArray().data(), numAtoms, m_TimeStep));
-  // cudaCheckLaunch(
-  //     ComputeAverageKineticPressureKernel<<<numBlocks, numThreads, 0,
-  //                                           *m_IntegratorStream>>>(
-  //         m_KineticPressureTensor.getDeviceArray().data(), velMass,
-  //         m_CoordsDelta.getDeviceArray().data(),
-  //         m_CoordsDeltaPrevious.getDeviceArray().data(), numAtoms,
-  //         m_TimeStep));
+
+  cudaCheckLaunch(
+      FinalizeTensorPartialSumsKernel<numThreads, 9>
+      <<<1, numThreads, 0, *m_IntegratorStream>>>(
+          m_KineticPressureTensor.getDeviceArray().data(),
+          m_PressureReductionPartialSums.getDeviceArray().data(), numBlocks));
 
   cudaCheckLaunch(
       UpdateAveragePressureKernel<<<1, 32, 0, *m_IntegratorStream>>>(

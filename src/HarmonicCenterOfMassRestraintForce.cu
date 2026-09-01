@@ -301,9 +301,13 @@ void HarmonicCenterOfMassRestraintForce<AT, CT>::clear(void) {
  *
  * The first selected atom is the image anchor. Each selected coordinate is
  * minimum-imaged relative to that anchor before its weighted Cartesian
- * components and weight are accumulated. One `double4` partial record is
- * written per launch block as `{sum_x, sum_y, sum_z, sum_weight}`.
+ * components and weight are accumulated. The four independent quantities are
+ * reduced together across each block. One `double4` partial record is written
+ * per launch block as `{sum_x, sum_y, sum_z, sum_weight}`.
  *
+ * @tparam blockSize Compile-time number of threads in each CUDA block. It must
+ * be at least `warpsize`, no greater than 1024, and an integer multiple of
+ * `warpsize`.
  * @param[out] partialSums Non-NULL device array with at least `gridDim.x`
  * elements. Element `blockIdx.x` is overwritten by thread zero in that block.
  * @param[in] atomIndices Non-NULL device array of `numSelected` zero-based atom
@@ -318,17 +322,20 @@ void HarmonicCenterOfMassRestraintForce<AT, CT>::clear(void) {
  * @param[in] boxy Positive orthorhombic Y box length in angstroms.
  * @param[in] boxz Positive orthorhombic Z box length in angstroms.
  *
+ * @pre The kernel is launched with one-dimensional blocks satisfying
+ * `blockDim.x == BlockSize`.
+ * @pre Every thread in each block reaches the block-wide reduction.
  * @pre The three input arrays remain valid for the complete kernel execution.
  * @note The anchor-based representation assumes each selected atom has an
  * unambiguous minimum image relative to the first selected atom.
  */
-__global__ static void PartialSumsKernel(double4 *__restrict__ partialSums,
-                                         const int *__restrict__ atomIndices,
-                                         const double *__restrict__ atomWeights,
-                                         const float4 *__restrict__ xyzq,
-                                         const int numSelected,
-                                         const double boxx, const double boxy,
-                                         const double boxz) {
+template <int blockSize>
+__global__ static void
+PartialSumsKernel(double4 *__restrict__ partialSums,
+                  const int *__restrict__ atomIndices,
+                  const double *__restrict__ atomWeights,
+                  const float4 *__restrict__ xyzq, const int numSelected,
+                  const double boxx, const double boxy, const double boxz) {
   const int index = blockIdx.x * blockDim.x + threadIdx.x;
   const int stride = gridDim.x * blockDim.x;
 
@@ -339,7 +346,7 @@ __global__ static void PartialSumsKernel(double4 *__restrict__ partialSums,
                                      static_cast<float>(0.5 * boxy),
                                      static_cast<float>(0.5 * boxz));
 
-  double sumX = 0.0, sumY = 0.0, sumZ = 0.0, sumW = 0.0;
+  double sums[4] = {0.0, 0.0, 0.0, 0.0};
   for (int i = index; i < numSelected; i += stride) {
     const int atomIndex = atomIndices[i];
     const double atomWeight = atomWeights[i];
@@ -351,19 +358,17 @@ __global__ static void PartialSumsKernel(double4 *__restrict__ partialSums,
     double shx = 0.0, shy = 0.0, shz = 0.0;
     calc_box_shift<double>(ish, boxx, boxy, boxz, shx, shy, shz);
 
-    sumX += atomWeight * (static_cast<double>(xyzqi.x) + shx);
-    sumY += atomWeight * (static_cast<double>(xyzqi.y) + shy);
-    sumZ += atomWeight * (static_cast<double>(xyzqi.z) + shz);
-    sumW += atomWeight;
+    sums[0] += atomWeight * (static_cast<double>(xyzqi.x) + shx);
+    sums[1] += atomWeight * (static_cast<double>(xyzqi.y) + shy);
+    sums[2] += atomWeight * (static_cast<double>(xyzqi.z) + shz);
+    sums[3] += atomWeight;
   }
 
-  sumX = BlockReduceSum<double>(sumX);
-  sumY = BlockReduceSum<double>(sumY);
-  sumZ = BlockReduceSum<double>(sumZ);
-  sumW = BlockReduceSum<double>(sumW);
+  __shared__ BlockReduceSumStorage<double, blockSize, 4> cache;
+  BlockReduceSum<double, blockSize, 4>(sums, cache);
 
   if (threadIdx.x == 0)
-    partialSums[blockIdx.x] = make_double4(sumX, sumY, sumZ, sumW);
+    partialSums[blockIdx.x] = make_double4(sums[0], sums[1], sums[2], sums[3]);
 
   return;
 }
@@ -373,9 +378,14 @@ __global__ static void PartialSumsKernel(double4 *__restrict__ partialSums,
  *
  * The kernel reduces all block records, normalizes the selected center, applies
  * the Cartesian mask, and minimum-images each active center-to-reference
- * component. It writes the potential gradient and inverse total weight to state
- * element zero and integer center image counts to state element one.
+ * component. The four independent partial-sum components are reduced together
+ * across the block. The kernel writes the potential gradient and inverse total
+ * weight to state element zero and integer center image counts to state element
+ * one.
  *
+ * @tparam blockSize Compile-time number of threads in the CUDA block. It must
+ * be at least `warpsize`, no greater than 1024, and an integer multiple of
+ * `warpsize`.
  * @tparam calcEnergy Whether thread zero atomically adds the current energy to
  * `energy`.
  * @param[out] restraintState Non-NULL device array of at least two `double4`
@@ -397,11 +407,14 @@ __global__ static void PartialSumsKernel(double4 *__restrict__ partialSums,
  * @param[in] boxy Positive orthorhombic Y box length in angstroms.
  * @param[in] boxz Positive orthorhombic Z box length in angstroms.
  *
+ * @pre The kernel is launched with exactly one one-dimensional block satisfying
+ * `blockDim.x == BlockSize`.
+ * @pre Every thread in the block reaches the block-wide reduction.
  * @pre The partial weights sum to a positive finite value.
  * @note At positive reference distance and exactly zero displacement, the
  * implementation writes a zero gradient at the nondifferentiable point.
  */
-template <bool calcEnergy>
+template <int blockSize, bool calcEnergy>
 __global__ static void
 StateKernel(double4 *__restrict__ restraintState, double *__restrict__ energy,
             const double4 *__restrict__ partialSums, const int numPartialSums,
@@ -409,24 +422,23 @@ StateKernel(double4 *__restrict__ restraintState, double *__restrict__ energy,
             const int referenceMaskX, const int referenceMaskY,
             const int referenceMaskZ, const double referenceDistance,
             const double boxx, const double boxy, const double boxz) {
-  double sumX = 0.0, sumY = 0.0, sumZ = 0.0, sumW = 0.0;
+  double sums[4] = {0.0, 0.0, 0.0, 0.0};
   for (int i = threadIdx.x; i < numPartialSums; i += blockDim.x) {
     const double4 partialSum = partialSums[i];
-    sumX += partialSum.x;
-    sumY += partialSum.y;
-    sumZ += partialSum.z;
-    sumW += partialSum.w;
+    sums[0] += partialSum.x;
+    sums[1] += partialSum.y;
+    sums[2] += partialSum.z;
+    sums[3] += partialSum.w;
   }
-  sumX = BlockReduceSum<double>(sumX);
-  sumY = BlockReduceSum<double>(sumY);
-  sumZ = BlockReduceSum<double>(sumZ);
-  sumW = BlockReduceSum<double>(sumW);
+
+  __shared__ BlockReduceSumStorage<double, blockSize, 4> cache;
+  BlockReduceSum<double, blockSize, 4>(sums, cache);
 
   if (threadIdx.x == 0) {
-    const double invTotW = 1.0 / sumW;
-    const double centerX = sumX * invTotW;
-    const double centerY = sumY * invTotW;
-    const double centerZ = sumZ * invTotW;
+    const double invTotW = 1.0 / sums[3];
+    const double centerX = sums[0] * invTotW;
+    const double centerY = sums[1] * invTotW;
+    const double centerZ = sums[2] * invTotW;
 
     int centerShiftCountX = 0, centerShiftCountY = 0, centerShiftCountZ = 0;
     double dx = 0.0, dy = 0.0, dz = 0.0;
@@ -648,28 +660,31 @@ void HarmonicCenterOfMassRestraintForce<AT, CT>::calcForce(
   // One stream establishes the reduction -> state -> distribution dependency
   // without host synchronization. Immediate launch checks do not report later
   // asynchronous execution failures.
-  cudaCheckLaunch(PartialSumsKernel<<<numBlocks, numThreads, 0, *m_Stream>>>(
-      m_PartialSums.getDeviceArray().data(),
-      m_AtomIndices.getDeviceArray().data(),
-      m_AtomWeights.getDeviceArray().data(), xyzq, m_NumSelected, m_BoxDimX,
-      m_BoxDimY, m_BoxDimZ));
+  cudaCheckLaunch(PartialSumsKernel<numThreads>
+                  <<<numBlocks, numThreads, 0, *m_Stream>>>(
+                      m_PartialSums.getDeviceArray().data(),
+                      m_AtomIndices.getDeviceArray().data(),
+                      m_AtomWeights.getDeviceArray().data(), xyzq,
+                      m_NumSelected, m_BoxDimX, m_BoxDimY, m_BoxDimZ));
 
   if (calcEnergy == true) {
-    cudaCheckLaunch(StateKernel<true><<<1, numThreads, 0, *m_Stream>>>(
-        m_RestraintState.getDeviceArray().data(),
-        m_EnergyVirial->getEnergyPointer("hmcm"),
-        m_PartialSums.getDeviceArray().data(), numPartialSums, m_ForceConstant,
-        m_ReferencePosition, m_ReferenceMaskX, m_ReferenceMaskY,
-        m_ReferenceMaskZ, m_ReferenceDistance, m_BoxDimX, m_BoxDimY,
-        m_BoxDimZ));
+    cudaCheckLaunch(StateKernel<numThreads, true>
+                    <<<1, numThreads, 0, *m_Stream>>>(
+                        m_RestraintState.getDeviceArray().data(),
+                        m_EnergyVirial->getEnergyPointer("hmcm"),
+                        m_PartialSums.getDeviceArray().data(), numPartialSums,
+                        m_ForceConstant, m_ReferencePosition, m_ReferenceMaskX,
+                        m_ReferenceMaskY, m_ReferenceMaskZ, m_ReferenceDistance,
+                        m_BoxDimX, m_BoxDimY, m_BoxDimZ));
   } else {
-    cudaCheckLaunch(StateKernel<false><<<1, numThreads, 0, *m_Stream>>>(
-        m_RestraintState.getDeviceArray().data(),
-        m_EnergyVirial->getEnergyPointer("hmcm"),
-        m_PartialSums.getDeviceArray().data(), numPartialSums, m_ForceConstant,
-        m_ReferencePosition, m_ReferenceMaskX, m_ReferenceMaskY,
-        m_ReferenceMaskZ, m_ReferenceDistance, m_BoxDimX, m_BoxDimY,
-        m_BoxDimZ));
+    cudaCheckLaunch(StateKernel<numThreads, false>
+                    <<<1, numThreads, 0, *m_Stream>>>(
+                        m_RestraintState.getDeviceArray().data(),
+                        m_EnergyVirial->getEnergyPointer("hmcm"),
+                        m_PartialSums.getDeviceArray().data(), numPartialSums,
+                        m_ForceConstant, m_ReferencePosition, m_ReferenceMaskX,
+                        m_ReferenceMaskY, m_ReferenceMaskZ, m_ReferenceDistance,
+                        m_BoxDimX, m_BoxDimY, m_BoxDimZ));
   }
 
   if (calcVirial == true) {

@@ -535,3 +535,39 @@ TEST_CASE("CharmmContextEnergyTableTracksPrintedEvaluations") {
   CHECK(std::isfinite(secondGradientRms));
   CHECK(secondGradientRms >= 0.0);
 }
+
+TEST_CASE("CharmmContextKineticEnergyReductionIsDeterministic") {
+  const auto checkKineticEnergy = [](const int numAtoms) {
+    CharmmContext context;
+    context.setNumAtoms(numAtoms);
+
+    std::vector<double4> velocitiesInverseMasses(
+        static_cast<std::size_t>(numAtoms));
+
+    for (double4 &velocityInverseMass : velocitiesInverseMasses) {
+      velocityInverseMass.x = 1.0;
+      velocityInverseMass.y = 2.0;
+      velocityInverseMass.z = 3.0;
+      velocityInverseMass.w = 0.5;
+    }
+
+    context.setVelocitiesInverseMasses(velocitiesInverseMasses);
+
+    const double expectedKineticEnergy = 14.0 * static_cast<double>(numAtoms);
+    const double firstKineticEnergy = context.getKineticEnergy();
+
+    REQUIRE(firstKineticEnergy == expectedKineticEnergy);
+
+    for (int repetition = 0; repetition < 8; repetition++)
+      CHECK(context.getKineticEnergy() == firstKineticEnergy);
+  };
+
+  SECTION("SingleFirstPassBlock") { checkKineticEnergy(17); }
+
+  SECTION("MultipleFinalPassIterations") {
+    // With 256 threads and two atoms per thread, this produces 257
+    // first-pass block sums. The final pass must therefore load the
+    // partial-sum element at index 256.
+    checkKineticEnergy(131073);
+  }
+}

@@ -145,9 +145,9 @@ public:
    * table history is reset.
    *
    * The force-manager association is not copied, so the result cannot evaluate
-   * forces until a force manager is attached separately. The kinetic-virial
-   * tensor member is default-constructed rather than copied by the current
-   * implementation.
+   * forces until a force manager is attached separately. The kinetic-energy
+   * partial-sum workspace and kinetic-virial tensor member are
+   * default-constructed rather than copied by the current implementation.
    *
    * @param[in] other Context whose current state is copied. The source remains
    * unchanged.
@@ -1109,17 +1109,17 @@ public: // Getters
   /**
    * @brief Computes and returns the current kinetic energy.
    *
-   * The calculation launches a CUDA reduction over velocity and inverse-mass
-   * storage, synchronizes the current CUDA device, and transfers the resulting
-   * scalar to host memory.
+   * The calculation performs a deterministic CUDA reduction over velocity and
+   * inverse-mass storage, synchronizes the current CUDA device, and transfers
+   * the resulting scalar to host memory.
    *
    * @return Kinetic energy in kilocalories per mole.
    *
    * @throws ApoCharmmError With code
    * `ApoCharmmErrorCode::NotInitialized` if the atom count or
    * velocity/inverse-mass storage is not initialized consistently.
-   * @throws ApoCharmmError With code `ApoCharmmErrorCode::Cuda` if clearing,
-   * launching, synchronizing, or transferring the kinetic-energy result fails.
+   * @throws ApoCharmmError With code `ApoCharmmErrorCode::Cuda` if workspace
+   * allocation, kernel launch, synchronization, or result transfer fails.
    */
   double getKineticEnergy(void);
 
@@ -1374,15 +1374,25 @@ public: // Specialized functions
   /**
    * @brief Computes kinetic energy into the context-owned device scalar.
    *
-   * The current implementation clears one device scalar, launches one block of
-   * 1024 threads, performs a block reduction, and synchronizes the current
-   * CUDA device.
+   * The implementation uses a fixed deterministic reduction hierarchy. The
+   * first pass calculates one block-indexed partial sum for each contiguous
+   * atom range. When multiple partial sums exist, a single-block second pass
+   * reduces them in a fixed index order and directly overwrites the result
+   * scalar. A one-block input writes the result directly and skips the second
+   * kernel.
+   *
+   * No floating-point atomic accumulation is used. The method synchronizes the
+   * current CUDA device before returning.
    *
    * @throws ApoCharmmError With code
    * `ApoCharmmErrorCode::NotInitialized` if atom and
    * velocity/inverse-mass storage are inconsistent.
-   * @throws ApoCharmmError With code `ApoCharmmErrorCode::Cuda` if clearing,
-   * launching, or synchronizing fails.
+   * @throws ApoCharmmError With code `ApoCharmmErrorCode::Cuda` if partial-sum
+   * storage allocation, kernel launch, or synchronization fails.
+   *
+   * @note Run-to-run arithmetic order is fixed for a given executable and
+   * launch configuration. Changing the block size, items per thread, compiler
+   * options, or CUDA target can change floating-point rounding.
    */
   void calculateKineticEnergy(void);
 
@@ -1573,6 +1583,8 @@ protected:
   /** Double-precision `[vx, vy, vz, inverse_mass]` host/device mirrors. */
   CudaContainer<double4> m_VelocitiesInverseMasses;
 
+  /** Stores one kinetic-energy partial sum per first-pass CUDA block. */
+  CudaContainer<double> m_KineticEnergyPartialSums;
   /** Single-element kinetic-energy result container. */
   CudaContainer<double> m_KineticEnergy;
   /** Nine-element pressure storage; pressure computation is not implemented. */

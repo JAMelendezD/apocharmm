@@ -27,6 +27,9 @@
 #include <sstream>
 #include <stdexcept>
 
+static constexpr int KE_BLOCK_SIZE = 256;
+static constexpr int KE_ATOMS_PER_THREAD = 2;
+
 static bool hasValidBoxDimensions(const std::vector<double> &boxDimensions) {
   if (boxDimensions.size() != 3)
     return false;
@@ -40,9 +43,10 @@ CharmmContext::CharmmContext(void)
       m_HasBoxDimensions(false), m_ForceManager(nullptr), m_NumAtoms(-1),
       m_NumDegreesOfFreedom(-1), m_Pbc(PBC::P1), m_HasPbc(false),
       m_CoordinatesChargesSP(), m_CoordinatesChargesDP(),
-      m_HasCoordinates(false), m_VelocitiesInverseMasses(), m_KineticEnergy(1),
-      m_Pressure(9), m_VirialKineticEnergyTensor(9),
-      m_EnergyTableEvaluationCount(0), m_PreviousPrintedPotentialEnergy(0.0),
+      m_HasCoordinates(false), m_VelocitiesInverseMasses(),
+      m_KineticEnergyPartialSums(), m_KineticEnergy(1), m_Pressure(9),
+      m_VirialKineticEnergyTensor(9), m_EnergyTableEvaluationCount(0),
+      m_PreviousPrintedPotentialEnergy(0.0),
       m_HasPreviousPrintedPotentialEnergy(false), m_Temperature(0.0f),
       m_UsingHolonomicConstraints(false) {}
 
@@ -1118,35 +1122,117 @@ void CharmmContext::resetNeighborList(void) {
 }
 
 /**
- * @brief Reduces per-atom kinetic energy into one device scalar.
+ * @brief Computes deterministic per-block kinetic-energy partial sums.
  *
- * Each thread accumulates
- * `0.5 * (vx^2 + vy^2 + vz^2) / inverse_mass` over a grid-stride loop. A
- * block-wide reduction produces one value per block, and thread zero adds that
- * value to `kineticEnergy`.
+ * Each block owns a contiguous range of `BlockSize * ItemsPerThread` atoms.
+ * Thread `t` processes offsets `t + item * BlockSize` within that range in
+ * increasing `item` order. Each participating atom contributes
+ * `0.5 * (vx^2 + vy^2 + vz^2) / inverse_mass`.
  *
- * The current caller launches exactly one 1024-thread block after clearing the
- * output scalar and synchronizes the current CUDA device before consuming it.
+ * A block-wide reduction combines the thread-local values. Thread zero writes
+ * exactly one scalar to `kineticEnergyPartialSums[blockIdx.x]`. Blocks never
+ * update the same output element, so the first pass requires no atomics and is
+ * independent of block scheduling order.
+ *
+ * @tparam blockSize Compile-time number of threads in each CUDA block. It must
+ * satisfy the requirements of `BlockReduceSumStorage`.
+ * @tparam itemsPerThread Positive compile-time maximum number of atoms
+ * processed by each thread.
+ * @param[out] kineticEnergyPartialSums Non-NULL device array containing at
+ * least `gridDim.x` elements. Every launched block overwrites its corresponding
+ * element.
+ * @param[in] velocitiesInverseMasses Non-NULL device array containing
+ * `numAtoms` records in `[vx, vy, vz, inverse_mass]` order.
+ * @param[in] numAtoms Positive number of records in
+ * `velocitiesInverseMasses`.
+ *
+ * @pre The kernel is launched with a one-dimensional block satisfying
+ * `blockDim.x == BlockSize`.
+ * @pre Every thread in the block reaches the block-wide reduction.
  */
-__global__ static void CalculateKineticEnergyKernel(
-    double *__restrict__ kineticEnergy,
+template <int blockSize, int atomsPerThread>
+__global__ static void CalculateKineticEnergyPartialSumsKernel(
+    double *__restrict__ kineticEnergyPartialSums,
     const double4 *__restrict__ velocitiesInverseMasses, const int numAtoms) {
-  const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  const int stride = gridDim.x * blockDim.x;
+  static_assert(atomsPerThread > 0, "atomsPerThread must be greater than zero");
 
-  double ke = 0.0;
-  for (int i = idx; i < numAtoms; i += stride) {
-    ke += 0.5 *
-          ((velocitiesInverseMasses[i].x * velocitiesInverseMasses[i].x) +
-           (velocitiesInverseMasses[i].y * velocitiesInverseMasses[i].y) +
-           (velocitiesInverseMasses[i].z * velocitiesInverseMasses[i].z)) /
-          velocitiesInverseMasses[i].w;
+  constexpr int ATOMS_PER_BLOCK = blockSize * atomsPerThread;
+
+  const int blockStart = blockIdx.x * ATOMS_PER_BLOCK;
+
+  double ke[1] = {0.0};
+
+#pragma unroll
+  for (int i = 0; i < atomsPerThread; i++) {
+    const int idx = i * blockSize + threadIdx.x + blockStart;
+
+    if (idx < numAtoms) {
+      const double4 velocityInverseMass = velocitiesInverseMasses[idx];
+
+      ke[0] += 0.5 *
+               (velocityInverseMass.x * velocityInverseMass.x +
+                velocityInverseMass.y * velocityInverseMass.y +
+                velocityInverseMass.z * velocityInverseMass.z) /
+               velocityInverseMass.w;
+    }
   }
 
-  ke = BlockReduceSum<double>(ke);
+  __shared__ BlockReduceSumStorage<double, blockSize, 1> cache;
+
+  BlockReduceSum<double, blockSize, 1>(ke, cache);
 
   if (threadIdx.x == 0)
-    atomicAdd(kineticEnergy, ke);
+    kineticEnergyPartialSums[blockIdx.x] = ke[0];
+
+  return;
+}
+
+/**
+ * @brief Reduces ordered block partial sums into one kinetic-energy scalar.
+ *
+ * Thread `t` accumulates partial-sum elements whose indices are congruent to
+ * `t` modulo `BlockSize`, visiting those elements in increasing index order.
+ * Each loop iteration loads up to two consecutive thread-strided elements.
+ *
+ * A single block-wide reduction combines the thread-local values, after which
+ * thread zero overwrites `kineticEnergy[0]`. The fixed index mapping and fixed
+ * block reduction tree avoid the nondeterministic ordering of floating-point
+ * atomic accumulation.
+ *
+ * @tparam blockSize Compile-time number of threads in the CUDA block. It must
+ * satisfy the requirements of `BlockReduceSumStorage`.
+ * @param[out] kineticEnergy Non-NULL device array containing at least one
+ * element. Element zero is overwritten with the complete sum.
+ * @param[in] kineticEnergyPartialSums Non-NULL device array containing
+ * `numPartialSums` first-pass block sums in ascending block-index order.
+ * @param[in] numPartialSums Positive number of values in
+ * `kineticEnergyPartialSums`.
+ *
+ * @pre The kernel is launched with exactly one one-dimensional block satisfying
+ * `blockDim.x == BlockSize`.
+ * @pre Every thread in the block reaches the block-wide reduction.
+ */
+template <int blockSize>
+__global__ static void
+FinalizeKineticEnergyKernel(double *__restrict__ kineticEnergy,
+                            const double *__restrict__ kineticEnergyPartialSums,
+                            const int numPartialSums) {
+  double ke[1] = {0.0};
+
+  for (int i = threadIdx.x; i < numPartialSums; i += 2 * blockSize) {
+    ke[0] += kineticEnergyPartialSums[i];
+
+    const int j = i + blockSize;
+    if (j < numPartialSums)
+      ke[0] += kineticEnergyPartialSums[j];
+  }
+
+  __shared__ BlockReduceSumStorage<double, blockSize, 1> cache;
+
+  BlockReduceSum<double, blockSize, 1>(ke, cache);
+
+  if (threadIdx.x == 0)
+    kineticEnergy[0] = ke[0];
 
   return;
 }
@@ -1158,13 +1244,33 @@ void CharmmContext::calculateKineticEnergy(void) {
                     "Atom count and velocity storage must be initialized "
                     "before calculating kinetic energy");
 
-  cudaCheck(
-      cudaMemset(static_cast<void *>(m_KineticEnergy.getDeviceArray().data()),
-                 0, sizeof(double)));
+  constexpr int ATOMS_PER_BLOCK = KE_BLOCK_SIZE * KE_ATOMS_PER_THREAD;
 
-  cudaCheckLaunch(CalculateKineticEnergyKernel<<<1, 1024>>>(
-      m_KineticEnergy.getDeviceArray().data(),
-      m_VelocitiesInverseMasses.getDeviceArray().data(), m_NumAtoms));
+  const int numBlocks = (m_NumAtoms - 1) / ATOMS_PER_BLOCK + 1;
+
+  if (numBlocks == 1) {
+    cudaCheckLaunch(CalculateKineticEnergyPartialSumsKernel<
+                    KE_BLOCK_SIZE, KE_ATOMS_PER_THREAD><<<1, KE_BLOCK_SIZE>>>(
+        m_KineticEnergy.getDeviceArray().data(),
+        m_VelocitiesInverseMasses.getDeviceArray().data(), m_NumAtoms));
+  } else {
+    const std::size_t numPartialSums = static_cast<std::size_t>(numBlocks);
+
+    if (m_KineticEnergyPartialSums.size() != numPartialSums)
+      m_KineticEnergyPartialSums.resize(numPartialSums);
+
+    cudaCheckLaunch(
+        CalculateKineticEnergyPartialSumsKernel<KE_BLOCK_SIZE,
+                                                KE_ATOMS_PER_THREAD>
+        <<<numBlocks, KE_BLOCK_SIZE>>>(
+            m_KineticEnergyPartialSums.getDeviceArray().data(),
+            m_VelocitiesInverseMasses.getDeviceArray().data(), m_NumAtoms));
+
+    cudaCheckLaunch(
+        FinalizeKineticEnergyKernel<KE_BLOCK_SIZE><<<1, KE_BLOCK_SIZE>>>(
+            m_KineticEnergy.getDeviceArray().data(),
+            m_KineticEnergyPartialSums.getDeviceArray().data(), numBlocks));
+  }
 
   cudaCheck(cudaDeviceSynchronize());
 

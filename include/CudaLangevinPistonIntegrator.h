@@ -772,6 +772,16 @@ protected:
   /** @brief Stores per-atom holonomic-constraint forces. */
   CudaContainer<double4> m_HolonomicConstraintForces;
 
+  /**
+   * @brief Stores component-major pressure-related reduction partial sums.
+   *
+   * For a reduction with `numBlocks` first-pass blocks, component `c` and block
+   * `b` are stored at `c * numBlocks + b`. The same workspace is reused
+   * sequentially for the constraint virial, average kinetic pressure, and delta
+   * kinetic pressure.
+   */
+  CudaContainer<double> m_PressureReductionPartialSums;
+
   /** @brief Stores the nine-element constraint virial tensor. */
   CudaContainer<double> m_HolonomicConstraintVirial;
 

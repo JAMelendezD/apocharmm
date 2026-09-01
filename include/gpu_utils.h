@@ -15,8 +15,7 @@
 
 #include <stdio.h>
 
-static const int warpsize = 32;
-// static __constant__ const int warpsize = 32;
+static constexpr int warpsize = 32;
 
 static __constant__ const float FORCE_SCALE = (float)(1ll << 40);
 static __constant__ const double INV_FORCE_SCALE =
@@ -427,6 +426,11 @@ __forceinline__ __device__ void get_val(long long int &val, const int wid) {
 #endif
 //----------------------------------------------------------------------------------------
 
+// JEG260901
+// Preconditions:
+// - All 32 lanes in the warp execute this function uniformly.
+// - Every lane contributes a valid value, so use zero for inactive data lanes.
+// - Only lane 0 contains the complete sum.
 template <typename T> __device__ __forceinline__ T WarpReduceSum(T value) {
   value += __shfl_down_sync(0xFFFFFFFF, value, 16, warpSize);
   value += __shfl_down_sync(0xFFFFFFFF, value, 8, warpSize);
@@ -458,6 +462,81 @@ template <> __device__ __forceinline__ double4 WarpReduceSum(double4 value) {
   value.w += __shfl_down_sync(0xFFFFFFFF, value.w, 2, warpSize);
   value.w += __shfl_down_sync(0xFFFFFFFF, value.w, 1, warpSize);
   return value;
+}
+
+template <typename T, int BlockSize, int NumValues>
+struct BlockReduceSumStorage {
+  static_assert(NumValues > 0, "NumValues must be positive");
+  static_assert(BlockSize >= warpsize,
+                "BlockSize must contain at least one full warp");
+  static_assert(BlockSize <= 1024,
+                "BlockSize exceeds the supported CUDA block size");
+  static_assert(BlockSize % warpsize == 0,
+                "BlockSize must be a multiple of the warp size");
+
+  T warpSums[NumValues][BlockSize / warpsize];
+};
+
+/**
+ * @brief Independently reduces NumValues values across one full CUDA warp.
+ *
+ * Every lane must participate. Complete results are valid only in lane zero.
+ */
+template <typename T, int NumValues>
+__device__ __forceinline__ void WarpReduceSum(T (&values)[NumValues]) {
+#pragma unroll
+  for (int offset = warpsize / 2; offset > 0; offset >>= 1) {
+#pragma unroll
+    for (int i = 0; i < NumValues; i++)
+      values[i] += __shfl_down_sync(0xFFFFFFFFu, values[i], offset, warpsize);
+  }
+  return;
+}
+
+/**
+ * @brief Independently reduces NumValues values across one CUDA block.
+ *
+ * BlockSize must equal blockDim.x. Every block thread must invoke the
+ * collective uniformly. Complete results are valid only in thread zero.
+ *
+ * A block barrier is required before storage is reused for another collective.
+ */
+template <typename T, int BlockSize, int NumValues>
+__device__ __forceinline__ void
+BlockReduceSum(T (&values)[NumValues],
+               BlockReduceSumStorage<T, BlockSize, NumValues> &storage) {
+  constexpr int NUM_WARPS = BlockSize / warpsize;
+
+  const unsigned int lane =
+      static_cast<unsigned int>(threadIdx.x) & (warpsize - 1);
+  const unsigned int warpIdx =
+      static_cast<unsigned int>(threadIdx.x) / warpsize;
+
+  if constexpr (BlockSize == warpsize)
+    WarpReduceSum<T, NumValues>(values);
+  else {
+    WarpReduceSum<T, NumValues>(values);
+
+    if (lane == 0) {
+#pragma unroll
+      for (int i = 0; i < NumValues; i++)
+        storage.warpSums[i][warpIdx] = values[i];
+    }
+
+    __syncthreads();
+
+    if (warpIdx == 0) {
+#pragma unroll
+      for (int i = 0; i < NumValues; i++) {
+        values[i] =
+            (lane < NUM_WARPS) ? storage.warpSums[i][lane] : static_cast<T>(0);
+      }
+
+      WarpReduceSum<T, NumValues>(values);
+    }
+  }
+
+  return;
 }
 
 template <typename T> __device__ __forceinline__ T BlockReduceSum(T value) {
